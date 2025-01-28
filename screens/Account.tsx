@@ -6,14 +6,15 @@ import {Session} from '@supabase/supabase-js'
 import Avatar from '@/components/Avatar'
 
 export default function Account({ session }: { session: Session }) {
-  const [loading, setLoading] = useState(true)
-  const [username, setUsername] = useState('')
-  const [website, setWebsite] = useState('')
-  const [avatarUrl, setAvatarUrl] = useState('')
+  console.log('Am i Here???', session)
+  const [ loading, setLoading ] = useState(true)
+  const [ username, setUsername ] = useState('')
+  const [ website, setWebsite ] = useState('')
+  const [ avatarUrl, setAvatarUrl ] = useState('')
 
   useEffect(() => {
     if (session) getProfile()
-  }, [session])
+  }, [ session ])
 
   async function getProfile() {
     try {
@@ -90,17 +91,17 @@ export default function Account({ session }: { session: Session }) {
           }}
         />
       </View>
-      <View style={[styles.verticallySpaced, styles.mt20]}>
-        <Input label="Email" value={session?.user?.email} disabled />
+      <View style={[ styles.verticallySpaced, styles.mt20 ]}>
+        <Input label="Email" value={session?.user?.email} disabled/>
       </View>
       <View style={styles.verticallySpaced}>
-        <Input label="Username" value={username || ''} onChangeText={(text) => setUsername(text)} />
+        <Input label="Username" value={username || ''} onChangeText={(text) => setUsername(text)}/>
       </View>
       <View style={styles.verticallySpaced}>
-        <Input label="Website" value={website || ''} onChangeText={(text) => setWebsite(text)} />
+        <Input label="Website" value={website || ''} onChangeText={(text) => setWebsite(text)}/>
       </View>
 
-      <View style={[styles.verticallySpaced, styles.mt20]}>
+      <View style={[ styles.verticallySpaced, styles.mt20 ]}>
         <Button
           title={loading ? 'Loading ...' : 'Update'}
           onPress={() => updateProfile({ username, website, avatar_url: avatarUrl })}
@@ -109,7 +110,7 @@ export default function Account({ session }: { session: Session }) {
       </View>
 
       <View style={styles.verticallySpaced}>
-        <Button title="Sign Out" onPress={() => supabase.auth.signOut()} />
+        <Button title="Sign Out" onPress={() => supabase.auth.signOut()}/>
       </View>
     </View>
   )

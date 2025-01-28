@@ -1,17 +1,7 @@
 import React, {useState} from 'react';
-import {Alert, AppState, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View,} from 'react-native';
+import {Alert, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View} from 'react-native';
 import {supabase} from '@/utils/supabase';
 
-// Auto refresh setup
-AppState.addEventListener('change', (state) => {
-  if (state === 'active') {
-    supabase.auth.startAutoRefresh();
-  } else {
-    supabase.auth.stopAutoRefresh();
-  }
-});
-
-// Reusable Input Component
 // @ts-ignore
 const InputField = ({ label, placeholder, value, onChangeText, secureTextEntry = false }) => (
   <View style={styles.inputContainer}>
@@ -29,17 +19,6 @@ const InputField = ({ label, placeholder, value, onChangeText, secureTextEntry =
   </View>
 );
 
-// Reusable Button Component
-// @ts-ignore
-const Button = ({ title, onPress, disabled = false, style = {} }) => (
-  <TouchableOpacity
-    onPress={onPress}
-    disabled={disabled}
-    style={[styles.button, disabled && styles.buttonDisabled, style]}>
-    <Text style={styles.buttonText}>{title}</Text>
-  </TouchableOpacity>
-);
-
 export default function Auth() {
   const [form, setForm] = useState({
     email: '',
@@ -54,7 +33,7 @@ export default function Auth() {
       password: form.password,
     });
 
-    if (error) Alert.alert(error.message);
+    if (error) Alert.alert('Error', error.message);
     setLoading(false);
   }
 
@@ -68,8 +47,8 @@ export default function Auth() {
       password: form.password,
     });
 
-    if (error) Alert.alert(error.message);
-    if (!session) Alert.alert('Please check your inbox for email verification!');
+    if (error) Alert.alert('Error', error.message);
+    if (!session) Alert.alert('Success', 'Please check your inbox for email verification!');
     setLoading(false);
   }
 
@@ -97,7 +76,13 @@ export default function Auth() {
           onChangeText={(password: string) => setForm({ ...form, password })}
         />
 
-        <Button title="Sign in" onPress={signInWithEmail} disabled={loading} />
+        <TouchableOpacity
+          onPress={signInWithEmail}
+          disabled={loading}
+          style={[styles.button, loading && styles.buttonDisabled]}>
+          <Text style={styles.buttonText}>Sign in</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           onPress={() => Alert.alert('Coming soon', 'Password reset functionality will be added soon.')}>
           <Text style={styles.link}>Forgot password?</Text>
@@ -106,7 +91,7 @@ export default function Auth() {
 
       <TouchableOpacity onPress={signUpWithEmail} disabled={loading}>
         <Text style={styles.footer}>
-          Don’t have an account? <Text style={{ textDecorationLine: 'underline' }}>Sign up</Text>
+          Don't have an account? <Text style={{ textDecorationLine: 'underline' }}>Sign up</Text>
         </Text>
       </TouchableOpacity>
     </SafeAreaView>
@@ -126,13 +111,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 31,
     fontWeight: '700',
-    color: '#1D2A32',
     marginBottom: 6,
   },
   subtitle: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#929292',
+    opacity: 0.7,
   },
   form: {
     marginVertical: 20,
@@ -143,7 +127,6 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 17,
     fontWeight: '600',
-    color: '#222',
     marginBottom: 8,
   },
   input: {
@@ -152,7 +135,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 16,
     fontSize: 15,
-    color: '#222',
     borderWidth: 1,
     borderColor: '#C9D3DB',
   },
