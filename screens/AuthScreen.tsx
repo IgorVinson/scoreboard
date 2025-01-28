@@ -1,95 +1,187 @@
-import React, {useState} from 'react'
-import {Alert, AppState, StyleSheet, View} from 'react-native'
-import {supabase} from '@/utils/supabase'
-import {Button, Input} from '@rneui/themed'
+import React, {useState} from 'react';
+import {Alert, AppState, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View,} from 'react-native';
+import {supabase} from '@/utils/supabase';
 
-// Tells Supabase Auth to continuously refresh the session automatically if
-// the app is in the foreground. When this is added, you will continue to receive
-// `onAuthStateChange` events with the `TOKEN_REFRESHED` or `SIGNED_OUT` event
-// if the user's session is terminated. This should only be registered once.
+// Auto refresh setup
 AppState.addEventListener('change', (state) => {
   if (state === 'active') {
-    supabase.auth.startAutoRefresh()
+    supabase.auth.startAutoRefresh();
   } else {
-    supabase.auth.stopAutoRefresh()
+    supabase.auth.stopAutoRefresh();
   }
-})
+});
+
+// Reusable Input Component
+// @ts-ignore
+const InputField = ({ label, placeholder, value, onChangeText, secureTextEntry = false }) => (
+  <View style={styles.inputContainer}>
+    <Text style={styles.inputLabel}>{label}</Text>
+    <TextInput
+      autoCapitalize="none"
+      autoCorrect={false}
+      placeholder={placeholder}
+      placeholderTextColor="#6b7280"
+      style={styles.input}
+      value={value}
+      onChangeText={onChangeText}
+      secureTextEntry={secureTextEntry}
+    />
+  </View>
+);
+
+// Reusable Button Component
+// @ts-ignore
+const Button = ({ title, onPress, disabled = false, style = {} }) => (
+  <TouchableOpacity
+    onPress={onPress}
+    disabled={disabled}
+    style={[styles.button, disabled && styles.buttonDisabled, style]}>
+    <Text style={styles.buttonText}>{title}</Text>
+  </TouchableOpacity>
+);
 
 export default function Auth() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState({
+    email: '',
+    password: '',
+  });
+  const [loading, setLoading] = useState(false);
 
   async function signInWithEmail() {
-    setLoading(true)
+    setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({
-      email: email,
-      password: password,
-    })
+      email: form.email,
+      password: form.password,
+    });
 
-    if (error) Alert.alert(error.message)
-    setLoading(false)
+    if (error) Alert.alert(error.message);
+    setLoading(false);
   }
 
   async function signUpWithEmail() {
-    setLoading(true)
+    setLoading(true);
     const {
       data: { session },
       error,
     } = await supabase.auth.signUp({
-      email: email,
-      password: password,
-    })
+      email: form.email,
+      password: form.password,
+    });
 
-    if (error) Alert.alert(error.message)
-    if (!session) Alert.alert('Please check your inbox for email verification!')
-    setLoading(false)
+    if (error) Alert.alert(error.message);
+    if (!session) Alert.alert('Please check your inbox for email verification!');
+    setLoading(false);
   }
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.verticallySpaced, styles.mt20]}>
-        <Input
-          label="Email"
-          leftIcon={{ type: 'font-awesome', name: 'envelope' }}
-          onChangeText={(text) => setEmail(text)}
-          value={email}
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>
+          Welcome to <Text style={{ color: '#075eec' }}>MyApp</Text>
+        </Text>
+        <Text style={styles.subtitle}>Get access to your portfolio and more</Text>
+      </View>
+
+      <View style={styles.form}>
+        <InputField
+          label="Email address"
           placeholder="email@address.com"
-          autoCapitalize={'none'}
+          value={form.email}
+          onChangeText={(email: string) => setForm({ ...form, email })}
         />
-      </View>
-      <View style={styles.verticallySpaced}>
-        <Input
+        <InputField
           label="Password"
-          leftIcon={{ type: 'font-awesome', name: 'lock' }}
-          onChangeText={(text) => setPassword(text)}
-          value={password}
-          secureTextEntry={true}
-          placeholder="Password"
-          autoCapitalize={'none'}
+          placeholder="********"
+          secureTextEntry
+          value={form.password}
+          onChangeText={(password: string) => setForm({ ...form, password })}
         />
+
+        <Button title="Sign in" onPress={signInWithEmail} disabled={loading} />
+        <TouchableOpacity
+          onPress={() => Alert.alert('Coming soon', 'Password reset functionality will be added soon.')}>
+          <Text style={styles.link}>Forgot password?</Text>
+        </TouchableOpacity>
       </View>
-      <View style={[styles.verticallySpaced, styles.mt20]}>
-        <Button title="Sign in" disabled={loading} onPress={() => signInWithEmail()} />
-      </View>
-      <View style={styles.verticallySpaced}>
-        <Button title="Sign up" disabled={loading} onPress={() => signUpWithEmail()} />
-      </View>
-    </View>
-  )
+
+      <TouchableOpacity onPress={signUpWithEmail} disabled={loading}>
+        <Text style={styles.footer}>
+          Don’t have an account? <Text style={{ textDecorationLine: 'underline' }}>Sign up</Text>
+        </Text>
+      </TouchableOpacity>
+    </SafeAreaView>
+  );
 }
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 40,
-    padding: 12,
+    flex: 1,
+    backgroundColor: '#e8ecf4',
+    padding: 20,
   },
-  verticallySpaced: {
-    paddingTop: 4,
-    paddingBottom: 4,
-    alignSelf: 'stretch',
+  header: {
+    alignItems: 'center',
+    marginVertical: 36,
   },
-  mt20: {
-    marginTop: 20,
+  title: {
+    fontSize: 31,
+    fontWeight: '700',
+    color: '#1D2A32',
+    marginBottom: 6,
   },
-})
+  subtitle: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#929292',
+  },
+  form: {
+    marginVertical: 20,
+  },
+  inputContainer: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#222',
+    marginBottom: 8,
+  },
+  input: {
+    height: 50,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    fontSize: 15,
+    color: '#222',
+    borderWidth: 1,
+    borderColor: '#C9D3DB',
+  },
+  button: {
+    backgroundColor: '#075eec',
+    borderRadius: 30,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginVertical: 10,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  buttonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  link: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#075eec',
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  footer: {
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginVertical: 20,
+  },
+});
