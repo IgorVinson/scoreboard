@@ -1,0 +1,55 @@
+ResultFlow/
+│── 📁 app/                      # Next.js 
+│   ├── 📁 dashboard/            # Dashboard pages
+│   │   ├── 📄 page.tsx          # Main dashboard page
+│   │   ├── 📁 components/       # UI components for dashboard
+│   │   │   ├── 📄 MetricsTable.tsx # Table component for displaying metrics
+│   │   │   ├── 📄 GraphView.tsx    # Graph visualization for metrics trends
+│   │   │   ├── 📄 ReportCard.tsx   # Summary card for reports
+│   ├── 📁 auth/                 # Authentication pages
+│   │   ├── 📄 login.tsx         # Login page with Supabase auth
+│   │   ├── 📄 register.tsx      # User registration
+│   ├── 📁 reports/              # Report viewing pages
+│   │   ├── 📄 page.tsx          # List of reports
+│   │   ├── 📄 [reportId].tsx    # Dynamic page for viewing individual reports
+│   ├── 📄 layout.tsx            # App layout wrapper
+│   ├── 📄 page.tsx              # Landing page
+│
+│── 📁 components/               # Shared UI components
+│   ├── 📄 Navbar.tsx            # Main navigation bar
+│   ├── 📄 Sidebar.tsx           # Sidebar for navigation
+│   ├── 📄 Button.tsx            # Reusable button component
+│
+│── 📁 lib/                      # Utilities and helpers
+│   ├── 📄 supabase.ts           # Supabase client configuration
+│   ├── 📄 auth.ts               # Authentication functions
+│   ├── 📄 fetchMetrics.ts       # API function to fetch metrics
+│
+│── 📁 db/                       # Database management with Supabase
+│   ├── 📄 schema.sql            # SQL schema for tables
+│   ├── 📄 seed.sql              # Initial database seed data
+│
+│── 📁 api/                      # API route handlers (Next.js Server Actions)
+│   ├── 📄 metrics.ts            # API handler for fetching metrics
+│   ├── 📄 reports.ts            # API handler for report generation
+│
+│── 📁 styles/                   # Styling (Tailwind CSS)
+│   ├── 📄 globals.css           # Global styles
+│   ├── 📄 dashboard.module.css  # Dashboard-specific styles
+│
+│── 📁 public/                   # Static assets (images, icons)
+│   ├── 📄 logo.svg              # Project logo
+│
+│── 📁 scripts/                  # Utility scripts for automation
+│   ├── 📄 generateReport.ts     # Script to generate reports programmatically
+│   ├── 📄 importData.ts         # Script to import initial data
+│
+│── 📁 tests/                    # Jest and Cypress tests
+│   ├── 📄 dashboard.test.tsx    # Unit tests for dashboard components
+│   ├── 📄 api.test.ts           # API integration tests
+│
+│── 📄 .env.local                # Environment variables (Supabase credentials)
+│── 📄 .gitignore                # Ignore sensitive files
+│── 📄 next.config.js            # Next.js configuration
+│── 📄 package.json              # Dependencies and scripts
+│── 📄 README.md                 # Project documentation
