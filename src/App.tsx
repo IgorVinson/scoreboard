@@ -1,11 +1,30 @@
+import { useEffect } from 'react';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { Dashboard } from '@/components/dashboard';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import { AuthPage } from '@/components/auth/auth-page';
+import { supabase } from '@/lib/supabase';
 
 function AppContent() {
-  const { user, loading } = useAuth();
+  const { user, loading, session } = useAuth();
+
+  useEffect(() => {
+    // Attempt to restore session on mount
+    const restoreSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.expires_at) {
+        const expiresAt = new Date(session.expires_at * 1000);
+        const now = new Date();
+        if (expiresAt < now) {
+          // Session has expired, sign out
+          await supabase.auth.signOut();
+        }
+      }
+    };
+
+    restoreSession();
+  }, []);
 
   if (loading) {
     return (
