@@ -24,3 +24,9 @@ dist-ssr
 *.sw?
 
 ResultFlowMoodboard.pdf
+
+# Supabase
+.env
+.env.*
+!.env.example
+supabase/.temp
