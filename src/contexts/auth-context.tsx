@@ -14,38 +14,47 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+// Експортуємо хук окремо
+const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
+// Експортуємо компонент окремо
+const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
+        setUser(session?.user ?? null);
+      } catch (error) {
+        console.error('Error getting session:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
 
     // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (_event === 'SIGNED_IN' || _event === 'SIGNED_OUT') {
+        setSession(session);
+        setUser(session?.user ?? null);
+      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
-
-  // Configure session persistence
-  useEffect(() => {
-    supabase.auth.setSession({
-      access_token: session?.access_token ?? '',
-      refresh_token: session?.refresh_token ?? '',
-    });
-  }, [session]);
 
   const signIn = async (email: string, password: string) => {
     const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -85,21 +94,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
-        // Configure session duration to 3 days
-        sessionTime: 60 * 60 * 24 * 3, // 3 days in seconds
-      },
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+          include_granted_scopes: 'true'
+        }
+      }
     });
 
     if (error) {
+      console.error('Google sign in error:', error);
       throw new Error(error.message);
     }
   };
 
   const signOut = async () => {
-    const { error: signOutError } = await supabase.auth.signOut();
+    try {
+      const { error } = await supabase.auth.signOut({
+        scope: 'global'
+      });
 
-    if (signOutError) {
-      throw new Error(signOutError.message);
+      if (error) {
+        console.error('Sign out error:', error);
+        throw error;
+      }
+
+      // Clear local state
+      setUser(null);
+      setSession(null);
+      
+      // Force reload to clear any cached state
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Sign out error:', error);
+      throw error;
     }
   };
 
@@ -118,12 +146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
-}
+};
 
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-}
+// Експортуємо все разом
+export { AuthProvider, useAuth };

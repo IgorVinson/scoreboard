@@ -26,7 +26,8 @@ export function AuthForm({ mode, onToggleMode }: AuthFormProps) {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    name: '',
+    firstName: '',
+    lastName: '',
   });
   const { signIn, signUp, signInWithGoogle } = useAuth();
   const { toast } = useToast();
@@ -40,7 +41,14 @@ export function AuthForm({ mode, onToggleMode }: AuthFormProps) {
       if (mode === 'signin') {
         await signIn(formData.email, formData.password);
       } else {
-        await signUp(formData.email, formData.password, formData.name);
+        await signUp(
+          formData.email, 
+          formData.password, 
+          {
+            given_name: formData.firstName,
+            family_name: formData.lastName
+          }
+        );
         setShowVerificationAlert(true);
       }
     } catch (error) {
@@ -131,14 +139,29 @@ export function AuthForm({ mode, onToggleMode }: AuthFormProps) {
         <form onSubmit={handleSubmit} className='space-y-4'>
           {mode === 'signup' && (
             <div className='space-y-2'>
-              <Label htmlFor='name'>Name</Label>
+              <Label htmlFor='firstName'>First Name</Label>
               <Input
-                id='name'
+                id='firstName'
                 type='text'
-                placeholder='John Doe'
-                value={formData.name}
+                placeholder='John'
+                value={formData.firstName}
                 onChange={e =>
-                  setFormData({ ...formData, name: e.target.value })
+                  setFormData({ ...formData, firstName: e.target.value })
+                }
+                required
+              />
+            </div>
+          )}
+          {mode === 'signup' && (
+            <div className='space-y-2'>
+              <Label htmlFor='lastName'>Last Name</Label>
+              <Input
+                id='lastName'
+                type='text'
+                placeholder='Doe'
+                value={formData.lastName}
+                onChange={e =>
+                  setFormData({ ...formData, lastName: e.target.value })
                 }
                 required
               />
