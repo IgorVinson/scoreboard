@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { Dashboard } from '@/components/dashboard';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import { DataProvider } from '@/contexts/data-context';
+import { SoloModeProvider } from '@/contexts/solo-mode-context';
 import { AuthPage } from '@/components/auth/auth-page';
 import { supabase } from '@/lib/supabase';
 
@@ -13,7 +14,9 @@ function AppContent() {
   useEffect(() => {
     // Attempt to restore session on mount
     const restoreSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (session?.expires_at) {
         const expiresAt = new Date(session.expires_at * 1000);
         const now = new Date();
@@ -29,8 +32,8 @@ function AppContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className='min-h-screen flex items-center justify-center'>
+        <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-primary'></div>
       </div>
     );
   }
@@ -40,11 +43,13 @@ function AppContent() {
 
 function App() {
   return (
-    <ThemeProvider defaultTheme="system" storageKey="ui-theme">
+    <ThemeProvider defaultTheme='system' storageKey='ui-theme'>
       <AuthProvider>
         <DataProvider>
-          <AppContent />
-          <Toaster />
+          <SoloModeProvider>
+            <AppContent />
+            <Toaster />
+          </SoloModeProvider>
         </DataProvider>
       </AuthProvider>
     </ThemeProvider>

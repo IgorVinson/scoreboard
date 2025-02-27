@@ -23,6 +23,7 @@ export interface User {
   last_name: string | null;
   phone_number: string | null;
   role: string;
+  mode: 'SOLO' | 'TEAM';
   company_id: string | null;
   team_id: string | null;
   profile_completed: boolean;
@@ -102,8 +103,9 @@ const saveCollection = <T>(key: string, data: T[]): void => {
 };
 
 // Companies
-export const getCompanies = (): Company[] => getCollection<Company>('companies');
-export const getCompanyById = (id: string): Company | undefined => 
+export const getCompanies = (): Company[] =>
+  getCollection<Company>('companies');
+export const getCompanyById = (id: string): Company | undefined =>
   getCompanies().find(company => company.id === id);
 
 export const createCompany = (name: string): Company => {
@@ -113,35 +115,38 @@ export const createCompany = (name: string): Company => {
     id: generateUUID(),
     name,
     created_at: now,
-    updated_at: now
+    updated_at: now,
   };
-  
+
   companies.push(newCompany);
   saveCollection('companies', companies);
   return newCompany;
 };
 
-export const updateCompany = (id: string, data: Partial<Company>): Company | null => {
+export const updateCompany = (
+  id: string,
+  data: Partial<Company>
+): Company | null => {
   const companies = getCompanies();
   const index = companies.findIndex(company => company.id === id);
-  
+
   if (index === -1) return null;
-  
+
   companies[index] = {
     ...companies[index],
     ...data,
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   };
-  
+
   saveCollection('companies', companies);
   return companies[index];
 };
 
 // Teams
 export const getTeams = (): Team[] => getCollection<Team>('teams');
-export const getTeamById = (id: string): Team | undefined => 
+export const getTeamById = (id: string): Team | undefined =>
   getTeams().find(team => team.id === id);
-export const getTeamsByCompany = (companyId: string): Team[] => 
+export const getTeamsByCompany = (companyId: string): Team[] =>
   getTeams().filter(team => team.company_id === companyId);
 
 export const createTeam = (name: string, companyId: string): Team => {
@@ -152,9 +157,9 @@ export const createTeam = (name: string, companyId: string): Team => {
     name,
     company_id: companyId,
     created_at: now,
-    updated_at: now
+    updated_at: now,
   };
-  
+
   teams.push(newTeam);
   saveCollection('teams', teams);
   return newTeam;
@@ -162,9 +167,9 @@ export const createTeam = (name: string, companyId: string): Team => {
 
 // Users
 export const getUsers = (): User[] => getCollection<User>('users');
-export const getUserById = (id: string): User | undefined => 
+export const getUserById = (id: string): User | undefined =>
   getUsers().find(user => user.id === id);
-export const getUsersByCompany = (companyId: string): User[] => 
+export const getUsersByCompany = (companyId: string): User[] =>
   getUsers().filter(user => user.company_id === companyId);
 
 export const createUser = (userData: Partial<User>): User => {
@@ -181,9 +186,9 @@ export const createUser = (userData: Partial<User>): User => {
     team_id: userData.team_id || null,
     profile_completed: userData.profile_completed || false,
     created_at: now,
-    updated_at: now
+    updated_at: now,
   };
-  
+
   users.push(newUser);
   saveCollection('users', users);
   return newUser;
@@ -192,24 +197,24 @@ export const createUser = (userData: Partial<User>): User => {
 export const updateUser = (id: string, data: Partial<User>): User | null => {
   const users = getUsers();
   const index = users.findIndex(user => user.id === id);
-  
+
   if (index === -1) return null;
-  
+
   users[index] = {
     ...users[index],
     ...data,
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   };
-  
+
   saveCollection('users', users);
   return users[index];
 };
 
 // Metrics
 export const getMetrics = (): Metric[] => getCollection<Metric>('metrics');
-export const getMetricById = (id: string): Metric | undefined => 
+export const getMetricById = (id: string): Metric | undefined =>
   getMetrics().find(metric => metric.id === id);
-export const getMetricsByCompany = (companyId: string): Metric[] => 
+export const getMetricsByCompany = (companyId: string): Metric[] =>
   getMetrics().filter(metric => metric.company_id === companyId);
 
 export const createMetric = (metricData: Partial<Metric>): Metric => {
@@ -223,9 +228,9 @@ export const createMetric = (metricData: Partial<Metric>): Metric => {
     measurement_unit: metricData.measurement_unit || 'NUMBER',
     company_id: metricData.company_id || '',
     created_at: now,
-    updated_at: now
+    updated_at: now,
   };
-  
+
   metrics.push(newMetric);
   saveCollection('metrics', metrics);
   return newMetric;
@@ -233,9 +238,9 @@ export const createMetric = (metricData: Partial<Metric>): Metric => {
 
 // Plans
 export const getPlans = (): Plan[] => getCollection<Plan>('plans');
-export const getPlanById = (id: string): Plan | undefined => 
+export const getPlanById = (id: string): Plan | undefined =>
   getPlans().find(plan => plan.id === id);
-export const getPlansByUser = (userId: string): Plan[] => 
+export const getPlansByUser = (userId: string): Plan[] =>
   getPlans().filter(plan => plan.user_id === userId);
 
 export const createPlan = (planData: Partial<Plan>): Plan => {
@@ -251,22 +256,25 @@ export const createPlan = (planData: Partial<Plan>): Plan => {
     status: planData.status || 'DRAFT',
     last_edited_by: planData.last_edited_by || null,
     created_at: now,
-    updated_at: now
+    updated_at: now,
   };
-  
+
   plans.push(newPlan);
   saveCollection('plans', plans);
   return newPlan;
 };
 
 // Daily Reports
-export const getDailyReports = (): DailyReport[] => getCollection<DailyReport>('daily_reports');
-export const getDailyReportById = (id: string): DailyReport | undefined => 
+export const getDailyReports = (): DailyReport[] =>
+  getCollection<DailyReport>('daily_reports');
+export const getDailyReportById = (id: string): DailyReport | undefined =>
   getDailyReports().find(report => report.id === id);
-export const getDailyReportsByUser = (userId: string): DailyReport[] => 
+export const getDailyReportsByUser = (userId: string): DailyReport[] =>
   getDailyReports().filter(report => report.user_id === userId);
 
-export const createDailyReport = (reportData: Partial<DailyReport>): DailyReport => {
+export const createDailyReport = (
+  reportData: Partial<DailyReport>
+): DailyReport => {
   const reports = getDailyReports();
   const now = new Date().toISOString();
   const newReport: DailyReport = {
@@ -278,9 +286,9 @@ export const createDailyReport = (reportData: Partial<DailyReport>): DailyReport
     tomorrow_notes: reportData.tomorrow_notes || null,
     general_comments: reportData.general_comments || null,
     created_at: now,
-    updated_at: now
+    updated_at: now,
   };
-  
+
   reports.push(newReport);
   saveCollection('daily_reports', reports);
   return newReport;
@@ -290,11 +298,11 @@ export const createDailyReport = (reportData: Partial<DailyReport>): DailyReport
 export const syncAuthUserToLocalStorage = (authUser: any): User => {
   const users = getUsers();
   const existingUser = users.find(user => user.id === authUser.id);
-  
+
   if (existingUser) {
     return existingUser;
   }
-  
+
   // Create new user in local storage
   const now = new Date().toISOString();
   const newUser: User = {
@@ -304,14 +312,15 @@ export const syncAuthUserToLocalStorage = (authUser: any): User => {
     last_name: authUser.user_metadata?.last_name || null,
     phone_number: null,
     role: 'EMPLOYEE',
+    mode: 'SOLO',
     company_id: null,
     team_id: null,
     profile_completed: false,
     created_at: now,
-    updated_at: now
+    updated_at: now,
   };
-  
+
   users.push(newUser);
   saveCollection('users', users);
   return newUser;
-}; 
+};
