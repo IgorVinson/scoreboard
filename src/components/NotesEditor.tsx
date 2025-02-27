@@ -1,22 +1,27 @@
-import { useEditor, EditorContent } from '@tiptap/react';
+'use client';
+
+import { EditorProvider, useCurrentEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
-import { Button } from '@/components/ui/button';
+import { Extension } from '@tiptap/core';
 import {
   Bold,
   Italic,
+  Strikethrough,
+  Heading1,
+  Heading3,
   List,
   ListOrdered,
-  Heading,
-  Code,
   CheckSquare,
-  AlignLeft,
-  Link,
+  Quote,
+  MinusSquare,
+  Undo,
+  Redo,
+  Eraser,
+  Type,
 } from 'lucide-react';
-import { useEffect } from 'react';
-import { Extension } from '@tiptap/core';
 
 interface NotesEditorProps {
   content?: string;
@@ -24,14 +29,131 @@ interface NotesEditorProps {
   onChange?: (html: string) => void;
 }
 
-// Create a custom extension to handle auto-switching to paragraph after headings
-const AutoParagraphAfterHeading = Extension.create({
-  name: 'autoParagraphAfterHeading',
+// Simplified MenuBar component with icons
+const MenuBar = () => {
+  const { editor } = useCurrentEditor();
+
+  if (!editor) {
+    return null;
+  }
+
+  return (
+    <div className='menu-bar'>
+      <button
+        onClick={() => editor.chain().focus().toggleBold().run()}
+        disabled={!editor.can().chain().focus().toggleBold().run()}
+        className={editor.isActive('bold') ? 'is-active' : ''}
+        title='Bold'
+      >
+        <Bold size={16} />
+      </button>
+      <button
+        onClick={() => editor.chain().focus().toggleItalic().run()}
+        disabled={!editor.can().chain().focus().toggleItalic().run()}
+        className={editor.isActive('italic') ? 'is-active' : ''}
+        title='Italic'
+      >
+        <Italic size={16} />
+      </button>
+      <button
+        onClick={() => editor.chain().focus().toggleStrike().run()}
+        disabled={!editor.can().chain().focus().toggleStrike().run()}
+        className={editor.isActive('strike') ? 'is-active' : ''}
+        title='Strikethrough'
+      >
+        <Strikethrough size={16} />
+      </button>
+      <button
+        onClick={() => editor.chain().focus().unsetAllMarks().run()}
+        title='Clear formatting'
+      >
+        <Eraser size={16} />
+      </button>
+      <button
+        onClick={() => editor.chain().focus().setParagraph().run()}
+        className={editor.isActive('paragraph') ? 'is-active' : ''}
+        title='Normal text'
+      >
+        <Type size={16} />
+      </button>
+      <button
+        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+        className={editor.isActive('heading', { level: 1 }) ? 'is-active' : ''}
+        title='Heading 1'
+      >
+        <Heading1 size={16} />
+      </button>
+      <button
+        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+        className={editor.isActive('heading', { level: 3 }) ? 'is-active' : ''}
+        title='Heading 3'
+      >
+        <Heading3 size={16} />
+      </button>
+      <button
+        onClick={() => editor.chain().focus().toggleBulletList().run()}
+        className={editor.isActive('bulletList') ? 'is-active' : ''}
+        title='Bullet List'
+      >
+        <List size={16} />
+      </button>
+      <button
+        onClick={() => editor.chain().focus().toggleOrderedList().run()}
+        className={editor.isActive('orderedList') ? 'is-active' : ''}
+        title='Numbered List'
+      >
+        <ListOrdered size={16} />
+      </button>
+      <button
+        onClick={() => editor.chain().focus().toggleTaskList().run()}
+        className={editor.isActive('taskList') ? 'is-active' : ''}
+        title='Task List'
+      >
+        <CheckSquare size={16} />
+      </button>
+      <button
+        onClick={() => editor.chain().focus().toggleBlockquote().run()}
+        className={editor.isActive('blockquote') ? 'is-active' : ''}
+        title='Quote'
+      >
+        <Quote size={16} />
+      </button>
+      <button
+        onClick={() => editor.chain().focus().setHorizontalRule().run()}
+        title='Horizontal Rule'
+      >
+        <MinusSquare size={16} />
+      </button>
+      <button
+        onClick={() => editor.chain().focus().undo().run()}
+        disabled={!editor.can().chain().focus().undo().run()}
+        title='Undo'
+      >
+        <Undo size={16} />
+      </button>
+      <button
+        onClick={() => editor.chain().focus().redo().run()}
+        disabled={!editor.can().chain().focus().redo().run()}
+        title='Redo'
+      >
+        <Redo size={16} />
+      </button>
+    </div>
+  );
+};
+
+// Add this custom extension to handle the enter behavior for both heading levels
+const CustomHeadingExit = Extension.create({
+  name: 'customHeadingExit',
   addKeyboardShortcuts() {
     return {
       Enter: ({ editor }) => {
         if (editor.isActive('heading')) {
-          return editor.chain().focus().setParagraph().run();
+          // Split the node at cursor position
+          editor.commands.splitBlock();
+          // Then convert the new node to paragraph
+          editor.commands.setParagraph();
+          return true;
         }
         return false;
       },
@@ -44,275 +166,230 @@ export function NotesEditor({
   placeholder = 'Write something...',
   onChange,
 }: NotesEditorProps) {
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Placeholder.configure({
-        placeholder,
-      }),
-      TaskList,
-      TaskItem.configure({
-        nested: true,
-      }),
-      AutoParagraphAfterHeading,
-    ],
-    content: content || '<p></p>',
-    onUpdate: ({ editor }) => {
-      if (onChange) {
-        onChange(editor.getHTML());
-      }
+  // Set up the extensions
+  const extensions = [
+    StarterKit.configure({
+      bulletList: {
+        keepMarks: true,
+        keepAttributes: false,
+      },
+      orderedList: {
+        keepMarks: true,
+        keepAttributes: false,
+      },
+      heading: {
+        levels: [1, 3],
+      },
+    }),
+    Placeholder.configure({
+      placeholder,
+    }),
+    TaskList,
+    TaskItem.configure({
+      nested: true,
+    }),
+    CustomHeadingExit, // Add our custom extension here
+  ];
+
+  // Custom editorProps for styling
+  const editorProps = {
+    attributes: {
+      class: 'tiptap',
     },
-  });
+  };
 
-  // Update content when it changes externally
-  useEffect(() => {
-    if (editor && content !== editor.getHTML()) {
-      editor.commands.setContent(content || '<p></p>');
+  // Make sure we properly handle updates
+  const handleUpdate = ({ editor }: { editor: any }) => {
+    if (onChange) {
+      onChange(editor.getHTML());
     }
-  }, [content, editor]);
-
-  if (!editor) {
-    return null;
-  }
+  };
 
   return (
-    <div className='rounded-md overflow-hidden shadow-sm bg-white dark:bg-background'>
-      <div className='border-b bg-muted/40 p-1.5 flex gap-3 flex-wrap'>
-        {/* Text formatting group */}
-        <div className='flex border-r pr-2'>
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={() =>
-              editor.chain().focus().toggleHeading({ level: 3 }).run()
-            }
-            className={
-              editor.isActive('heading', { level: 3 })
-                ? 'bg-muted font-bold text-primary'
-                : ''
-            }
-            title='Heading'
-          >
-            <span className='flex items-center'>
-              <span className='text-xs font-semibold'>H</span>
-            </span>
-          </Button>
+    <div className='editor-wrapper'>
+      <EditorProvider
+        slotBefore={<MenuBar />}
+        extensions={extensions}
+        content={content}
+        editorProps={editorProps}
+        onUpdate={handleUpdate}
+      />
+      <style jsx global>{`
+        /* Editor container */
+        .editor-wrapper {
+          border: 1px solid #ccc;
+          border-radius: 0.5rem;
+          overflow: hidden;
+          background-color: white;
+        }
 
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={() => editor.chain().focus().setParagraph().run()}
-            className={
-              editor.isActive('paragraph') && !editor.isActive('heading')
-                ? 'bg-muted text-primary'
-                : ''
-            }
-            title='Normal Text'
-          >
-            <span className='flex items-center'>
-              <span className='text-xs'>T</span>
-            </span>
-          </Button>
-        </div>
+        .dark .editor-wrapper {
+          background-color: #1f2937;
+          border-color: #374151;
+        }
 
-        {/* Formatting group */}
-        <div className='flex border-r pr-2'>
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={() => editor.chain().focus().toggleBold().run()}
-            className={editor.isActive('bold') ? 'bg-muted' : ''}
-            title='Bold'
-          >
-            <span className='flex items-center'>
-              <span className='text-xs font-bold'>B</span>
-            </span>
-          </Button>
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={() => editor.chain().focus().toggleItalic().run()}
-            className={editor.isActive('italic') ? 'bg-muted' : ''}
-            title='Italic'
-          >
-            <span className='flex items-center'>
-              <span className='text-xs italic'>I</span>
-            </span>
-          </Button>
-        </div>
+        /* Toolbar styling */
+        .menu-bar {
+          padding: 0.5rem;
+          border-bottom: 1px solid #e5e7eb;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.25rem;
+          background-color: #f9fafb;
+        }
 
-        {/* List group */}
-        <div className='flex'>
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={() => editor.chain().focus().toggleBulletList().run()}
-            className={editor.isActive('bulletList') ? 'bg-muted' : ''}
-            title='Bullet List'
-          >
-            <List className='h-4 w-4' />
-          </Button>
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={() => editor.chain().focus().toggleOrderedList().run()}
-            className={editor.isActive('orderedList') ? 'bg-muted' : ''}
-            title='Numbered List'
-          >
-            <ListOrdered className='h-4 w-4' />
-          </Button>
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={() => editor.chain().focus().toggleTaskList().run()}
-            className={editor.isActive('taskList') ? 'bg-muted' : ''}
-            title='Task List'
-          >
-            <CheckSquare className='h-4 w-4' />
-          </Button>
-        </div>
-      </div>
-      <div className='p-3 bg-background relative notes-paper'>
-        <EditorContent
-          editor={editor}
-          className='prose dark:prose-invert max-w-none focus-visible:outline-none relative z-10'
-        />
-        <style jsx global>{`
-          .notes-paper {
-            background-image: linear-gradient(
-              transparent 0px,
-              transparent 27px,
-              rgba(0, 0, 0, 0.05) 27px,
-              rgba(0, 0, 0, 0.05) 28px
-            );
-            background-size: 100% 28px;
-            background-position: 0 5px;
-            position: relative;
-            padding: 0;
-          }
+        .dark .menu-bar {
+          background-color: #374151;
+          border-color: #4b5563;
+        }
 
-          .notes-paper::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 0;
-            bottom: 0;
-            width: 1px;
-            background: rgba(255, 0, 0, 0.05);
-            margin-left: 30px;
-          }
+        /* Button styling */
+        .menu-bar button {
+          background-color: #fff;
+          border: 1px solid #d1d5db;
+          border-radius: 0.25rem;
+          color: #4b5563;
+          padding: 0.25rem;
+          width: 28px;
+          height: 28px;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
 
-          /* Adjust line color for dark mode */
-          .dark .notes-paper {
-            background-image: linear-gradient(
-              transparent 0px,
-              transparent 27px,
-              rgba(255, 255, 255, 0.05) 27px,
-              rgba(255, 255, 255, 0.05) 28px
-            );
-          }
+        .dark .menu-bar button {
+          background-color: #1f2937;
+          border-color: #4b5563;
+          color: #e5e7eb;
+        }
 
-          .dark .notes-paper::before {
-            background: rgba(255, 0, 0, 0.1);
-          }
+        .menu-bar button:hover {
+          background-color: #f3f4f6;
+        }
 
-          /* Editor content styling */
-          .notes-paper .ProseMirror {
-            border: none;
-            outline: none !important;
-            line-height: 28px;
-            padding: 0 0 0 10px;
-            margin: 0;
-          }
+        .dark .menu-bar button:hover {
+          background-color: #374151;
+        }
 
-          /* Ensure paragraphs align with lines */
-          .notes-paper .ProseMirror p {
-            margin: 0;
-            padding: 0;
-            min-height: 28px;
-          }
+        .menu-bar button.is-active {
+          background-color: #e5e7eb;
+          color: #111827;
+        }
 
-          /* Headings */
-          .notes-paper .ProseMirror h3 {
-            line-height: 28px;
-            margin: 0;
-            padding: 0;
-            font-size: 1.3em;
-            font-weight: 600;
-            color: #1a1a1a;
-          }
+        .dark .menu-bar button.is-active {
+          background-color: #4b5563;
+          color: #f9fafb;
+        }
 
-          .dark .notes-paper .ProseMirror h3 {
-            color: #e1e1e1;
-          }
+        .menu-bar button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
 
-          /* List styling - fixed to show markers */
-          .notes-paper .ProseMirror ul {
-            list-style-type: disc;
-            padding-left: 2em;
-            margin: 0;
-          }
+        /* Tiptap editor content area */
+        .tiptap {
+          padding: 1rem;
+          min-height: 150px;
+          outline: none;
+        }
 
-          .notes-paper .ProseMirror ol {
-            list-style-type: decimal;
-            padding-left: 2em;
-            margin: 0;
-          }
+        .tiptap > *:first-child {
+          margin-top: 0;
+        }
 
-          .notes-paper .ProseMirror li {
-            line-height: 28px;
-            min-height: 28px;
-            margin: 0;
-            padding: 0;
-            display: list-item;
-          }
+        /* Regular lists - make markers visible */
+        .tiptap ul:not([data-type='taskList']) {
+          list-style-type: disc !important;
+          padding-left: 2rem;
+          margin: 0.5rem 0;
+        }
 
-          .notes-paper .ProseMirror li p {
-            margin: 0;
-            display: inline;
-          }
+        .tiptap ol {
+          list-style-type: decimal !important;
+          padding-left: 2rem;
+          margin: 0.5rem 0;
+        }
 
-          /* Task List styling */
-          .notes-paper .ProseMirror ul[data-type='taskList'] {
-            list-style-type: none;
-            padding: 0;
-            margin: 0;
-          }
+        .tiptap ul:not([data-type='taskList']) li,
+        .tiptap ol li {
+          display: list-item !important;
+          margin: 0.2rem 0;
+        }
 
-          .notes-paper .ProseMirror ul[data-type='taskList'] li {
-            display: flex;
-            min-height: 28px;
-            margin: 0;
-            padding: 0;
-            position: relative;
-          }
+        .tiptap ul:not([data-type='taskList']) li > p,
+        .tiptap ol li > p {
+          margin: 0;
+          display: inline;
+        }
 
-          .notes-paper .ProseMirror ul[data-type='taskList'] li > label {
-            display: flex;
-            align-items: center;
-            margin-right: 0.5em;
-            user-select: none;
-            line-height: 28px;
-            height: 28px;
-            padding-top: 0;
-          }
+        .tiptap h1,
+        .tiptap h3 {
+          line-height: 1.1;
+          margin-top: 1rem;
+          margin-bottom: 0.5rem;
+          font-weight: 700;
+        }
 
-          .notes-paper .ProseMirror ul[data-type='taskList'] li > div {
-            flex-grow: 1;
-            padding: 0;
-            margin: 0;
-            line-height: 28px;
-            display: flex;
-            align-items: center;
-          }
+        .tiptap h1 {
+          font-size: 1.4rem;
+        }
 
-          .notes-paper .ProseMirror ul[data-type='taskList'] li > div > p {
-            margin: 0;
-            padding: 0;
-            line-height: 28px;
-          }
-        `}</style>
-      </div>
+        .tiptap h3 {
+          font-size: 1.1rem;
+        }
+
+        .tiptap blockquote {
+          border-left: 3px solid #d1d5db;
+          margin: 0.5rem 0;
+          padding-left: 1rem;
+        }
+
+        .dark .tiptap blockquote {
+          border-left-color: #4b5563;
+        }
+
+        .tiptap hr {
+          border: none;
+          border-top: 1px solid #e5e7eb;
+          margin: 1rem 0;
+        }
+
+        .dark .tiptap hr {
+          border-top-color: #4b5563;
+        }
+
+        /* Task List styling */
+        .tiptap ul[data-type='taskList'] {
+          list-style-type: none !important;
+          padding-left: 0.5rem;
+          margin: 0.5rem 0;
+        }
+
+        .tiptap ul[data-type='taskList'] li {
+          display: flex !important;
+          align-items: flex-start;
+          margin: 0.5em 0;
+        }
+
+        .tiptap ul[data-type='taskList'] li > label {
+          margin-right: 0.5em;
+          user-select: none;
+        }
+
+        .tiptap ul[data-type='taskList'] li > div {
+          flex: 1;
+        }
+
+        /* Placeholder styling */
+        .tiptap p.is-editor-empty:first-child::before {
+          content: attr(data-placeholder);
+          float: left;
+          color: #9ca3af;
+          pointer-events: none;
+          height: 0;
+        }
+      `}</style>
     </div>
   );
 }
