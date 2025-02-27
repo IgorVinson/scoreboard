@@ -5,7 +5,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
-import { Extension } from '@tiptap/core';
+import { Extension, mergeAttributes } from '@tiptap/core';
 import {
   Bold,
   Italic,
@@ -161,6 +161,35 @@ const CustomHeadingExit = Extension.create({
   },
 });
 
+// Create our own TaskItem extension that extends the default one
+const CustomTaskItem = TaskItem.extend({
+  renderHTML({ node, HTMLAttributes }) {
+    const { checked } = node.attrs;
+
+    // Merge our custom attributes with the original ones
+    const attributes = mergeAttributes(
+      HTMLAttributes,
+      checked ? { 'data-checked': 'true' } : {}
+    );
+
+    return [
+      'li',
+      attributes,
+      [
+        'label',
+        [
+          'input',
+          {
+            type: 'checkbox',
+            checked: checked ? 'checked' : null,
+          },
+        ],
+      ],
+      ['div', {}, 0], // Content
+    ];
+  },
+});
+
 export function NotesEditor({
   content = '',
   placeholder = 'Write something...',
@@ -185,10 +214,11 @@ export function NotesEditor({
       placeholder,
     }),
     TaskList,
-    TaskItem.configure({
+    // Replace TaskItem with our custom implementation
+    CustomTaskItem.configure({
       nested: true,
     }),
-    CustomHeadingExit, // Add our custom extension here
+    CustomHeadingExit,
   ];
 
   // Custom editorProps for styling
@@ -388,6 +418,12 @@ export function NotesEditor({
           color: #9ca3af;
           pointer-events: none;
           height: 0;
+        }
+
+        /* Add this to create the strikethrough effect */
+        .tiptap ul[data-type='taskList'] li[data-checked='true'] > div {
+          text-decoration: line-through;
+          opacity: 0.7;
         }
       `}</style>
     </div>
