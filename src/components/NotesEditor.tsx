@@ -22,8 +22,10 @@ import {
   Eraser,
   Type,
 } from 'lucide-react';
+import React from 'react';
 
 interface NotesEditorProps {
+  id?: string;
   content?: string;
   placeholder?: string;
   onChange?: (html: string) => void;
@@ -191,10 +193,37 @@ const CustomTaskItem = TaskItem.extend({
 });
 
 export function NotesEditor({
+  id = 'default-editor',
   content = '',
   placeholder = 'Write something...',
   onChange,
 }: NotesEditorProps) {
+  // Local storage key
+  const storageKey = `editor-content-${id}`;
+  
+  // Get initial content from local storage or props
+  const initialContent = React.useMemo(() => {
+    if (typeof window === 'undefined') return content;
+    
+    const savedContent = localStorage.getItem(storageKey);
+    return savedContent || content;
+  }, [storageKey, content]);
+  
+  // Handle content updates
+  const handleUpdate = ({ editor }: { editor: any }) => {
+    const html = editor.getHTML();
+    
+    // Save to local storage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(storageKey, html);
+    }
+    
+    // Call the onChange callback if provided
+    if (onChange) {
+      onChange(html);
+    }
+  };
+  
   // Set up the extensions
   const extensions = [
     StarterKit.configure({
@@ -228,19 +257,12 @@ export function NotesEditor({
     },
   };
 
-  // Make sure we properly handle updates
-  const handleUpdate = ({ editor }: { editor: any }) => {
-    if (onChange) {
-      onChange(editor.getHTML());
-    }
-  };
-
   return (
     <div className='editor-wrapper'>
       <EditorProvider
         slotBefore={<MenuBar />}
         extensions={extensions}
-        content={content}
+        content={initialContent}
         editorProps={editorProps}
         onUpdate={handleUpdate}
       />

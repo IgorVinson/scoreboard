@@ -611,6 +611,7 @@ export function Dashboard() {
                     Today's Notes
                   </h4>
                   <NotesEditor
+                    id="today-notes"
                     content={todayNotes}
                     placeholder='What did you accomplish today?'
                     onChange={setTodayNotes}
@@ -621,6 +622,7 @@ export function Dashboard() {
                     Tomorrow's Plan
                   </h4>
                   <NotesEditor
+                    id="tomorrow-notes"
                     content={tomorrowNotes}
                     placeholder='What do you plan to work on tomorrow?'
                     onChange={setTomorrowNotes}
