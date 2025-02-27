@@ -3,6 +3,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { Dashboard } from '@/components/dashboard';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
+import { DataProvider } from '@/contexts/data-context';
 import { AuthPage } from '@/components/auth/auth-page';
 import { supabase } from '@/lib/supabase';
 
@@ -41,8 +42,10 @@ function App() {
   return (
     <ThemeProvider defaultTheme="system" storageKey="ui-theme">
       <AuthProvider>
-        <AppContent />
-        <Toaster />
+        <DataProvider>
+          <AppContent />
+          <Toaster />
+        </DataProvider>
       </AuthProvider>
     </ThemeProvider>
   );

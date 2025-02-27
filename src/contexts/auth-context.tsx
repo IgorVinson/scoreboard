@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { syncAuthUserToLocalStorage } from '@/lib/local-storage';
+import { generateSampleData } from '@/lib/sample-data';
 
 interface AuthContextType {
   user: User | null;
@@ -24,6 +26,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+      
+      // Sync auth user with local storage if logged in
+      if (session?.user) {
+        const localUser = syncAuthUserToLocalStorage(session.user);
+        // Generate sample data for the user
+        generateSampleData(session.user.id);
+      }
+      
       setLoading(false);
     });
 
@@ -33,6 +43,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
+      
+      // Sync auth user with local storage if logged in
+      if (session?.user) {
+        const localUser = syncAuthUserToLocalStorage(session.user);
+        // Generate sample data for the user
+        generateSampleData(session.user.id);
+      }
+      
       setLoading(false);
     });
 
@@ -48,58 +66,79 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [session]);
 
   const signIn = async (email: string, password: string) => {
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-      options: {
-        // Configure session duration to 3 days
-        sessionTime: 60 * 60 * 24 * 3, // 3 days in seconds
-      },
-    });
+    try {
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+        options: {
+          // Configure session duration to 3 days
+          sessionTime: 60 * 60 * 24 * 3, // 3 days in seconds
+        },
+      });
 
-    if (signInError) {
-      throw new Error(signInError.message);
+      if (signInError) throw signInError;
+      
+      // Generate sample data for the user after successful sign-in
+      if (data.user) {
+        generateSampleData(data.user.id);
+      }
+    } catch (error) {
+      console.error('Error signing in:', error);
+      throw error;
     }
   };
 
   const signUp = async (email: string, password: string, name: string) => {
-    const { error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          name,
+    try {
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+          },
+          // Configure session duration to 3 days
+          sessionTime: 60 * 60 * 24 * 3, // 3 days in seconds
         },
-        // Configure session duration to 3 days
-        sessionTime: 60 * 60 * 24 * 3, // 3 days in seconds
-      },
-    });
+      });
 
-    if (signUpError) {
-      throw new Error(signUpError.message);
+      if (signUpError) throw signUpError;
+      
+      // Note: We don't generate sample data here because the user needs to verify their email first
+    } catch (error) {
+      console.error('Error signing up:', error);
+      throw error;
     }
   };
 
   const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        // Configure session duration to 3 days
-        sessionTime: 60 * 60 * 24 * 3, // 3 days in seconds
-      },
-    });
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          // Configure session duration to 3 days
+          sessionTime: 60 * 60 * 24 * 3, // 3 days in seconds
+        },
+      });
 
-    if (error) {
-      throw new Error(error.message);
+      if (error) throw error;
+      
+      // Note: Sample data will be generated in the onAuthStateChange handler after redirect
+    } catch (error) {
+      console.error('Error signing in with Google:', error);
+      throw error;
     }
   };
 
   const signOut = async () => {
-    const { error: signOutError } = await supabase.auth.signOut();
+    try {
+      const { error: signOutError } = await supabase.auth.signOut();
 
-    if (signOutError) {
-      throw new Error(signOutError.message);
+      if (signOutError) throw signOutError;
+    } catch (error) {
+      console.error('Error signing out:', error);
+      throw error;
     }
   };
 

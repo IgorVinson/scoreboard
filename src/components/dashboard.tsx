@@ -42,6 +42,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from '@/contexts/auth-context';
+import { useData } from '@/contexts/data-context';
 
 // Mock data
 const teamMembers = [
@@ -132,8 +133,15 @@ const indicators = [
 ];
 
 export function Dashboard() {
+  const { user, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
-  const { signOut, user } = useAuth();
+  const { 
+    metrics, 
+    plans, 
+    dailyReports,
+    getPlansByUser,
+    getDailyReportsByUser
+  } = useData();
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [selectedIndicator, setSelectedIndicator] = useState('All Indicators');
   const [selectedPeriod, setSelectedPeriod] = useState('Daily');
@@ -165,6 +173,10 @@ export function Dashboard() {
       console.error('Error signing out:', error);
     }
   };
+
+  // When you need to get user-specific data:
+  const userPlans = getPlansByUser(user.id);
+  const userReports = getDailyReportsByUser(user.id);
 
   return (
     <div className="min-h-screen bg-background">
