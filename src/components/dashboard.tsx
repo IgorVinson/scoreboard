@@ -159,31 +159,46 @@ export function Dashboard() {
   const [todayNotes, setTodayNotes] = useState('');
   const [tomorrowNotes, setTomorrowNotes] = useState('');
   const [generalComments, setGeneralComments] = useState('');
-  const [objectives, setObjectives] = useState<Objective[]>([
-    {
-      id: 'obj-1',
-      name: 'Get new job',
-      description: 'Find a new position in web development',
-      isExpanded: true,
-      metrics: [
-        {
-          id: 'metric-1',
-          name: 'JS tasks',
-          description: 'Complete JavaScript coding challenges',
-        },
-        {
-          id: 'metric-2',
-          name: 'GreatFrontend',
-          description: 'Finish GreatFrontend exercises',
-        },
-        {
-          id: 'metric-3',
-          name: 'React course',
-          description: 'Complete advanced React course',
-        },
-      ],
-    },
-  ]);
+  const [objectives, setObjectives] = useState<Objective[]>(() => {
+    // Try to load from localStorage on initial render
+    if (typeof window !== 'undefined') {
+      const savedObjectives = localStorage.getItem('objectives');
+      if (savedObjectives) {
+        try {
+          return JSON.parse(savedObjectives);
+        } catch (error) {
+          console.error('Error parsing objectives from localStorage:', error);
+        }
+      }
+    }
+
+    // Default initial data if nothing in localStorage
+    return [
+      {
+        id: 'obj-1',
+        name: 'Get new job',
+        description: 'Find a new position in web development',
+        isExpanded: true,
+        metrics: [
+          {
+            id: 'metric-1',
+            name: 'JS tasks',
+            description: 'Complete JavaScript coding challenges',
+          },
+          {
+            id: 'metric-2',
+            name: 'GreatFrontend',
+            description: 'Finish GreatFrontend exercises',
+          },
+          {
+            id: 'metric-3',
+            name: 'React course',
+            description: 'Complete advanced React course',
+          },
+        ],
+      },
+    ];
+  });
 
   const filteredIndicators =
     selectedIndicator === 'All Indicators'
@@ -286,6 +301,13 @@ export function Dashboard() {
       // });
     }
   };
+
+  // Add this effect to save to localStorage whenever objectives change
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('objectives', JSON.stringify(objectives));
+    }
+  }, [objectives]);
 
   return (
     <div className='min-h-screen bg-background'>
