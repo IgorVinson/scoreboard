@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTheme } from '@/components/theme-provider';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -30,6 +30,9 @@ import {
   TrendingUp,
   UserCircle,
   LogOut,
+  ChevronDown,
+  ChevronRight,
+  ArrowRight,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -52,6 +55,15 @@ import {
   Objective,
 } from '@/components/ObjectivesMetricsTable';
 import { DeepOverviewTable } from '@/components/DeepOverviewTable';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 
 // Mock data
 const teamMembers = [
@@ -200,6 +212,19 @@ export function Dashboard() {
       },
     ];
   });
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportDate, setReportDate] = useState<string>(
+    new Date().toISOString().split('T')[0]
+  );
+  const [metricValues, setMetricValues] = useState<Record<string, number>>({});
+  const [expandedObjectives, setExpandedObjectives] = useState<Set<string>>(
+    new Set()
+  );
+
+  // Add new state variables for report notes
+  const [reportTodayNotes, setReportTodayNotes] = useState('');
+  const [reportTomorrowNotes, setReportTomorrowNotes] = useState('');
+  const [reportGeneralComments, setReportGeneralComments] = useState('');
 
   const filteredIndicators =
     selectedIndicator === 'All Indicators'
@@ -309,6 +334,65 @@ export function Dashboard() {
       localStorage.setItem('objectives', JSON.stringify(objectives));
     }
   }, [objectives]);
+
+  const handleMetricValueChange = (metricId: string, value: string) => {
+    setMetricValues(prev => ({
+      ...prev,
+      [metricId]: value ? Number(value) : undefined,
+    }));
+  };
+
+  // Update the dialog open handler to initialize report notes
+  const handleOpenReport = () => {
+    setReportTodayNotes(todayNotes);
+    setReportTomorrowNotes(tomorrowNotes);
+    setReportGeneralComments(generalComments);
+    setReportDialogOpen(true);
+  };
+
+  // Update the report creation to use the report-specific notes
+  const handleCreateReport = async () => {
+    try {
+      const report = {
+        date: reportDate,
+        metrics_data: metricValues,
+        today_notes: reportTodayNotes,
+        tomorrow_notes: reportTomorrowNotes,
+        general_comments: reportGeneralComments,
+        user_id: user.id,
+      };
+
+      // Here you would save the report to your backend
+      // await createDailyReport(report);
+
+      // Clear the form
+      setMetricValues({});
+      setReportDialogOpen(false);
+    } catch (error) {
+      console.error('Error creating report:', error);
+    }
+  };
+
+  // Add auto-save for notes
+  useEffect(() => {
+    const saveTimeout = setTimeout(() => {
+      handleSaveNotes();
+    }, 1000);
+
+    return () => clearTimeout(saveTimeout);
+  }, [todayNotes, tomorrowNotes, generalComments]);
+
+  const toggleObjectiveInReport = (objectiveId: string) => {
+    setExpandedObjectives(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(objectiveId)) {
+        newSet.delete(objectiveId);
+      } else {
+        newSet.add(objectiveId);
+      }
+      return newSet;
+    });
+  };
 
   return (
     <div className='min-h-screen bg-background'>
@@ -633,12 +717,161 @@ export function Dashboard() {
                 />
               </div>
               <div className='mt-6 flex justify-end'>
-                <Button onClick={handleSaveNotes}>Save Notes</Button>
+                <Button onClick={handleOpenReport}>
+                  <ClipboardList className='h-4 w-4 mr-2' />
+                  Close Day
+                </Button>
               </div>
             </div>
           </Card>
         </div>
       </main>
+
+      {/* Add the Report Dialog */}
+      <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
+        <DialogContent className='sm:max-w-[800px] max-h-[90vh]'>
+          <DialogHeader>
+            <DialogTitle>Close Day Report</DialogTitle>
+            <DialogDescription>
+              Create a daily report by filling in metric values and reviewing
+              your notes.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className='grid gap-6 py-4 overflow-y-auto max-h-[calc(90vh-180px)]'>
+            {/* Date Selection */}
+            <div className='grid gap-2'>
+              <label className='text-sm font-medium'>Report Date</label>
+              <Input
+                type='date'
+                value={reportDate}
+                onChange={e => setReportDate(e.target.value)}
+                className='w-[200px]'
+              />
+            </div>
+
+            {/* Objectives and Metrics */}
+            <div className='grid gap-2'>
+              <label className='text-sm font-medium'>Metrics Update</label>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Value</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {objectives.map(objective => (
+                    <React.Fragment key={objective.id}>
+                      {/* Objective Row */}
+                      <TableRow className='bg-muted/50'>
+                        <TableCell>
+                          <div className='flex items-center gap-2'>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              className='h-6 w-6 p-0'
+                              onClick={() =>
+                                toggleObjectiveInReport(objective.id)
+                              }
+                            >
+                              {expandedObjectives.has(objective.id) ? (
+                                <ChevronDown className='h-4 w-4' />
+                              ) : (
+                                <ChevronRight className='h-4 w-4' />
+                              )}
+                            </Button>
+                            <span className='font-medium'>
+                              {objective.name}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell></TableCell>
+                      </TableRow>
+
+                      {/* Metrics Rows */}
+                      {expandedObjectives.has(objective.id) &&
+                        objective.metrics.map(metric => (
+                          <TableRow key={metric.id}>
+                            <TableCell className='pl-8'>
+                              <div className='flex items-center gap-2'>
+                                <ArrowRight className='h-3 w-3 text-muted-foreground' />
+                                <span>{metric.name}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type='number'
+                                value={metricValues[metric.id] || ''}
+                                onChange={e =>
+                                  handleMetricValueChange(
+                                    metric.id,
+                                    e.target.value
+                                  )
+                                }
+                                className='w-32'
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </React.Fragment>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Daily Notes Summary */}
+            <div className='grid gap-2'>
+              <label className='text-sm font-medium'>Daily Notes Summary</label>
+              <div className='rounded-md border p-4 space-y-4'>
+                <div>
+                  <h4 className='text-sm font-medium text-muted-foreground'>
+                    Today's Notes
+                  </h4>
+                  <NotesEditor
+                    id='report-today-notes'
+                    content={reportTodayNotes}
+                    onChange={setReportTodayNotes}
+                    placeholder='What did you accomplish today?'
+                  />
+                </div>
+                <div>
+                  <h4 className='text-sm font-medium text-muted-foreground'>
+                    Tomorrow's Plan
+                  </h4>
+                  <NotesEditor
+                    id='report-tomorrow-notes'
+                    content={reportTomorrowNotes}
+                    onChange={setReportTomorrowNotes}
+                    placeholder='What do you plan to work on tomorrow?'
+                  />
+                </div>
+                <div>
+                  <h4 className='text-sm font-medium text-muted-foreground'>
+                    General Comments
+                  </h4>
+                  <NotesEditor
+                    id='report-general-comments'
+                    content={reportGeneralComments}
+                    onChange={setReportGeneralComments}
+                    placeholder='Any other thoughts or comments...'
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={() => setReportDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleCreateReport}>Create Report</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
