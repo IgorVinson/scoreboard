@@ -24,8 +24,11 @@ import {
   Trash2,
   ChevronDown,
   ChevronRight,
-  GripVertical,
+  Play,
   Edit,
+  Target,
+  Minus,
+  ArrowRight,
 } from 'lucide-react';
 
 // Define the data structure
@@ -33,6 +36,8 @@ export interface Metric {
   id: string;
   name: string;
   description: string;
+  plan?: number;
+  actual?: number;
 }
 
 export interface Objective {
@@ -56,9 +61,11 @@ export function ObjectivesMetricsTable({
   const [objectiveDialogOpen, setObjectiveDialogOpen] = useState(false);
   const [metricDialogOpen, setMetricDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  
+
   // Form states
-  const [currentObjectiveId, setCurrentObjectiveId] = useState<string | null>(null);
+  const [currentObjectiveId, setCurrentObjectiveId] = useState<string | null>(
+    null
+  );
   const [currentMetricId, setCurrentMetricId] = useState<string | null>(null);
   const [objectiveName, setObjectiveName] = useState('');
   const [objectiveDescription, setObjectiveDescription] = useState('');
@@ -136,7 +143,7 @@ export function ObjectivesMetricsTable({
       };
       onObjectivesChange([...objectives, newObjective]);
     }
-    
+
     setObjectiveDialogOpen(false);
   };
 
@@ -175,7 +182,7 @@ export function ObjectivesMetricsTable({
       );
       onObjectivesChange(updatedObjectives);
     }
-    
+
     setMetricDialogOpen(false);
   };
 
@@ -241,7 +248,7 @@ export function ObjectivesMetricsTable({
   return (
     <div className='space-y-4'>
       <div className='flex justify-between items-center'>
-        <h3 className='text-lg font-semibold'>Objectives & Metrics</h3>
+        <h3 className='text-lg font-semibold'>Objectives & Metrics Overview</h3>
         <Button
           variant='outline'
           size='sm'
@@ -293,9 +300,7 @@ export function ObjectivesMetricsTable({
                           <ChevronRight className='h-4 w-4' />
                         )}
                       </Button>
-                      <div className='flex items-center gap-1 cursor-grab'>
-                        <GripVertical className='h-4 w-4 text-muted-foreground' />
-                      </div>
+                      <div className='flex items-center gap-1 cursor-grab'></div>
                       <div className='flex-1'>{objective.name}</div>
                       <div className='flex gap-1'>
                         <Button
@@ -345,16 +350,18 @@ export function ObjectivesMetricsTable({
                       <TableRow key={metric.id}>
                         <TableCell>
                           <div className='flex items-center gap-2 pl-8'>
-                            <div className='flex items-center gap-1 cursor-grab'>
-                              <GripVertical className='h-4 w-4 text-muted-foreground' />
+                            <div className='flex items-center gap-1'>
+                              <ArrowRight className='h-3 w-3 text-muted-foreground' />
                             </div>
-                            <div className='flex-1'>• {metric.name}</div>
+                            <div className='flex-1'>{metric.name}</div>
                             <div className='flex gap-1'>
                               <Button
                                 variant='ghost'
                                 size='sm'
                                 className='h-6 w-6 p-0'
-                                onClick={() => openEditMetricDialog(metric, objective.id)}
+                                onClick={() =>
+                                  openEditMetricDialog(metric, objective.id)
+                                }
                               >
                                 <Edit className='h-3.5 w-3.5' />
                               </Button>
@@ -422,43 +429,52 @@ export function ObjectivesMetricsTable({
 
       {/* Objective Dialog */}
       <Dialog open={objectiveDialogOpen} onOpenChange={setObjectiveDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className='sm:max-w-[425px]'>
           <DialogHeader>
             <DialogTitle>
               {isEditing ? 'Edit Objective' : 'Add New Objective'}
             </DialogTitle>
             <DialogDescription>
-              {isEditing 
-                ? 'Update the objective details below.' 
+              {isEditing
+                ? 'Update the objective details below.'
                 : 'Enter the details for your new objective.'}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <label htmlFor="objective-name" className="text-right text-sm font-medium">
+          <div className='grid gap-4 py-4'>
+            <div className='grid grid-cols-4 items-center gap-4'>
+              <label
+                htmlFor='objective-name'
+                className='text-right text-sm font-medium'
+              >
                 Name
               </label>
               <Input
-                id="objective-name"
+                id='objective-name'
                 value={objectiveName}
-                onChange={(e) => setObjectiveName(e.target.value)}
-                className="col-span-3"
+                onChange={e => setObjectiveName(e.target.value)}
+                className='col-span-3'
               />
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <label htmlFor="objective-description" className="text-right text-sm font-medium">
+            <div className='grid grid-cols-4 items-center gap-4'>
+              <label
+                htmlFor='objective-description'
+                className='text-right text-sm font-medium'
+              >
                 Description
               </label>
               <Input
-                id="objective-description"
+                id='objective-description'
                 value={objectiveDescription}
-                onChange={(e) => setObjectiveDescription(e.target.value)}
-                className="col-span-3"
+                onChange={e => setObjectiveDescription(e.target.value)}
+                className='col-span-3'
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setObjectiveDialogOpen(false)}>
+            <Button
+              variant='outline'
+              onClick={() => setObjectiveDialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button onClick={handleObjectiveSave}>
@@ -470,43 +486,52 @@ export function ObjectivesMetricsTable({
 
       {/* Metric Dialog */}
       <Dialog open={metricDialogOpen} onOpenChange={setMetricDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className='sm:max-w-[425px]'>
           <DialogHeader>
             <DialogTitle>
               {isEditing ? 'Edit Metric' : 'Add New Metric'}
             </DialogTitle>
             <DialogDescription>
-              {isEditing 
-                ? 'Update the metric details below.' 
+              {isEditing
+                ? 'Update the metric details below.'
                 : 'Enter the details for your new metric.'}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <label htmlFor="metric-name" className="text-right text-sm font-medium">
+          <div className='grid gap-4 py-4'>
+            <div className='grid grid-cols-4 items-center gap-4'>
+              <label
+                htmlFor='metric-name'
+                className='text-right text-sm font-medium'
+              >
                 Name
               </label>
               <Input
-                id="metric-name"
+                id='metric-name'
                 value={metricName}
-                onChange={(e) => setMetricName(e.target.value)}
-                className="col-span-3"
+                onChange={e => setMetricName(e.target.value)}
+                className='col-span-3'
               />
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <label htmlFor="metric-description" className="text-right text-sm font-medium">
+            <div className='grid grid-cols-4 items-center gap-4'>
+              <label
+                htmlFor='metric-description'
+                className='text-right text-sm font-medium'
+              >
                 Description
               </label>
               <Input
-                id="metric-description"
+                id='metric-description'
                 value={metricDescription}
-                onChange={(e) => setMetricDescription(e.target.value)}
-                className="col-span-3"
+                onChange={e => setMetricDescription(e.target.value)}
+                className='col-span-3'
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setMetricDialogOpen(false)}>
+            <Button
+              variant='outline'
+              onClick={() => setMetricDialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button onClick={handleMetricSave}>

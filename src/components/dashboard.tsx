@@ -51,6 +51,7 @@ import {
   ObjectivesMetricsTable,
   Objective,
 } from '@/components/ObjectivesMetricsTable';
+import { DeepOverviewTable } from '@/components/DeepOverviewTable';
 
 // Mock data
 const teamMembers = [
@@ -431,7 +432,7 @@ export function Dashboard() {
               <div className='border-b px-4'>
                 <TabsList className='my-2'>
                   <TabsTrigger value='overview'>Overview</TabsTrigger>
-                  <TabsTrigger value='deep-overview'>Deep Overview</TabsTrigger>
+                  <TabsTrigger value='deep-overview'>Performance</TabsTrigger>
                   <TabsTrigger value='team'>Team</TabsTrigger>
                   <TabsTrigger value='reports'>Reports</TabsTrigger>
                 </TabsList>
@@ -448,83 +449,10 @@ export function Dashboard() {
 
               <TabsContent value='deep-overview' className='p-6'>
                 <div className='grid gap-6'>
-                  <div className='flex justify-between items-center mb-6'>
-                    <h3 className='text-lg font-semibold'>
-                      Indicators Overview
-                    </h3>
-                    <div className='flex gap-4'>
-                      <Select
-                        value={selectedIndicator}
-                        onValueChange={setSelectedIndicator}
-                      >
-                        <SelectTrigger className='w-[180px]'>
-                          <SelectValue placeholder='Select Indicator' />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {allIndicators.map(indicator => (
-                            <SelectItem key={indicator} value={indicator}>
-                              {indicator}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select
-                        value={selectedPeriod}
-                        onValueChange={setSelectedPeriod}
-                      >
-                        <SelectTrigger className='w-[180px]'>
-                          <SelectValue placeholder='Select Period' />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {timePeriods.map(period => (
-                            <SelectItem key={period} value={period}>
-                              {period}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Indicator</TableHead>
-                        <TableHead>Member</TableHead>
-                        <TableHead className='text-right'>Plan</TableHead>
-                        <TableHead className='text-right'>Actual</TableHead>
-                        <TableHead className='text-right'>Progress</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredIndicators.map(indicator => (
-                        <TableRow key={indicator.name}>
-                          <TableCell className='font-medium'>
-                            {indicator.name}
-                          </TableCell>
-                          <TableCell>{indicator.member}</TableCell>
-                          <TableCell className='text-right'>
-                            {indicator.plan}
-                          </TableCell>
-                          <TableCell className='text-right'>
-                            {indicator.actual}
-                          </TableCell>
-                          <TableCell className='text-right'>
-                            <Badge
-                              variant={
-                                indicator.progress >= 90
-                                  ? 'default'
-                                  : indicator.progress >= 70
-                                  ? 'secondary'
-                                  : 'destructive'
-                              }
-                            >
-                              {indicator.progress}%
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                  <DeepOverviewTable
+                    objectives={objectives}
+                    onObjectivesChange={setObjectives}
+                  />
                 </div>
               </TabsContent>
 
