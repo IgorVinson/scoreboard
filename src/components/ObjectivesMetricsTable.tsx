@@ -118,20 +118,23 @@ export function ObjectivesMetricsTable({
 
   // Handle objective save (add or edit)
   const handleObjectiveSave = () => {
-    if (!objectiveName.trim()) return;
+    if (objectiveName.trim() === '') return;
 
     if (isEditing && currentObjectiveId) {
       // Update existing objective
-      const updatedObjectives = objectives.map(obj =>
-        obj.id === currentObjectiveId
-          ? {
-              ...obj,
-              name: objectiveName,
-              description: objectiveDescription,
-            }
-          : obj
+      const updatedObjective = objectives.find(
+        o => o.id === currentObjectiveId
       );
-      onObjectivesChange(updatedObjectives);
+      if (updatedObjective) {
+        const updated = {
+          ...updatedObjective,
+          name: objectiveName,
+          description: objectiveDescription,
+        };
+        onObjectivesChange(
+          objectives.map(o => (o.id === currentObjectiveId ? updated : o))
+        );
+      }
     } else {
       // Add new objective
       const newObjective: Objective = {
@@ -144,6 +147,11 @@ export function ObjectivesMetricsTable({
       onObjectivesChange([...objectives, newObjective]);
     }
 
+    // Reset form
+    setObjectiveName('');
+    setObjectiveDescription('');
+    setIsEditing(false);
+    setCurrentObjectiveId(null);
     setObjectiveDialogOpen(false);
   };
 
