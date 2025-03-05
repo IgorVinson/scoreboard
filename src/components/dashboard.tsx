@@ -148,7 +148,7 @@ export function Dashboard() {
     new Set()
   );
 
-  // Add new state variables for report notes
+  // Add new state variables for report
   const [reportTodayNotes, setReportTodayNotes] = useState('');
   const [reportTomorrowNotes, setReportTomorrowNotes] = useState('');
   const [reportGeneralComments, setReportGeneralComments] = useState('');
@@ -288,9 +288,29 @@ export function Dashboard() {
     );
   };
 
-  // Update report opening function to get data from localStorage
+  // Add this state for report-specific objective expansion state
+  const [reportObjectives, setReportObjectives] = useState<Objective[]>([]);
+
+  // Create a separate toggle function for the report dialog
+  const toggleReportObjectiveExpansion = (objectiveId: string) => {
+    setReportObjectives(prevObjs =>
+      prevObjs.map(obj => {
+        if (obj.id === objectiveId) {
+          return {
+            ...obj,
+            isExpanded: !obj.isExpanded,
+          };
+        }
+        return obj;
+      })
+    );
+  };
+
+  // Update handleOpenReport to initialize report objectives
   const handleOpenReport = () => {
     const savedNotes = localStorage.getItem('dailyNotes');
+
+    // Load notes for the report
     if (savedNotes) {
       try {
         const parsed = JSON.parse(savedNotes);
@@ -299,17 +319,24 @@ export function Dashboard() {
         setReportGeneralComments(parsed.general || '');
       } catch (error) {
         console.error('Error parsing notes:', error);
-        // Fallback if something went wrong
         setReportTodayNotes(todayNotes);
         setReportTomorrowNotes(tomorrowNotes);
         setReportGeneralComments(generalComments);
       }
     } else {
-      // If there are no saved notes
       setReportTodayNotes(todayNotes);
       setReportTomorrowNotes(tomorrowNotes);
       setReportGeneralComments(generalComments);
     }
+
+    // Create a deep copy of objectives with all expanded by default
+    setReportObjectives(
+      objectives.map(obj => ({
+        ...obj,
+        isExpanded: true, // Always expand in the report dialog
+      }))
+    );
+
     setReportDialogOpen(true);
   };
 
@@ -345,20 +372,22 @@ export function Dashboard() {
   const handleMetricValueChange = (metricId: string, value: string) => {
     setMetricValues(prev => ({
       ...prev,
-      [metricId]: value ? Number(value) : undefined,
+      [metricId]: value ? Number(value) : 0,
     }));
   };
 
-  const toggleObjectiveInReport = (objectiveId: string) => {
-    setExpandedObjectives(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(objectiveId)) {
-        newSet.delete(objectiveId);
-      } else {
-        newSet.add(objectiveId);
+  const toggleObjectiveExpansion = (objectiveId: string) => {
+    const updatedObjectives = objectives.map(obj => {
+      if (obj.id === objectiveId) {
+        return {
+          ...obj,
+          isExpanded: !obj.isExpanded,
+        };
       }
-      return newSet;
+      return obj;
     });
+    setObjectives(updatedObjectives);
+    saveObjectivesToLocalStorage(updatedObjectives);
   };
 
   // Add function to save objectives to localStorage
@@ -425,21 +454,6 @@ export function Dashboard() {
         return {
           ...obj,
           metrics: obj.metrics.filter(metric => metric.id !== metricId),
-        };
-      }
-      return obj;
-    });
-    setObjectives(updatedObjectives);
-    saveObjectivesToLocalStorage(updatedObjectives);
-  };
-
-  // Toggle objective expansion
-  const toggleObjectiveExpansion = (objectiveId: string) => {
-    const updatedObjectives = objectives.map(obj => {
-      if (obj.id === objectiveId) {
-        return {
-          ...obj,
-          isExpanded: !obj.isExpanded,
         };
       }
       return obj;
@@ -818,11 +832,12 @@ export function Dashboard() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
-                    <TableHead>Value</TableHead>
+                    <TableHead>Plan</TableHead>
+                    <TableHead>Actual</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {objectives.map(objective => (
+                  {reportObjectives.map(objective => (
                     <React.Fragment key={objective.id}>
                       {/* Objective Row */}
                       <TableRow className='bg-muted/50'>
@@ -833,10 +848,10 @@ export function Dashboard() {
                               size='sm'
                               className='h-6 w-6 p-0'
                               onClick={() =>
-                                toggleObjectiveExpansion(objective.id)
+                                toggleReportObjectiveExpansion(objective.id)
                               }
                             >
-                              {expandedObjectives.has(objective.id) ? (
+                              {objective.isExpanded ? (
                                 <ChevronDown className='h-4 w-4' />
                               ) : (
                                 <ChevronRight className='h-4 w-4' />
@@ -848,10 +863,11 @@ export function Dashboard() {
                           </div>
                         </TableCell>
                         <TableCell></TableCell>
+                        <TableCell></TableCell>
                       </TableRow>
 
                       {/* Metrics Rows */}
-                      {expandedObjectives.has(objective.id) &&
+                      {objective.isExpanded &&
                         objective.metrics.map(metric => (
                           <TableRow key={metric.id}>
                             <TableCell className='pl-8'>
@@ -861,8 +877,12 @@ export function Dashboard() {
                               </div>
                             </TableCell>
                             <TableCell>
+                              {metric.plan !== undefined ? metric.plan : '—'}
+                            </TableCell>
+                            <TableCell>
                               <Input
                                 type='number'
+                                placeholder='Enter value'
                                 value={metricValues[metric.id] || ''}
                                 onChange={e =>
                                   handleMetricValueChange(
@@ -870,7 +890,7 @@ export function Dashboard() {
                                     e.target.value
                                   )
                                 }
-                                className='w-32'
+                                className='w-full'
                               />
                             </TableCell>
                           </TableRow>
