@@ -47,6 +47,10 @@ import { ModeToggle } from '@/components/mode-toggle';
 import { VirtualManagerToggle } from '@/components/virtual-manager-toggle';
 import { useSoloMode } from '@/contexts/solo-mode-context';
 import { NotesEditor } from '@/components/NotesEditor';
+import {
+  ObjectivesMetricsTable,
+  Objective,
+} from '@/components/ObjectivesMetricsTable';
 
 // Mock data
 const teamMembers = [
@@ -155,6 +159,31 @@ export function Dashboard() {
   const [todayNotes, setTodayNotes] = useState('');
   const [tomorrowNotes, setTomorrowNotes] = useState('');
   const [generalComments, setGeneralComments] = useState('');
+  const [objectives, setObjectives] = useState<Objective[]>([
+    {
+      id: 'obj-1',
+      name: 'Get new job',
+      description: 'Find a new position in web development',
+      isExpanded: true,
+      metrics: [
+        {
+          id: 'metric-1',
+          name: 'JS tasks',
+          description: 'Complete JavaScript coding challenges',
+        },
+        {
+          id: 'metric-2',
+          name: 'GreatFrontend',
+          description: 'Finish GreatFrontend exercises',
+        },
+        {
+          id: 'metric-3',
+          name: 'React course',
+          description: 'Complete advanced React course',
+        },
+      ],
+    },
+  ]);
 
   const filteredIndicators =
     selectedIndicator === 'All Indicators'
@@ -386,81 +415,90 @@ export function Dashboard() {
               </div>
 
               <TabsContent value='overview' className='p-6'>
-                <div className='flex justify-between items-center mb-6'>
-                  <h3 className='text-lg font-semibold'>Indicators Overview</h3>
-                  <div className='flex gap-4'>
-                    <Select
-                      value={selectedIndicator}
-                      onValueChange={setSelectedIndicator}
-                    >
-                      <SelectTrigger className='w-[180px]'>
-                        <SelectValue placeholder='Select Indicator' />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {allIndicators.map(indicator => (
-                          <SelectItem key={indicator} value={indicator}>
-                            {indicator}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select
-                      value={selectedPeriod}
-                      onValueChange={setSelectedPeriod}
-                    >
-                      <SelectTrigger className='w-[180px]'>
-                        <SelectValue placeholder='Select Period' />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {timePeriods.map(period => (
-                          <SelectItem key={period} value={period}>
-                            {period}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                <div className='grid gap-6'>
+                  <ObjectivesMetricsTable
+                    objectives={objectives}
+                    onObjectivesChange={setObjectives}
+                  />
+
+                  <div className='flex justify-between items-center mb-6'>
+                    <h3 className='text-lg font-semibold'>
+                      Indicators Overview
+                    </h3>
+                    <div className='flex gap-4'>
+                      <Select
+                        value={selectedIndicator}
+                        onValueChange={setSelectedIndicator}
+                      >
+                        <SelectTrigger className='w-[180px]'>
+                          <SelectValue placeholder='Select Indicator' />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allIndicators.map(indicator => (
+                            <SelectItem key={indicator} value={indicator}>
+                              {indicator}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={selectedPeriod}
+                        onValueChange={setSelectedPeriod}
+                      >
+                        <SelectTrigger className='w-[180px]'>
+                          <SelectValue placeholder='Select Period' />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {timePeriods.map(period => (
+                            <SelectItem key={period} value={period}>
+                              {period}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                </div>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Indicator</TableHead>
-                      <TableHead>Member</TableHead>
-                      <TableHead className='text-right'>Plan</TableHead>
-                      <TableHead className='text-right'>Actual</TableHead>
-                      <TableHead className='text-right'>Progress</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredIndicators.map(indicator => (
-                      <TableRow key={indicator.name}>
-                        <TableCell className='font-medium'>
-                          {indicator.name}
-                        </TableCell>
-                        <TableCell>{indicator.member}</TableCell>
-                        <TableCell className='text-right'>
-                          {indicator.plan}
-                        </TableCell>
-                        <TableCell className='text-right'>
-                          {indicator.actual}
-                        </TableCell>
-                        <TableCell className='text-right'>
-                          <Badge
-                            variant={
-                              indicator.progress >= 90
-                                ? 'default'
-                                : indicator.progress >= 70
-                                ? 'secondary'
-                                : 'destructive'
-                            }
-                          >
-                            {indicator.progress}%
-                          </Badge>
-                        </TableCell>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Indicator</TableHead>
+                        <TableHead>Member</TableHead>
+                        <TableHead className='text-right'>Plan</TableHead>
+                        <TableHead className='text-right'>Actual</TableHead>
+                        <TableHead className='text-right'>Progress</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredIndicators.map(indicator => (
+                        <TableRow key={indicator.name}>
+                          <TableCell className='font-medium'>
+                            {indicator.name}
+                          </TableCell>
+                          <TableCell>{indicator.member}</TableCell>
+                          <TableCell className='text-right'>
+                            {indicator.plan}
+                          </TableCell>
+                          <TableCell className='text-right'>
+                            {indicator.actual}
+                          </TableCell>
+                          <TableCell className='text-right'>
+                            <Badge
+                              variant={
+                                indicator.progress >= 90
+                                  ? 'default'
+                                  : indicator.progress >= 70
+                                  ? 'secondary'
+                                  : 'destructive'
+                              }
+                            >
+                              {indicator.progress}%
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </TabsContent>
 
               <TabsContent value='team' className='p-6'>
@@ -611,7 +649,7 @@ export function Dashboard() {
                     Today's Notes
                   </h4>
                   <NotesEditor
-                    id="today-notes"
+                    id='today-notes'
                     content={todayNotes}
                     placeholder='What did you accomplish today?'
                     onChange={setTodayNotes}
@@ -622,7 +660,7 @@ export function Dashboard() {
                     Tomorrow's Plan
                   </h4>
                   <NotesEditor
-                    id="tomorrow-notes"
+                    id='tomorrow-notes'
                     content={tomorrowNotes}
                     placeholder='What do you plan to work on tomorrow?'
                     onChange={setTomorrowNotes}
