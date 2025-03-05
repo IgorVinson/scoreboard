@@ -198,27 +198,16 @@ export function NotesEditor({
   placeholder = 'Write something...',
   onChange,
 }: NotesEditorProps) {
-  // Local storage key
-  const storageKey = `editor-content-${id}`;
+  // Remove storageKey and loading from localStorage
 
-  // Get initial content from local storage or props
-  const initialContent = React.useMemo(() => {
-    if (typeof window === 'undefined') return content;
+  // Use input content instead of localStorage
+  const initialContent = content;
 
-    const savedContent = localStorage.getItem(storageKey);
-    return savedContent || content;
-  }, [storageKey, content]);
-
-  // Handle content updates
+  // Modify handleUpdate to not save to localStorage
   const handleUpdate = ({ editor }: { editor: any }) => {
     const html = editor.getHTML();
 
-    // Save to local storage
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(storageKey, html);
-    }
-
-    // Call the onChange callback if provided
+    // Only call the external onChange
     if (onChange) {
       onChange(html);
     }

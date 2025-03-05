@@ -65,94 +65,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 
-// Mock data
-const teamMembers = [
-  {
-    id: 1,
-    name: 'Sarah Chen',
-    role: 'MANAGER',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330',
-    indicators: ['Sales Performance', 'Client Satisfaction'],
-  },
-  {
-    id: 2,
-    name: 'Alex Kim',
-    role: 'EMPLOYEE',
-    avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36',
-    indicators: ['Business Proposals', 'Lead Generation'],
-  },
-  {
-    id: 3,
-    name: 'Maria Garcia',
-    role: 'EMPLOYEE',
-    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80',
-    indicators: ['Customer Support', 'Response Time'],
-  },
-];
-
-const allIndicators = [
-  'All Indicators',
-  'Business Proposals',
-  'Customer Support',
-  'Lead Generation',
-  'Sales Performance',
-  'Client Satisfaction',
-  'Response Time',
-];
-
-const timePeriods = ['Daily', 'Weekly', 'Monthly'];
-
-const reports = [
-  {
-    date: '2024-01-29',
-    member: 'Alex Kim',
-    indicator: 'Business Proposals',
-    value: 6,
-    target: 5,
-    status: 'above',
-  },
-  {
-    date: '2024-01-29',
-    member: 'Maria Garcia',
-    indicator: 'Response Time',
-    value: 15,
-    target: 20,
-    status: 'below',
-  },
-  {
-    date: '2024-01-28',
-    member: 'Alex Kim',
-    indicator: 'Lead Generation',
-    value: 12,
-    target: 10,
-    status: 'above',
-  },
-];
-
-const indicators = [
-  {
-    name: 'Business Proposals',
-    plan: 100,
-    actual: 85,
-    member: 'Alex Kim',
-    progress: 85,
-  },
-  {
-    name: 'Customer Support Tickets',
-    plan: 50,
-    actual: 47,
-    member: 'Maria Garcia',
-    progress: 94,
-  },
-  {
-    name: 'Lead Generation',
-    plan: 200,
-    actual: 180,
-    member: 'Alex Kim',
-    progress: 90,
-  },
-];
-
 export function Dashboard() {
   const { user, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
@@ -169,9 +81,48 @@ export function Dashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState('Daily');
   const [reportsIndicator, setReportsIndicator] = useState('All Indicators');
   const [reportsPeriod, setReportsPeriod] = useState('Daily');
-  const [todayNotes, setTodayNotes] = useState('');
-  const [tomorrowNotes, setTomorrowNotes] = useState('');
-  const [generalComments, setGeneralComments] = useState('');
+  const [todayNotes, setTodayNotes] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedNotes = localStorage.getItem('dailyNotes');
+        if (savedNotes) {
+          const parsed = JSON.parse(savedNotes);
+          return parsed.today || '';
+        }
+      } catch (error) {
+        console.error('Error loading today notes:', error);
+      }
+    }
+    return '';
+  });
+  const [tomorrowNotes, setTomorrowNotes] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedNotes = localStorage.getItem('dailyNotes');
+        if (savedNotes) {
+          const parsed = JSON.parse(savedNotes);
+          return parsed.tomorrow || '';
+        }
+      } catch (error) {
+        console.error('Error loading tomorrow notes:', error);
+      }
+    }
+    return '';
+  });
+  const [generalComments, setGeneralComments] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedNotes = localStorage.getItem('dailyNotes');
+        if (savedNotes) {
+          const parsed = JSON.parse(savedNotes);
+          return parsed.general || '';
+        }
+      } catch (error) {
+        console.error('Error loading general comments:', error);
+      }
+    }
+    return '';
+  });
   const [objectives, setObjectives] = useState<Objective[]>(() => {
     // Try to load from localStorage on initial render
     if (typeof window !== 'undefined') {
@@ -185,32 +136,8 @@ export function Dashboard() {
       }
     }
 
-    // Default initial data if nothing in localStorage
-    return [
-      {
-        id: 'obj-1',
-        name: 'Get new job',
-        description: 'Find a new position in web development',
-        isExpanded: true,
-        metrics: [
-          {
-            id: 'metric-1',
-            name: 'JS tasks',
-            description: 'Complete JavaScript coding challenges',
-          },
-          {
-            id: 'metric-2',
-            name: 'GreatFrontend',
-            description: 'Finish GreatFrontend exercises',
-          },
-          {
-            id: 'metric-3',
-            name: 'React course',
-            description: 'Complete advanced React course',
-          },
-        ],
-      },
-    ];
+    // Empty array if nothing in localStorage
+    return [];
   });
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportDate, setReportDate] = useState<string>(
@@ -226,15 +153,38 @@ export function Dashboard() {
   const [reportTomorrowNotes, setReportTomorrowNotes] = useState('');
   const [reportGeneralComments, setReportGeneralComments] = useState('');
 
+  const [indicators, setIndicators] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [allIndicators, setAllIndicators] = useState(['All Indicators']);
+  const [timePeriods, setTimePeriods] = useState([
+    'Daily',
+    'Weekly',
+    'Monthly',
+  ]);
+
+  const [reports, setReports] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedReports = localStorage.getItem('dailyReports');
+        if (savedReports) {
+          return JSON.parse(savedReports);
+        }
+      } catch (error) {
+        console.error('Error loading reports:', error);
+      }
+    }
+    return [];
+  });
+
   const filteredIndicators =
     selectedIndicator === 'All Indicators'
       ? indicators
-      : indicators.filter(i => i.name === selectedIndicator);
+      : indicators.filter((i: any) => i.name === selectedIndicator);
 
   const filteredReports =
     reportsIndicator === 'All Indicators'
       ? reports
-      : reports.filter(r => r.indicator === reportsIndicator);
+      : reports.filter((r: any) => r.indicator === reportsIndicator);
 
   // Get initials for avatar fallback
   const getInitials = (name: string) => {
@@ -261,96 +211,109 @@ export function Dashboard() {
   const shouldShowManagerView =
     isVirtualManager || (!isSoloMode && user?.role === 'MANAGER');
 
-  // Load existing notes for today
-  useEffect(() => {
-    if (user?.id) {
-      const today = new Date().toISOString().split('T')[0];
-      const todayReport = dailyReports.find(
-        report => report.user_id === user.id && report.date === today
-      );
-
-      if (todayReport) {
-        setTodayNotes(todayReport.today_notes || '');
-        setTomorrowNotes(todayReport.tomorrow_notes || '');
-        setGeneralComments(todayReport.general_comments || '');
-      }
-    }
-  }, [user?.id, dailyReports]);
-
-  const handleSaveNotes = async () => {
-    try {
-      // Check if there's an existing report for today
-      const today = new Date().toISOString().split('T')[0];
-      const existingReport = dailyReports.find(
-        report => report.user_id === user.id && report.date === today
-      );
-
-      if (existingReport) {
-        // Update existing report
-        const updatedReport = {
-          ...existingReport,
-          today_notes: todayNotes,
-          tomorrow_notes: tomorrowNotes,
-          general_comments: generalComments,
-          updated_at: new Date().toISOString(),
-        };
-
-        // Here you would call your update function from the data context
-        // For example: updateDailyReport(existingReport.id, updatedReport);
-      } else {
-        // Create new report
-        const newReport = {
-          user_id: user.id,
-          date: today,
-          metrics_data: {},
-          today_notes: todayNotes,
-          tomorrow_notes: tomorrowNotes,
-          general_comments: generalComments,
-        };
-
-        // Here you would call your create function from the data context
-        // For example: createDailyReport(newReport);
-      }
-
-      // Show success message
-      // toast({
-      //   title: "Notes saved",
-      //   description: "Your notes have been saved successfully.",
-      // });
-    } catch (error) {
-      console.error('Error saving notes:', error);
-      // Show error message
-      // toast({
-      //   title: "Error saving notes",
-      //   description: "There was a problem saving your notes.",
-      //   variant: "destructive",
-      // });
-    }
-  };
-
-  // Add this effect to save to localStorage whenever objectives change
-  useEffect(() => {
+  // Add functions to work with localStorage
+  const saveDailyNotesToLocalStorage = () => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('objectives', JSON.stringify(objectives));
+      localStorage.setItem(
+        'dailyNotes',
+        JSON.stringify({
+          today: todayNotes,
+          tomorrow: tomorrowNotes,
+          general: generalComments,
+        })
+      );
     }
-  }, [objectives]);
-
-  const handleMetricValueChange = (metricId: string, value: string) => {
-    setMetricValues(prev => ({
-      ...prev,
-      [metricId]: value ? Number(value) : undefined,
-    }));
   };
 
-  // Update the dialog open handler to initialize report notes
+  // Modify useEffect for automatic saving
+  useEffect(() => {
+    const saveTimeout = setTimeout(() => {
+      saveDailyNotesToLocalStorage();
+    }, 1000);
+
+    return () => clearTimeout(saveTimeout);
+  }, [todayNotes, tomorrowNotes, generalComments]);
+
+  // Change handler for today-notes
+  const handleTodayNotesChange = (html: string) => {
+    setTodayNotes(html);
+
+    // Save to localStorage on each change
+    const currentNotes = JSON.parse(
+      localStorage.getItem('dailyNotes') ||
+        '{"today":"","tomorrow":"","general":""}'
+    );
+    localStorage.setItem(
+      'dailyNotes',
+      JSON.stringify({
+        ...currentNotes,
+        today: html,
+      })
+    );
+  };
+
+  // Change handler for tomorrow-notes
+  const handleTomorrowNotesChange = (html: string) => {
+    setTomorrowNotes(html);
+
+    // Save to localStorage on each change
+    const currentNotes = JSON.parse(
+      localStorage.getItem('dailyNotes') ||
+        '{"today":"","tomorrow":"","general":""}'
+    );
+    localStorage.setItem(
+      'dailyNotes',
+      JSON.stringify({
+        ...currentNotes,
+        tomorrow: html,
+      })
+    );
+  };
+
+  // Change handler for general-comments
+  const handleGeneralCommentsChange = (html: string) => {
+    setGeneralComments(html);
+
+    // Save to localStorage on each change
+    const currentNotes = JSON.parse(
+      localStorage.getItem('dailyNotes') ||
+        '{"today":"","tomorrow":"","general":""}'
+    );
+    localStorage.setItem(
+      'dailyNotes',
+      JSON.stringify({
+        ...currentNotes,
+        general: html,
+      })
+    );
+  };
+
+  // Update report opening function to get data from localStorage
   const handleOpenReport = () => {
-    setReportTodayNotes(todayNotes);
-    setReportTomorrowNotes(tomorrowNotes);
-    setReportGeneralComments(generalComments);
+    const savedNotes = localStorage.getItem('dailyNotes');
+    if (savedNotes) {
+      try {
+        const parsed = JSON.parse(savedNotes);
+        setReportTodayNotes(parsed.today || '');
+        setReportTomorrowNotes(parsed.tomorrow || '');
+        setReportGeneralComments(parsed.general || '');
+      } catch (error) {
+        console.error('Error parsing notes:', error);
+        // Fallback if something went wrong
+        setReportTodayNotes(todayNotes);
+        setReportTomorrowNotes(tomorrowNotes);
+        setReportGeneralComments(generalComments);
+      }
+    } else {
+      // If there are no saved notes
+      setReportTodayNotes(todayNotes);
+      setReportTomorrowNotes(tomorrowNotes);
+      setReportGeneralComments(generalComments);
+    }
     setReportDialogOpen(true);
   };
 
-  // Update the report creation to use the report-specific notes
+  // Update function for creating a report
   const handleCreateReport = async () => {
     try {
       const report = {
@@ -362,10 +325,16 @@ export function Dashboard() {
         user_id: user.id,
       };
 
-      // Here you would save the report to your backend
-      // await createDailyReport(report);
+      // Save the report to localStorage
+      const reports = JSON.parse(localStorage.getItem('dailyReports') || '[]');
+      reports.push({
+        ...report,
+        id: `report-${Date.now()}`,
+        created_at: new Date().toISOString(),
+      });
+      localStorage.setItem('dailyReports', JSON.stringify(reports));
 
-      // Clear the form
+      // Close the form
       setMetricValues({});
       setReportDialogOpen(false);
     } catch (error) {
@@ -373,14 +342,12 @@ export function Dashboard() {
     }
   };
 
-  // Add auto-save for notes
-  useEffect(() => {
-    const saveTimeout = setTimeout(() => {
-      handleSaveNotes();
-    }, 1000);
-
-    return () => clearTimeout(saveTimeout);
-  }, [todayNotes, tomorrowNotes, generalComments]);
+  const handleMetricValueChange = (metricId: string, value: string) => {
+    setMetricValues(prev => ({
+      ...prev,
+      [metricId]: value ? Number(value) : undefined,
+    }));
+  };
 
   const toggleObjectiveInReport = (objectiveId: string) => {
     setExpandedObjectives(prev => {
@@ -392,6 +359,93 @@ export function Dashboard() {
       }
       return newSet;
     });
+  };
+
+  // Add function to save objectives to localStorage
+  const saveObjectivesToLocalStorage = (updatedObjectives: Objective[]) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('objectives', JSON.stringify(updatedObjectives));
+    }
+  };
+
+  // Add functions to handle objective and metric changes
+  const handleAddObjective = (newObjective: Objective) => {
+    const updatedObjectives = [...objectives, newObjective];
+    setObjectives(updatedObjectives);
+    saveObjectivesToLocalStorage(updatedObjectives);
+  };
+
+  const handleUpdateObjective = (updatedObjective: Objective) => {
+    const updatedObjectives = objectives.map(obj =>
+      obj.id === updatedObjective.id ? updatedObjective : obj
+    );
+    setObjectives(updatedObjectives);
+    saveObjectivesToLocalStorage(updatedObjectives);
+  };
+
+  const handleDeleteObjective = (objectiveId: string) => {
+    const updatedObjectives = objectives.filter(obj => obj.id !== objectiveId);
+    setObjectives(updatedObjectives);
+    saveObjectivesToLocalStorage(updatedObjectives);
+  };
+
+  const handleAddMetric = (objectiveId: string, newMetric: Metric) => {
+    const updatedObjectives = objectives.map(obj => {
+      if (obj.id === objectiveId) {
+        return {
+          ...obj,
+          metrics: [...obj.metrics, newMetric],
+        };
+      }
+      return obj;
+    });
+    setObjectives(updatedObjectives);
+    saveObjectivesToLocalStorage(updatedObjectives);
+  };
+
+  const handleUpdateMetric = (objectiveId: string, updatedMetric: Metric) => {
+    const updatedObjectives = objectives.map(obj => {
+      if (obj.id === objectiveId) {
+        return {
+          ...obj,
+          metrics: obj.metrics.map(metric =>
+            metric.id === updatedMetric.id ? updatedMetric : metric
+          ),
+        };
+      }
+      return obj;
+    });
+    setObjectives(updatedObjectives);
+    saveObjectivesToLocalStorage(updatedObjectives);
+  };
+
+  const handleDeleteMetric = (objectiveId: string, metricId: string) => {
+    const updatedObjectives = objectives.map(obj => {
+      if (obj.id === objectiveId) {
+        return {
+          ...obj,
+          metrics: obj.metrics.filter(metric => metric.id !== metricId),
+        };
+      }
+      return obj;
+    });
+    setObjectives(updatedObjectives);
+    saveObjectivesToLocalStorage(updatedObjectives);
+  };
+
+  // Toggle objective expansion
+  const toggleObjectiveExpansion = (objectiveId: string) => {
+    const updatedObjectives = objectives.map(obj => {
+      if (obj.id === objectiveId) {
+        return {
+          ...obj,
+          isExpanded: !obj.isExpanded,
+        };
+      }
+      return obj;
+    });
+    setObjectives(updatedObjectives);
+    saveObjectivesToLocalStorage(updatedObjectives);
   };
 
   return (
@@ -526,7 +580,10 @@ export function Dashboard() {
                 <div className='grid gap-6'>
                   <ObjectivesMetricsTable
                     objectives={objectives}
-                    onObjectivesChange={setObjectives}
+                    onObjectivesChange={updatedObjectives => {
+                      setObjectives(updatedObjectives);
+                      saveObjectivesToLocalStorage(updatedObjectives);
+                    }}
                   />
                 </div>
               </TabsContent>
@@ -535,7 +592,10 @@ export function Dashboard() {
                 <div className='grid gap-6'>
                   <DeepOverviewTable
                     objectives={objectives}
-                    onObjectivesChange={setObjectives}
+                    onObjectivesChange={updatedObjectives => {
+                      setObjectives(updatedObjectives);
+                      saveObjectivesToLocalStorage(updatedObjectives);
+                    }}
                   />
                 </div>
               </TabsContent>
@@ -690,8 +750,8 @@ export function Dashboard() {
                   <NotesEditor
                     id='today-notes'
                     content={todayNotes}
+                    onChange={handleTodayNotesChange}
                     placeholder='What did you accomplish today?'
-                    onChange={setTodayNotes}
                   />
                 </div>
                 <div>
@@ -701,8 +761,8 @@ export function Dashboard() {
                   <NotesEditor
                     id='tomorrow-notes'
                     content={tomorrowNotes}
+                    onChange={handleTomorrowNotesChange}
                     placeholder='What do you plan to work on tomorrow?'
-                    onChange={setTomorrowNotes}
                   />
                 </div>
               </div>
@@ -711,9 +771,10 @@ export function Dashboard() {
                   General Comments
                 </h4>
                 <NotesEditor
+                  id='general-comments'
                   content={generalComments}
+                  onChange={handleGeneralCommentsChange}
                   placeholder='Any other thoughts or comments...'
-                  onChange={setGeneralComments}
                 />
               </div>
               <div className='mt-6 flex justify-end'>
@@ -772,7 +833,7 @@ export function Dashboard() {
                               size='sm'
                               className='h-6 w-6 p-0'
                               onClick={() =>
-                                toggleObjectiveInReport(objective.id)
+                                toggleObjectiveExpansion(objective.id)
                               }
                             >
                               {expandedObjectives.has(objective.id) ? (

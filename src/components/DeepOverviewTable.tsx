@@ -128,31 +128,31 @@ export function DeepOverviewTable({
   // Handle confirmed delete
   const handleConfirmedDelete = () => {
     if (!itemToDelete) return;
-
+    
+    let updatedObjectives = [...objectives];
+    
     if (itemToDelete.type === 'objective') {
-      handleDeleteObjective(itemToDelete.objectiveId);
-    } else if (itemToDelete.metricId) {
-      handleDeleteMetric(itemToDelete.objectiveId, itemToDelete.metricId);
+      // Filter out the deleted objective
+      updatedObjectives = updatedObjectives.filter(
+        obj => obj.id !== itemToDelete.objectiveId
+      );
+    } else if (itemToDelete.type === 'metric' && itemToDelete.metricId) {
+      // Filter out the deleted metric from the specific objective
+      updatedObjectives = updatedObjectives.map(obj => {
+        if (obj.id === itemToDelete.objectiveId) {
+          return {
+            ...obj,
+            metrics: obj.metrics.filter(m => m.id !== itemToDelete.metricId),
+          };
+        }
+        return obj;
+      });
     }
-
+    
+    // Update state and localStorage through parent component
+    onObjectivesChange(updatedObjectives);
     setDeleteConfirmOpen(false);
     setItemToDelete(null);
-  };
-
-  // Delete an objective
-  const handleDeleteObjective = (objectiveId: string) => {
-    const updatedObjectives = objectives.filter(obj => obj.id !== objectiveId);
-    onObjectivesChange(updatedObjectives);
-  };
-
-  // Delete a metric
-  const handleDeleteMetric = (objectiveId: string, metricId: string) => {
-    const updatedObjectives = objectives.map(obj =>
-      obj.id === objectiveId
-        ? { ...obj, metrics: obj.metrics.filter(m => m.id !== metricId) }
-        : obj
-    );
-    onObjectivesChange(updatedObjectives);
   };
 
   // Move objective up or down
