@@ -431,6 +431,7 @@ export function Dashboard() {
               <div className='border-b px-4'>
                 <TabsList className='my-2'>
                   <TabsTrigger value='overview'>Overview</TabsTrigger>
+                  <TabsTrigger value='deep-overview'>Deep Overview</TabsTrigger>
                   <TabsTrigger value='team'>Team</TabsTrigger>
                   <TabsTrigger value='reports'>Reports</TabsTrigger>
                 </TabsList>
@@ -442,7 +443,11 @@ export function Dashboard() {
                     objectives={objectives}
                     onObjectivesChange={setObjectives}
                   />
+                </div>
+              </TabsContent>
 
+              <TabsContent value='deep-overview' className='p-6'>
+                <div className='grid gap-6'>
                   <div className='flex justify-between items-center mb-6'>
                     <h3 className='text-lg font-semibold'>
                       Indicators Overview
