@@ -319,7 +319,7 @@ export function ReportsTable({
                         {/* Notes Sections */}
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <h4 className="font-medium mb-2">Today's Notes</h4>
+                            <h4 className="font-medium mb-2">Today's Notes test</h4>
                             <div 
                               className="text-sm border rounded p-3" 
                               dangerouslySetInnerHTML={{ __html: report.today_notes }} 
