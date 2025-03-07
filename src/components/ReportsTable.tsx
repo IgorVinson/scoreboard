@@ -14,7 +14,6 @@ import { Badge } from '@/components/ui/badge';
 import {
   ChevronDown,
   ChevronRight,
-  ArrowRight,
   Trash2,
   ArrowUp,
   ArrowDown,
@@ -109,7 +108,7 @@ export function ReportsTable({
 
   // Helper function to get plan, actual, and deviation for a metric
   const getMetricValues = (metric: Metric, report: Report) => {
-    const plan = metric.target || '-';
+    const plan = metric.target ?? '-';
     const actual = report.metrics_data[metric.id] !== undefined ? report.metrics_data[metric.id] : '-';
     
     let deviation = '-';
@@ -126,16 +125,16 @@ export function ReportsTable({
         <TableRow>
           <TableHead>Date</TableHead>
           <TableHead>Objectives/Metrics</TableHead>
-          <TableHead>Plan</TableHead>
-          <TableHead>Actual</TableHead>
-          <TableHead>Deviation</TableHead>
-          <TableHead>Actions</TableHead>
+          <TableHead className='text-center'>Plan</TableHead>
+          <TableHead className='text-center'>Actual</TableHead>
+          <TableHead className='text-center'>Deviation</TableHead>
+          <TableHead className='text-center'>Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {reports.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={6} className="text-center">
+            <TableCell colSpan={6} className='text-center'>
               No reports found
             </TableCell>
           </TableRow>
@@ -148,104 +147,177 @@ export function ReportsTable({
               <React.Fragment key={report.id}>
                 <TableRow>
                   <TableCell>
-                    <div className="flex items-center">
+                    <div className='flex items-center'>
                       <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 mr-2"
+                        variant='ghost'
+                        size='sm'
+                        className='h-6 w-6 p-0 mr-2'
                         onClick={() => toggleReportExpansion(report.id)}
                       >
                         {isExpanded ? (
-                          <ChevronDown className="h-4 w-4" />
+                          <ChevronDown className='h-4 w-4' />
                         ) : (
-                          <ChevronRight className="h-4 w-4" />
+                          <ChevronRight className='h-4 w-4' />
                         )}
                       </Button>
                       {formattedDate}
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-col space-y-1">
-                      {objectives.map((objective) => (
+                    <div className='flex flex-col space-y-1'>
+                      {objectives.map(objective => (
                         <React.Fragment key={objective.id}>
-                          <div className="flex items-center space-x-2">
+                          <div className='flex items-center space-x-2'>
                             <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0"
-                              onClick={(e) => toggleMainObjectiveExpansion(report.id, objective.id, e)}
+                              variant='ghost'
+                              size='sm'
+                              className='h-6 w-6 p-0'
+                              onClick={e =>
+                                toggleMainObjectiveExpansion(
+                                  report.id,
+                                  objective.id,
+                                  e
+                                )
+                              }
                             >
-                              {isMainObjectiveExpanded(report.id, objective.id) ? (
-                                <ChevronDown className="h-4 w-4" />
+                              {isMainObjectiveExpanded(
+                                report.id,
+                                objective.id
+                              ) ? (
+                                <ChevronDown className='h-4 w-4' />
                               ) : (
-                                <ChevronRight className="h-4 w-4" />
+                                <ChevronRight className='h-4 w-4' />
                               )}
                             </Button>
-                            <span className="text-sm">{objective.name}</span>
+                            <span className='text-sm'>{objective.name}</span>
                             {objective.metrics.length > 0 && (
-                              <Badge variant="secondary" className="text-xs">
+                              <Badge variant='secondary' className='text-xs'>
                                 {objective.metrics.length} metrics
                               </Badge>
                             )}
                           </div>
-                          
+
                           {isMainObjectiveExpanded(report.id, objective.id) && (
-                            <div className="ml-6 mt-1 mb-2 border-l-2 pl-2">
-                              {objective.metrics.map(metric => {
-                                const { plan, actual, deviation } = getMetricValues(metric, report);
-                                return (
-                                  <div key={metric.id} className="flex justify-between text-sm py-1">
-                                    <span className="text-muted-foreground">{metric.name}</span>
-                                    <div className="flex space-x-6">
-                                      <span className="w-12 text-right">{plan}</span>
-                                      <span className="w-12 text-right">{actual}</span>
-                                      <span className={`w-16 text-right ${
-                                        deviation !== '-' ? 
-                                          (parseFloat(deviation) >= 0 ? 'text-green-500' : 'text-red-500') 
-                                          : ''
-                                      }`}>
-                                        {deviation !== '-' ? `${deviation}%` : '-'}
-                                      </span>
-                                    </div>
-                                  </div>
-                                );
-                              })}
+                            <div className='ml-6 mt-1 mb-2 border-l-2 pl-2'>
+                              {objective.metrics.map(metric => (
+                                <div key={metric.id} className='text-sm py-1'>
+                                  <span className='text-muted-foreground'>
+                                    {metric.name}
+                                  </span>
+                                </div>
+                              ))}
                             </div>
                           )}
                         </React.Fragment>
                       ))}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right"></TableCell>
-                  <TableCell className="text-right"></TableCell>
-                  <TableCell className="text-right"></TableCell>
                   <TableCell>
-                    <div className="flex items-center space-x-2">
+                    {objectives.map(objective => (
+                      <React.Fragment key={objective.id}>
+                        {isMainObjectiveExpanded(report.id, objective.id) && (
+                          <div className='mt-1 mb-2'>
+                            {objective.metrics.map(metric => {
+                              const { plan } = getMetricValues(metric, report);
+                              return (
+                                <div
+                                  key={metric.id}
+                                  className='text-sm py-1 text-center'
+                                >
+                                  {plan}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </TableCell>
+                  <TableCell>
+                    {objectives.map(objective => (
+                      <React.Fragment key={objective.id}>
+                        {isMainObjectiveExpanded(report.id, objective.id) && (
+                          <div className='mt-1 mb-2'>
+                            {objective.metrics.map(metric => {
+                              const { actual } = getMetricValues(
+                                metric,
+                                report
+                              );
+                              return (
+                                <div
+                                  key={metric.id}
+                                  className='text-sm py-1 text-center'
+                                >
+                                  {actual}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </TableCell>
+                  <TableCell>
+                    {objectives.map(objective => (
+                      <React.Fragment key={objective.id}>
+                        {isMainObjectiveExpanded(report.id, objective.id) && (
+                          <div className='mt-1 mb-2'>
+                            {objective.metrics.map(metric => {
+                              const { deviation } = getMetricValues(
+                                metric,
+                                report
+                              );
+                              return (
+                                <div
+                                  key={metric.id}
+                                  className='text-sm py-1 text-center'
+                                >
+                                  <span
+                                    className={`${
+                                      deviation !== '-'
+                                        ? parseFloat(deviation) >= 0
+                                          ? 'text-green-500'
+                                          : 'text-red-500'
+                                        : ''
+                                    }`}
+                                  >
+                                    {deviation !== '-' ? `${deviation}%` : '-'}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </TableCell>
+                  <TableCell>
+                    <div className='flex items-center space-x-2'>
                       <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
+                        variant='ghost'
+                        size='sm'
+                        className='h-8 w-8 p-0'
                         onClick={() => onDeleteReport(report.id)}
                       >
-                        <Trash2 className="h-4 w-4 text-destructive" />
+                        <Trash2 className='h-4 w-4 text-destructive' />
                       </Button>
                       <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
+                        variant='ghost'
+                        size='sm'
+                        className='h-8 w-8 p-0'
                         onClick={() => onMoveReport(report.id, 'up')}
                         disabled={reportIndex === 0}
                       >
-                        <ArrowUp className="h-4 w-4" />
+                        <ArrowUp className='h-4 w-4' />
                       </Button>
                       <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
+                        variant='ghost'
+                        size='sm'
+                        className='h-8 w-8 p-0'
                         onClick={() => onMoveReport(report.id, 'down')}
                         disabled={reportIndex === reports.length - 1}
                       >
-                        <ArrowDown className="h-4 w-4" />
+                        <ArrowDown className='h-4 w-4' />
                       </Button>
                     </div>
                   </TableCell>
@@ -254,90 +326,119 @@ export function ReportsTable({
                 {/* Expanded content */}
                 {isExpanded && (
                   <TableRow>
-                    <TableCell colSpan={6} className="bg-muted/50 p-0">
-                      <div className="py-2 px-4">
+                    <TableCell colSpan={6} className='bg-muted/50 p-0'>
+                      <div className='py-2 px-4'>
                         {/* Objectives and Metrics Details */}
-                        <div className="mb-4">
-                          <h4 className="font-medium mb-2">Objectives & Metrics</h4>
-                          {objectives.map((objective) => (
-                            <div key={objective.id} className="mb-4 border rounded-md">
-                              <div 
-                                className="flex items-center space-x-2 p-3 bg-muted/30 cursor-pointer"
-                                onClick={() => toggleObjectiveExpansion(report.id, objective.id)}
+                        <div className='mb-4'>
+                          <h4 className='font-medium mb-2'>
+                            Objectives & Metrics
+                          </h4>
+                          {objectives.map(objective => (
+                            <div
+                              key={objective.id}
+                              className='mb-4 border rounded-md'
+                            >
+                              <div
+                                className='flex items-center space-x-2 p-3 bg-muted/30 cursor-pointer'
+                                onClick={() =>
+                                  toggleObjectiveExpansion(
+                                    report.id,
+                                    objective.id
+                                  )
+                                }
                               >
-                                {isObjectiveExpanded(report.id, objective.id) ? (
-                                  <ChevronDown className="h-4 w-4" />
+                                {isObjectiveExpanded(
+                                  report.id,
+                                  objective.id
+                                ) ? (
+                                  <ChevronDown className='h-4 w-4' />
                                 ) : (
-                                  <ChevronRight className="h-4 w-4" />
+                                  <ChevronRight className='h-4 w-4' />
                                 )}
-                                <h5 className="font-medium">{objective.name}</h5>
+                                <h5 className='font-medium'>
+                                  {objective.name}
+                                </h5>
                               </div>
-                              
-                              {isObjectiveExpanded(report.id, objective.id) && objective.metrics.length > 0 && (
-                                <div className="p-3">
-                                  <Table>
-                                    <TableHeader>
-                                      <TableRow>
-                                        <TableHead>Metric</TableHead>
-                                        <TableHead>Target</TableHead>
-                                        <TableHead>Actual</TableHead>
-                                        <TableHead>Deviation</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                      {objective.metrics.map((metric) => {
-                                        const { plan, actual, deviation } = getMetricValues(metric, report);
-                                        
-                                        return (
-                                          <TableRow key={metric.id}>
-                                            <TableCell>{metric.name}</TableCell>
-                                            <TableCell>{plan}</TableCell>
-                                            <TableCell>{actual}</TableCell>
-                                            <TableCell>
-                                              {deviation !== '-' && (
-                                                <span className={
-                                                  parseFloat(deviation) >= 0 
-                                                    ? 'text-green-500' 
-                                                    : 'text-red-500'
-                                                }>
-                                                  {deviation}%
-                                                </span>
-                                              )}
-                                              {deviation === '-' && '-'}
-                                            </TableCell>
-                                          </TableRow>
-                                        );
-                                      })}
-                                    </TableBody>
-                                  </Table>
-                                </div>
-                              )}
-                            </div >
+
+                              {isObjectiveExpanded(report.id, objective.id) &&
+                                objective.metrics.length > 0 && (
+                                  <div className='p-3'>
+                                    <Table>
+                                      <TableHeader>
+                                        <TableRow>
+                                          <TableHead>Metric</TableHead>
+                                          <TableHead>Target</TableHead>
+                                          <TableHead>Actual</TableHead>
+                                          <TableHead>Deviation</TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {objective.metrics.map(metric => {
+                                          const { plan, actual, deviation } =
+                                            getMetricValues(metric, report);
+
+                                          return (
+                                            <TableRow key={metric.id}>
+                                              <TableCell>
+                                                {metric.name}
+                                              </TableCell>
+                                              <TableCell>{plan}</TableCell>
+                                              <TableCell>{actual}</TableCell>
+                                              <TableCell>
+                                                {deviation !== '-' && (
+                                                  <span
+                                                    className={
+                                                      parseFloat(deviation) >= 0
+                                                        ? 'text-green-500'
+                                                        : 'text-red-500'
+                                                    }
+                                                  >
+                                                    {deviation}%
+                                                  </span>
+                                                )}
+                                                {deviation === '-' && '-'}
+                                              </TableCell>
+                                            </TableRow>
+                                          );
+                                        })}
+                                      </TableBody>
+                                    </Table>
+                                  </div>
+                                )}
+                            </div>
                           ))}
                         </div>
 
                         {/* Notes Sections */}
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className='grid grid-cols-2 gap-4'>
                           <div>
-                            <h4 className="font-medium mb-2">Today's Notes</h4>
-                            <div 
-                              className="text-sm border rounded p-3" 
-                              dangerouslySetInnerHTML={{ __html: report.today_notes }} 
+                            <h4 className='font-medium mb-2'>Today's Notes</h4>
+                            <div
+                              className='text-sm border rounded p-3'
+                              dangerouslySetInnerHTML={{
+                                __html: report.today_notes,
+                              }}
                             />
                           </div>
                           <div>
-                            <h4 className="font-medium mb-2">Tomorrow's Notes</h4>
-                            <div 
-                              className="text-sm border rounded p-3" 
-                              dangerouslySetInnerHTML={{ __html: report.tomorrow_notes }} 
+                            <h4 className='font-medium mb-2'>
+                              Tomorrow's Notes
+                            </h4>
+                            <div
+                              className='text-sm border rounded p-3'
+                              dangerouslySetInnerHTML={{
+                                __html: report.tomorrow_notes,
+                              }}
                             />
                           </div>
                         </div>
-                        <div className="mt-4">
-                          <h4 className="font-medium mb-2">General Comments</h4>
-                          <div 
-                            className="text-sm border rounded p-3" 
-                            dangerouslySetInnerHTML={{ __html: report.general_comments }} 
+                        <div className='mt-4'>
+                          <h4 className='font-medium mb-2'>General Comments</h4>
+                          <div
+                            className='text-sm border rounded p-3'
+                            dangerouslySetInnerHTML={{
+                              __html: report.general_comments,
+                            }}
                           />
                         </div>
                       </div>
