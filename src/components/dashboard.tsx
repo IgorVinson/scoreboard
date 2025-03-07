@@ -64,6 +64,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { ReportsTable } from '@/components/ReportsTable';
 
 export function Dashboard() {
   const { user, signOut } = useAuth();
@@ -185,6 +186,8 @@ export function Dashboard() {
     reportsIndicator === 'All Indicators'
       ? reports
       : reports.filter((r: any) => r.indicator === reportsIndicator);
+
+
 
   // Get initials for avatar fallback
   const getInitials = (name: string) => {
@@ -462,6 +465,40 @@ export function Dashboard() {
     saveObjectivesToLocalStorage(updatedObjectives);
   };
 
+  const handleDeleteReport = (reportId: string) => {
+    try {
+      const updatedReports = reports.filter(report => report.id !== reportId);
+      setReports(updatedReports);
+      localStorage.setItem('dailyReports', JSON.stringify(updatedReports));
+    } catch (error) {
+      console.error('Error deleting report:', error);
+    }
+  };
+
+  const handleMoveReport = (reportId: string, direction: 'up' | 'down') => {
+    try {
+      const currentReports = [...reports];
+      const reportIndex = currentReports.findIndex(report => report.id === reportId);
+      
+      if (reportIndex === -1) return;
+      
+      if (direction === 'up' && reportIndex > 0) {
+        // Swap with the previous report
+        [currentReports[reportIndex], currentReports[reportIndex - 1]] = 
+        [currentReports[reportIndex - 1], currentReports[reportIndex]];
+      } else if (direction === 'down' && reportIndex < currentReports.length - 1) {
+        // Swap with the next report
+        [currentReports[reportIndex], currentReports[reportIndex + 1]] = 
+        [currentReports[reportIndex + 1], currentReports[reportIndex]];
+      }
+      
+      setReports(currentReports);
+      localStorage.setItem('dailyReports', JSON.stringify(currentReports));
+    } catch (error) {
+      console.error('Error moving report:', error);
+    }
+  };
+
   return (
     <div className='min-h-screen bg-background'>
       {/* Header */}
@@ -655,98 +692,18 @@ export function Dashboard() {
               </TabsContent>
 
               <TabsContent value='reports' className='p-6'>
-                <div className='grid gap-4 md:grid-cols-7'>
-                  <Card className='md:col-span-5'>
-                    <div className='p-6'>
-                      <div className='flex justify-between items-center mb-6'>
-                        <h3 className='text-lg font-semibold'>
-                          Recent Reports
-                        </h3>
-                        <div className='flex gap-4'>
-                          <Select
-                            value={reportsIndicator}
-                            onValueChange={setReportsIndicator}
-                          >
-                            <SelectTrigger className='w-[180px]'>
-                              <SelectValue placeholder='Select Indicator' />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {allIndicators.map(indicator => (
-                                <SelectItem key={indicator} value={indicator}>
-                                  {indicator}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Select
-                            value={reportsPeriod}
-                            onValueChange={setReportsPeriod}
-                          >
-                            <SelectTrigger className='w-[180px]'>
-                              <SelectValue placeholder='Select Period' />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {timePeriods.map(period => (
-                                <SelectItem key={period} value={period}>
-                                  {period}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Member</TableHead>
-                            <TableHead>Indicator</TableHead>
-                            <TableHead className='text-right'>Target</TableHead>
-                            <TableHead className='text-right'>Actual</TableHead>
-                            <TableHead className='text-right'>Status</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredReports.map((report, i) => (
-                            <TableRow key={i}>
-                              <TableCell>{report.date}</TableCell>
-                              <TableCell>{report.member}</TableCell>
-                              <TableCell>{report.indicator}</TableCell>
-                              <TableCell className='text-right'>
-                                {report.target}
-                              </TableCell>
-                              <TableCell className='text-right'>
-                                {report.value}
-                              </TableCell>
-                              <TableCell className='text-right'>
-                                <Badge
-                                  variant={
-                                    report.status === 'above'
-                                      ? 'default'
-                                      : 'destructive'
-                                  }
-                                >
-                                  {report.status === 'above' ? '↑' : '↓'}{' '}
-                                  {report.status}
-                                </Badge>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </Card>
-                  <Card className='md:col-span-2'>
-                    <div className='p-6'>
-                      <h3 className='text-lg font-semibold mb-4'>Calendar</h3>
-                      <Calendar
-                        mode='single'
-                        selected={date}
-                        onSelect={setDate}
-                        className='rounded-md border'
-                      />
-                    </div>
-                  </Card>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-2xl font-bold">Reports</h2>
+                    <Button onClick={handleOpenReport}>Create Report</Button>
+                  </div>
+                  
+                  <ReportsTable 
+                    reports={reports}
+                    objectives={objectives}
+                    onDeleteReport={handleDeleteReport}
+                    onMoveReport={handleMoveReport}
+                  />
                 </div>
               </TabsContent>
             </Tabs>
