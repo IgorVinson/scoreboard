@@ -194,11 +194,11 @@ export function ReportsTable({
                               {objective.metrics.map(metric => {
                                 const { plan, actual, deviation } = getMetricValues(metric, report);
                                 return (
-                                  <div key={metric.id} className="flex items-center justify-between text-sm py-1">
+                                  <div key={metric.id} className="flex justify-between text-sm py-1">
                                     <span className="text-muted-foreground">{metric.name}</span>
-                                    <div className="flex space-x-4">
-                                      <span className="w-16 text-right">{plan}</span>
-                                      <span className="w-16 text-right">{actual}</span>
+                                    <div className="flex space-x-6">
+                                      <span className="w-12 text-right">{plan}</span>
+                                      <span className="w-12 text-right">{actual}</span>
                                       <span className={`w-16 text-right ${
                                         deviation !== '-' ? 
                                           (parseFloat(deviation) >= 0 ? 'text-green-500' : 'text-red-500') 
@@ -216,34 +216,9 @@ export function ReportsTable({
                       ))}
                     </div>
                   </TableCell>
-                  <TableCell>
-                    {objectives.some(obj => obj.metrics.some(m => m.target)) ? 
-                      objectives.reduce((sum, obj) => 
-                        sum + obj.metrics.reduce((mSum, m) => mSum + (m.target || 0), 0), 0) 
-                      : '-'}
-                  </TableCell>
-                  <TableCell>
-                    {Object.keys(report.metrics_data).length > 0 ? 
-                      Object.values(report.metrics_data).reduce((sum, val) => sum + val, 0) 
-                      : '-'}
-                  </TableCell>
-                  <TableCell>
-                    {(() => {
-                      const planTotal = objectives.reduce((sum, obj) => 
-                        sum + obj.metrics.reduce((mSum, m) => mSum + (m.target || 0), 0), 0);
-                      const actualTotal = Object.values(report.metrics_data).reduce((sum, val) => sum + val, 0);
-                      
-                      if (planTotal && actualTotal) {
-                        const deviation = ((actualTotal - planTotal) / planTotal * 100).toFixed(1);
-                        return (
-                          <span className={parseFloat(deviation) >= 0 ? 'text-green-500' : 'text-red-500'}>
-                            {deviation}%
-                          </span>
-                        );
-                      }
-                      return '-';
-                    })()}
-                  </TableCell>
+                  <TableCell className="text-right"></TableCell>
+                  <TableCell className="text-right"></TableCell>
+                  <TableCell className="text-right"></TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-2">
                       <Button
