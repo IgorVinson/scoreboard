@@ -187,8 +187,6 @@ export function Dashboard() {
       ? reports
       : reports.filter((r: any) => r.indicator === reportsIndicator);
 
-
-
   // Get initials for avatar fallback
   const getInitials = (name: string) => {
     return name
@@ -478,20 +476,29 @@ export function Dashboard() {
   const handleMoveReport = (reportId: string, direction: 'up' | 'down') => {
     try {
       const currentReports = [...reports];
-      const reportIndex = currentReports.findIndex(report => report.id === reportId);
-      
+      const reportIndex = currentReports.findIndex(
+        report => report.id === reportId
+      );
+
       if (reportIndex === -1) return;
-      
+
       if (direction === 'up' && reportIndex > 0) {
         // Swap with the previous report
-        [currentReports[reportIndex], currentReports[reportIndex - 1]] = 
-        [currentReports[reportIndex - 1], currentReports[reportIndex]];
-      } else if (direction === 'down' && reportIndex < currentReports.length - 1) {
+        [currentReports[reportIndex], currentReports[reportIndex - 1]] = [
+          currentReports[reportIndex - 1],
+          currentReports[reportIndex],
+        ];
+      } else if (
+        direction === 'down' &&
+        reportIndex < currentReports.length - 1
+      ) {
         // Swap with the next report
-        [currentReports[reportIndex], currentReports[reportIndex + 1]] = 
-        [currentReports[reportIndex + 1], currentReports[reportIndex]];
+        [currentReports[reportIndex], currentReports[reportIndex + 1]] = [
+          currentReports[reportIndex + 1],
+          currentReports[reportIndex],
+        ];
       }
-      
+
       setReports(currentReports);
       localStorage.setItem('dailyReports', JSON.stringify(currentReports));
     } catch (error) {
@@ -692,13 +699,13 @@ export function Dashboard() {
               </TabsContent>
 
               <TabsContent value='reports' className='p-6'>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h2 className="text-2xl font-bold">Reports</h2>
+                <div className='space-y-4'>
+                  <div className='flex justify-between items-center'>
+                    <h2 className='text-2xl font-bold'>Reports</h2>
                     <Button onClick={handleOpenReport}>Create Report</Button>
                   </div>
-                  
-                  <ReportsTable 
+
+                  <ReportsTable
                     reports={reports}
                     objectives={objectives}
                     onDeleteReport={handleDeleteReport}
