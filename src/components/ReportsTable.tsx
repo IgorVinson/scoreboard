@@ -312,7 +312,7 @@ export function ReportsTable({
                                   </Table>
                                 </div>
                               )}
-                            </div>
+                            </div >
                           ))}
                         </div>
 
