@@ -64,7 +64,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { ReportsTable } from '@/components/ReportsTable';
+import { ReportsTable, ReportItem } from '@/components/ReportsTable';
 
 export function Dashboard() {
   const { user, signOut } = useAuth();
@@ -176,6 +176,8 @@ export function Dashboard() {
     }
     return [];
   });
+
+  const [editingReport, setEditingReport] = useState<ReportItem | null>(null);
 
   const filteredIndicators =
     selectedIndicator === 'All Indicators'
@@ -518,6 +520,31 @@ export function Dashboard() {
     }
   };
 
+  const handleEditReport = (report: ReportItem) => {
+    setEditingReport(report);
+    setReportDate(report.date);
+    setReportTodayNotes(report.today_notes);
+    setReportTomorrowNotes(report.tomorrow_notes);
+    setReportGeneralComments(report.general_comments);
+    
+    // Set metric values from the report
+    const newMetricValues: Record<string, number> = {};
+    Object.entries(report.metrics_data || {}).forEach(([metricId, data]) => {
+      newMetricValues[metricId] = data.fact;
+    });
+    setMetricValues(newMetricValues);
+    
+    // Create a deep copy of objectives with all expanded by default
+    setReportObjectives(
+      objectives.map(obj => ({
+        ...obj,
+        isExpanded: true,
+      }))
+    );
+    
+    setReportDialogOpen(true);
+  };
+
   return (
     <div className='min-h-screen bg-background'>
       {/* Header */}
@@ -721,6 +748,7 @@ export function Dashboard() {
                     objectives={objectives}
                     onDeleteReport={handleDeleteReport}
                     onMoveReport={handleMoveReport}
+                    onEditReport={handleEditReport}
                   />
                 </div>
               </TabsContent>
