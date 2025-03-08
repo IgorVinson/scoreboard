@@ -714,7 +714,6 @@ export function Dashboard() {
                 <div className='space-y-4'>
                   <div className='flex justify-between items-center'>
                     <h2 className='text-2xl font-bold'>Reports</h2>
-                    <Button onClick={handleOpenReport}>Create Report</Button>
                   </div>
 
                   <ReportsTable
