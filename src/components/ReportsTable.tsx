@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState } from 'react';
 import {
   Table,
@@ -22,36 +20,6 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 
-// Import the Objective and Metric types from ObjectivesMetricsTable
-import { Objective, Metric } from './ObjectivesMetricsTable';
-
-interface ReportItem {
-  id: string;
-  date: string;
-  metrics_data: Record<
-    string,
-    {
-      plan: number;
-      fact: number;
-    }
-  >;
-  today_notes: string;
-  tomorrow_notes: string;
-  general_comments: string;
-  user_id: string;
-  created_at: string;
-  reviewed: boolean;
-}
-
-interface ReportsTableProps {
-  reports: ReportItem[];
-  objectives: Objective[];
-  onDeleteReport: (reportId: string) => void;
-  onMoveReport: (reportId: string, direction: 'up' | 'down') => void;
-  onToggleReview: (reportId: string) => void;
-  onEditReport: (report: ReportItem) => void;
-}
-
 export function ReportsTable({
   reports,
   objectives,
@@ -59,18 +27,13 @@ export function ReportsTable({
   onMoveReport,
   onToggleReview,
   onEditReport,
-}: ReportsTableProps) {
-  const [expandedReports, setExpandedReports] = useState<Set<string>>(
-    new Set()
+}) {
+  const [expandedReports, setExpandedReports] = useState(new Set());
+  const [expandedMainObjectives, setExpandedMainObjectives] = useState(
+    new Map()
   );
-  const [expandedObjectives, setExpandedObjectives] = useState<
-    Map<string, Set<string>>
-  >(new Map());
-  const [expandedMainObjectives, setExpandedMainObjectives] = useState<
-    Map<string, Set<string>>
-  >(new Map());
 
-  const toggleReportExpansion = (reportId: string) => {
+  const toggleReportExpansion = reportId => {
     setExpandedReports(prev => {
       const newSet = new Set(prev);
       if (newSet.has(reportId)) {
@@ -82,27 +45,7 @@ export function ReportsTable({
     });
   };
 
-  const toggleObjectiveExpansion = (reportId: string, objectiveId: string) => {
-    setExpandedObjectives(prev => {
-      const newMap = new Map(prev);
-      const reportObjectives = newMap.get(reportId) || new Set();
-
-      if (reportObjectives.has(objectiveId)) {
-        reportObjectives.delete(objectiveId);
-      } else {
-        reportObjectives.add(objectiveId);
-      }
-
-      newMap.set(reportId, reportObjectives);
-      return newMap;
-    });
-  };
-
-  const toggleMainObjectiveExpansion = (
-    reportId: string,
-    objectiveId: string,
-    event: React.MouseEvent
-  ) => {
+  const toggleMainObjectiveExpansion = (reportId, objectiveId, event) => {
     // Stop propagation to prevent triggering the row expansion
     event.stopPropagation();
 
@@ -121,23 +64,23 @@ export function ReportsTable({
     });
   };
 
-  const isObjectiveExpanded = (reportId: string, objectiveId: string) => {
-    return expandedObjectives.get(reportId)?.has(objectiveId) || false;
-  };
-
-  const isMainObjectiveExpanded = (reportId: string, objectiveId: string) => {
+  const isMainObjectiveExpanded = (reportId, objectiveId) => {
     return expandedMainObjectives.get(reportId)?.has(objectiveId) || false;
   };
 
   // Helper function to get plan, actual, and deviation for a metric
-  const getMetricValues = (metric: Metric, report: ReportItem) => {
+  const getMetricValues = (metric, report) => {
     const metricData = report.metrics_data[metric.id];
     const plan = metricData?.plan ?? '-';
     const actual = metricData?.fact ?? '-';
 
     let deviation = '-';
     if (typeof plan === 'number' && typeof actual === 'number') {
-      deviation = (((actual - plan) / plan) * 100).toFixed(1);
+      if (plan === 0 && actual > 0) {
+        deviation = 'Infinity';
+      } else if (plan !== 0) {
+        deviation = (((actual - plan) / plan) * 100).toFixed(1);
+      }
     }
 
     if (deviation === 'NaN') {
@@ -145,6 +88,107 @@ export function ReportsTable({
     }
 
     return { plan, actual, deviation };
+  };
+
+  // Render the objectives and metrics in a more structured way
+  const renderObjectivesAndMetrics = report => {
+    return (
+      <div className='flex flex-col space-y-1'>
+        {objectives.map(objective => (
+          <div key={objective.id} className='flex flex-col'>
+            {/* Objective row */}
+            <div className='flex items-center space-x-2'>
+              <Button
+                variant='ghost'
+                size='sm'
+                className='h-6 w-6 p-0'
+                onClick={e =>
+                  toggleMainObjectiveExpansion(report.id, objective.id, e)
+                }
+              >
+                {isMainObjectiveExpanded(report.id, objective.id) ? (
+                  <ChevronDown className='h-4 w-4' />
+                ) : (
+                  <ChevronRight className='h-4 w-4' />
+                )}
+              </Button>
+              <span className='text-sm'>{objective.name}</span>
+              {objective.metrics.length > 0 && (
+                <Badge variant='secondary' className='text-xs'>
+                  {objective.metrics.length} metrics
+                </Badge>
+              )}
+            </div>
+
+            {/* Metrics */}
+            {isMainObjectiveExpanded(report.id, objective.id) && (
+              <div className='ml-6 mt-1 mb-2 border-l-2 pl-2'>
+                {objective.metrics.map(metric => (
+                  <div key={metric.id} className='text-sm py-1'>
+                    <span className='text-muted-foreground'>{metric.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // New function to render metric values in a properly aligned way
+  const renderMetricValues = (report, column) => {
+    return (
+      <div className='flex flex-col space-y-1'>
+        {objectives.map(objective => (
+          <div key={objective.id} className='flex flex-col'>
+            {/* Placeholder for the objective row to maintain alignment */}
+            <div className='flex items-center h-6'></div>
+
+            {/* Metric values - only rendered when objective is expanded */}
+            {isMainObjectiveExpanded(report.id, objective.id) && (
+              <div className='ml-6 mt-1 mb-2'>
+                {objective.metrics.map(metric => {
+                  const { plan, actual, deviation } = getMetricValues(
+                    metric,
+                    report
+                  );
+                  let value;
+                  let className = 'text-sm py-1 text-center';
+
+                  if (column === 'plan') {
+                    value = plan;
+                  } else if (column === 'actual') {
+                    value = actual;
+                  } else if (column === 'deviation') {
+                    value = deviation;
+                    if (deviation !== '-') {
+                      if (deviation === 'Infinity') {
+                        className += ' text-green-500';
+                        value = 'Infinity%';
+                      } else {
+                        const deviationNum = parseFloat(deviation);
+                        className +=
+                          deviationNum >= 0
+                            ? ' text-green-500'
+                            : ' text-red-500';
+                        value = `${deviation}%`;
+                      }
+                    }
+                  }
+
+                  return (
+                    <div key={metric.id} className={className}>
+                      {value}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -183,142 +227,24 @@ export function ReportsTable({
                         className='h-6 w-6 p-0 mr-2'
                         onClick={() => toggleReportExpansion(report.id)}
                       >
-                        {isExpanded ? (
-                          <FileText className='h-4 w-4 text-gray-400' />
-                        ) : (
-                          <FileText className='h-4 w-4 text-gray-400' />
-                        )}
+                        <FileText className='h-4 w-4 text-gray-400' />
                       </Button>
                       {formattedDate}
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <div className='flex flex-col space-y-1'>
-                      {objectives.map(objective => (
-                        <React.Fragment key={objective.id}>
-                          <div className='flex items-center space-x-2'>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              className='h-6 w-6 p-0'
-                              onClick={e =>
-                                toggleMainObjectiveExpansion(
-                                  report.id,
-                                  objective.id,
-                                  e
-                                )
-                              }
-                            >
-                              {isMainObjectiveExpanded(
-                                report.id,
-                                objective.id
-                              ) ? (
-                                <ChevronDown className='h-4 w-4' />
-                              ) : (
-                                <ChevronRight className='h-4 w-4' />
-                              )}
-                            </Button>
-                            <span className='text-sm'>{objective.name}</span>
-                            {objective.metrics.length > 0 && (
-                              <Badge variant='secondary' className='text-xs'>
-                                {objective.metrics.length} metrics
-                              </Badge>
-                            )}
-                          </div>
 
-                          {isMainObjectiveExpanded(report.id, objective.id) && (
-                            <div className='ml-6 mt-1 mb-2 border-l-2 pl-2'>
-                              {objective.metrics.map(metric => (
-                                <div key={metric.id} className='text-sm py-1'>
-                                  <span className='text-muted-foreground'>
-                                    {metric.name}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </React.Fragment>
-                      ))}
-                    </div>
-                  </TableCell>
+                  {/* Objectives and Metrics Column */}
+                  <TableCell>{renderObjectivesAndMetrics(report)}</TableCell>
+
+                  {/* Plan Column */}
+                  <TableCell>{renderMetricValues(report, 'plan')}</TableCell>
+
+                  {/* Actual Column */}
+                  <TableCell>{renderMetricValues(report, 'actual')}</TableCell>
+
+                  {/* Deviation Column */}
                   <TableCell>
-                    {objectives.map(objective => (
-                      <React.Fragment key={objective.id}>
-                        {isMainObjectiveExpanded(report.id, objective.id) && (
-                          <div className='mt-1 mb-2'>
-                            {objective.metrics.map(metric => {
-                              const { plan } = getMetricValues(metric, report);
-                              return (
-                                <div
-                                  key={metric.id}
-                                  className='text-sm py-1 text-center'
-                                >
-                                  {plan}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </React.Fragment>
-                    ))}
-                  </TableCell>
-                  <TableCell>
-                    {objectives.map(objective => (
-                      <React.Fragment key={objective.id}>
-                        {isMainObjectiveExpanded(report.id, objective.id) && (
-                          <div className='mt-1 mb-2'>
-                            {objective.metrics.map(metric => {
-                              const { actual } = getMetricValues(
-                                metric,
-                                report
-                              );
-                              return (
-                                <div
-                                  key={metric.id}
-                                  className='text-sm py-1 text-center'
-                                >
-                                  {actual}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </React.Fragment>
-                    ))}
-                  </TableCell>
-                  <TableCell>
-                    {objectives.map(objective => (
-                      <React.Fragment key={objective.id}>
-                        {isMainObjectiveExpanded(report.id, objective.id) && (
-                          <div className='mt-1 mb-2'>
-                            {objective.metrics.map(metric => {
-                              const { deviation } = getMetricValues(
-                                metric,
-                                report
-                              );
-                              return (
-                                <div
-                                  key={metric.id}
-                                  className='text-sm py-1 text-center'
-                                >
-                                  <span
-                                    className={`${
-                                      deviation !== '-'
-                                        ? parseFloat(deviation) >= 0
-                                          ? 'text-green-500'
-                                          : 'text-red-500'
-                                        : ''
-                                    }`}
-                                  >
-                                    {deviation !== '-' ? `${deviation}%` : '-'}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </React.Fragment>
-                    ))}
+                    {renderMetricValues(report, 'deviation')}
                   </TableCell>
 
                   <TableCell>
