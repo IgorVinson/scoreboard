@@ -18,7 +18,6 @@ import {
   ArrowUp,
   ArrowDown,
   Edit,
-  FileText,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -184,9 +183,9 @@ export function ReportsTable({
                         onClick={() => toggleReportExpansion(report.id)}
                       >
                         {isExpanded ? (
-                          <FileText className='h-4 w-4 text-gray-400' />
+                          <ChevronDown className='h-4 w-4' />
                         ) : (
-                          <FileText className='h-4 w-4 text-gray-400' />
+                          <ChevronRight className='h-4 w-4' />
                         )}
                       </Button>
                       {formattedDate}
@@ -242,10 +241,10 @@ export function ReportsTable({
                     </div>
                   </TableCell>
                   <TableCell>
-                    {objectives.map(objective => (
+                    {objectives.map((objective, objectiveIndex) => (
                       <React.Fragment key={objective.id}>
                         {isMainObjectiveExpanded(report.id, objective.id) && (
-                          <div className='mt-1 mb-2'>
+                          <div className={`${objectiveIndex > 0 && !isMainObjectiveExpanded(report.id, objectives[objectiveIndex-1]?.id) ? 'mt-0' : 'mt-1'} mb-2`}>
                             {objective.metrics.map(metric => {
                               const { plan } = getMetricValues(metric, report);
                               return (
