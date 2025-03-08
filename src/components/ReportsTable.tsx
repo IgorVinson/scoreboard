@@ -38,6 +38,7 @@ interface Report {
   general_comments: string;
   user_id: string;
   created_at: string;
+  reviewed: boolean;
 }
 
 interface ReportsTableProps {
@@ -45,6 +46,7 @@ interface ReportsTableProps {
   objectives: Objective[];
   onDeleteReport: (reportId: string) => void;
   onMoveReport: (reportId: string, direction: 'up' | 'down') => void;
+  onToggleReview: (reportId: string) => void;
 }
 
 export function ReportsTable({
@@ -52,6 +54,7 @@ export function ReportsTable({
   objectives,
   onDeleteReport,
   onMoveReport,
+  onToggleReview,
 }: ReportsTableProps) {
   const [expandedReports, setExpandedReports] = useState<Set<string>>(
     new Set()
@@ -150,12 +153,13 @@ export function ReportsTable({
           <TableHead className='text-center'>Actual</TableHead>
           <TableHead className='text-center'>Deviation</TableHead>
           <TableHead className='text-center'>Actions</TableHead>
+          <TableHead className='text-center'>Reviewed</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {reports.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={6} className='text-center'>
+            <TableCell colSpan={7} className='text-center'>
               No reports found
             </TableCell>
           </TableRow>
@@ -312,6 +316,7 @@ export function ReportsTable({
                       </React.Fragment>
                     ))}
                   </TableCell>
+
                   <TableCell>
                     <div className='flex items-center space-x-2'>
                       <Button
@@ -342,17 +347,27 @@ export function ReportsTable({
                       </Button>
                     </div>
                   </TableCell>
+                  <TableCell className='text-center'>
+                    <input
+                      type='checkbox'
+                      checked={report.reviewed}
+                      onChange={() => onToggleReview(report.id)}
+                      className='h-4 w-4'
+                    />
+                  </TableCell>
                 </TableRow>
 
                 {/* Expanded content */}
                 {isExpanded && (
                   <TableRow>
-                    <TableCell colSpan={6} className='bg-muted/50 p-0'>
+                    <TableCell colSpan={7} className='bg-muted/50 p-0'>
                       <div className='py-2 px-4'>
                         {/* Notes Sections */}
                         <div className='grid grid-cols-2 gap-4'>
                           <div>
-                            <h4 className='font-medium mb-2'>This day's notes</h4>
+                            <h4 className='font-medium mb-2'>
+                              This day's notes
+                            </h4>
                             <div
                               className='text-sm border rounded p-3'
                               dangerouslySetInnerHTML={{
