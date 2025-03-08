@@ -26,7 +26,13 @@ import { Objective, Metric } from './ObjectivesMetricsTable';
 interface Report {
   id: string;
   date: string;
-  metrics_data: Record<string, number>;
+  metrics_data: Record<
+    string,
+    {
+      plan: number;
+      fact: number;
+    }
+  >;
   today_notes: string;
   tomorrow_notes: string;
   general_comments: string;
@@ -118,15 +124,17 @@ export function ReportsTable({
 
   // Helper function to get plan, actual, and deviation for a metric
   const getMetricValues = (metric: Metric, report: Report) => {
-    const plan = metric.target ?? '-';
-    const actual =
-      report.metrics_data[metric.id] !== undefined
-        ? report.metrics_data[metric.id]
-        : '-';
+    const metricData = report.metrics_data[metric.id];
+    const plan = metricData?.plan ?? '-';
+    const actual = metricData?.fact ?? '-';
 
     let deviation = '-';
     if (typeof plan === 'number' && typeof actual === 'number') {
       deviation = (((actual - plan) / plan) * 100).toFixed(1);
+    }
+
+    if (deviation === 'NaN') {
+      deviation = '-';
     }
 
     return { plan, actual, deviation };
@@ -403,7 +411,7 @@ export function ReportsTable({
                                                     className={
                                                       parseFloat(deviation) >= 0
                                                         ? 'text-green-500'
-                                                        : 'text-red-500'
+                                                        : 'text-red-300'
                                                     }
                                                   >
                                                     {deviation}%
