@@ -47,9 +47,15 @@ export function ReportsTable({
   onDeleteReport,
   onMoveReport,
 }: ReportsTableProps) {
-  const [expandedReports, setExpandedReports] = useState<Set<string>>(new Set());
-  const [expandedObjectives, setExpandedObjectives] = useState<Map<string, Set<string>>>(new Map());
-  const [expandedMainObjectives, setExpandedMainObjectives] = useState<Map<string, Set<string>>>(new Map());
+  const [expandedReports, setExpandedReports] = useState<Set<string>>(
+    new Set()
+  );
+  const [expandedObjectives, setExpandedObjectives] = useState<
+    Map<string, Set<string>>
+  >(new Map());
+  const [expandedMainObjectives, setExpandedMainObjectives] = useState<
+    Map<string, Set<string>>
+  >(new Map());
 
   const toggleReportExpansion = (reportId: string) => {
     setExpandedReports(prev => {
@@ -67,32 +73,36 @@ export function ReportsTable({
     setExpandedObjectives(prev => {
       const newMap = new Map(prev);
       const reportObjectives = newMap.get(reportId) || new Set();
-      
+
       if (reportObjectives.has(objectiveId)) {
         reportObjectives.delete(objectiveId);
       } else {
         reportObjectives.add(objectiveId);
       }
-      
+
       newMap.set(reportId, reportObjectives);
       return newMap;
     });
   };
 
-  const toggleMainObjectiveExpansion = (reportId: string, objectiveId: string, event: React.MouseEvent) => {
+  const toggleMainObjectiveExpansion = (
+    reportId: string,
+    objectiveId: string,
+    event: React.MouseEvent
+  ) => {
     // Stop propagation to prevent triggering the row expansion
     event.stopPropagation();
-    
+
     setExpandedMainObjectives(prev => {
       const newMap = new Map(prev);
       const reportObjectives = newMap.get(reportId) || new Set();
-      
+
       if (reportObjectives.has(objectiveId)) {
         reportObjectives.delete(objectiveId);
       } else {
         reportObjectives.add(objectiveId);
       }
-      
+
       newMap.set(reportId, reportObjectives);
       return newMap;
     });
@@ -109,13 +119,16 @@ export function ReportsTable({
   // Helper function to get plan, actual, and deviation for a metric
   const getMetricValues = (metric: Metric, report: Report) => {
     const plan = metric.target ?? '-';
-    const actual = report.metrics_data[metric.id] !== undefined ? report.metrics_data[metric.id] : '-';
-    
+    const actual =
+      report.metrics_data[metric.id] !== undefined
+        ? report.metrics_data[metric.id]
+        : '-';
+
     let deviation = '-';
     if (typeof plan === 'number' && typeof actual === 'number') {
-      deviation = ((actual - plan) / plan * 100).toFixed(1);
+      deviation = (((actual - plan) / plan) * 100).toFixed(1);
     }
-    
+
     return { plan, actual, deviation };
   };
 
