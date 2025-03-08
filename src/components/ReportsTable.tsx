@@ -17,13 +17,14 @@ import {
   Trash2,
   ArrowUp,
   ArrowDown,
+  Edit,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
 // Import the Objective and Metric types from ObjectivesMetricsTable
 import { Objective, Metric } from './ObjectivesMetricsTable';
 
-interface Report {
+interface ReportItem {
   id: string;
   date: string;
   metrics_data: Record<
@@ -42,11 +43,12 @@ interface Report {
 }
 
 interface ReportsTableProps {
-  reports: Report[];
+  reports: ReportItem[];
   objectives: Objective[];
   onDeleteReport: (reportId: string) => void;
   onMoveReport: (reportId: string, direction: 'up' | 'down') => void;
   onToggleReview: (reportId: string) => void;
+  onEditReport: (report: ReportItem) => void;
 }
 
 export function ReportsTable({
@@ -55,6 +57,7 @@ export function ReportsTable({
   onDeleteReport,
   onMoveReport,
   onToggleReview,
+  onEditReport,
 }: ReportsTableProps) {
   const [expandedReports, setExpandedReports] = useState<Set<string>>(
     new Set()
@@ -126,7 +129,7 @@ export function ReportsTable({
   };
 
   // Helper function to get plan, actual, and deviation for a metric
-  const getMetricValues = (metric: Metric, report: Report) => {
+  const getMetricValues = (metric: Metric, report: ReportItem) => {
     const metricData = report.metrics_data[metric.id];
     const plan = metricData?.plan ?? '-';
     const actual = metricData?.fact ?? '-';
@@ -344,6 +347,14 @@ export function ReportsTable({
                         disabled={reportIndex === reports.length - 1}
                       >
                         <ArrowDown className='h-4 w-4' />
+                      </Button>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        className='h-8 w-8 p-0'
+                        onClick={() => onEditReport(report)}
+                      >
+                        <Edit className='h-4 w-4 text-muted-foreground' />
                       </Button>
                     </div>
                   </TableCell>
