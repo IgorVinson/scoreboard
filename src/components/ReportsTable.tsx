@@ -349,91 +349,10 @@ export function ReportsTable({
                   <TableRow>
                     <TableCell colSpan={6} className='bg-muted/50 p-0'>
                       <div className='py-2 px-4'>
-                        {/* Objectives and Metrics Details */}
-                        <div className='mb-4'>
-                          <h4 className='font-medium mb-2'>
-                            Objectives & Metrics
-                          </h4>
-                          {objectives.map(objective => (
-                            <div
-                              key={objective.id}
-                              className='mb-4 border rounded-md'
-                            >
-                              <div
-                                className='flex items-center space-x-2 p-3 bg-muted/30 cursor-pointer'
-                                onClick={() =>
-                                  toggleObjectiveExpansion(
-                                    report.id,
-                                    objective.id
-                                  )
-                                }
-                              >
-                                {isObjectiveExpanded(
-                                  report.id,
-                                  objective.id
-                                ) ? (
-                                  <ChevronDown className='h-4 w-4' />
-                                ) : (
-                                  <ChevronRight className='h-4 w-4' />
-                                )}
-                                <h5 className='font-medium'>
-                                  {objective.name}
-                                </h5>
-                              </div>
-
-                              {isObjectiveExpanded(report.id, objective.id) &&
-                                objective.metrics.length > 0 && (
-                                  <div className='p-3'>
-                                    <Table>
-                                      <TableHeader>
-                                        <TableRow>
-                                          <TableHead>Metric</TableHead>
-                                          <TableHead>Target</TableHead>
-                                          <TableHead>Actual</TableHead>
-                                          <TableHead>Deviation</TableHead>
-                                        </TableRow>
-                                      </TableHeader>
-                                      <TableBody>
-                                        {objective.metrics.map(metric => {
-                                          const { plan, actual, deviation } =
-                                            getMetricValues(metric, report);
-
-                                          return (
-                                            <TableRow key={metric.id}>
-                                              <TableCell>
-                                                {metric.name}
-                                              </TableCell>
-                                              <TableCell>{plan}</TableCell>
-                                              <TableCell>{actual}</TableCell>
-                                              <TableCell>
-                                                {deviation !== '-' && (
-                                                  <span
-                                                    className={
-                                                      parseFloat(deviation) >= 0
-                                                        ? 'text-green-500'
-                                                        : 'text-red-300'
-                                                    }
-                                                  >
-                                                    {deviation}%
-                                                  </span>
-                                                )}
-                                                {deviation === '-' && '-'}
-                                              </TableCell>
-                                            </TableRow>
-                                          );
-                                        })}
-                                      </TableBody>
-                                    </Table>
-                                  </div>
-                                )}
-                            </div>
-                          ))}
-                        </div>
-
                         {/* Notes Sections */}
                         <div className='grid grid-cols-2 gap-4'>
                           <div>
-                            <h4 className='font-medium mb-2'>Today's Notes</h4>
+                            <h4 className='font-medium mb-2'>This day's notes</h4>
                             <div
                               className='text-sm border rounded p-3'
                               dangerouslySetInnerHTML={{
@@ -443,7 +362,7 @@ export function ReportsTable({
                           </div>
                           <div>
                             <h4 className='font-medium mb-2'>
-                              Tomorrow's Notes
+                              Next day's notes
                             </h4>
                             <div
                               className='text-sm border rounded p-3'
@@ -454,7 +373,7 @@ export function ReportsTable({
                           </div>
                         </div>
                         <div className='mt-4'>
-                          <h4 className='font-medium mb-2'>General Comments</h4>
+                          <h4 className='font-medium mb-2'>Comments</h4>
                           <div
                             className='text-sm border rounded p-3'
                             dangerouslySetInnerHTML={{
