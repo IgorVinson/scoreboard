@@ -64,7 +64,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { ReportsTable, ReportItem } from '@/components/ReportsTable';
+import { ReportsTable } from '@/components/ReportsTable';
 
 export function Dashboard() {
   const { user, signOut } = useAuth();
@@ -176,8 +176,6 @@ export function Dashboard() {
     }
     return [];
   });
-
-  const [editingReport, setEditingReport] = useState<ReportItem | null>(null);
 
   const filteredIndicators =
     selectedIndicator === 'All Indicators'
@@ -343,7 +341,10 @@ export function Dashboard() {
     setReportDialogOpen(true);
   };
 
-  // Update function for creating a report
+  // Add state for tracking which report is being edited
+  const [editingReport, setEditingReport] = useState<any>(null);
+
+  // Keep the original handleCreateReport function for new reports
   const handleCreateReport = async () => {
     try {
       // Create metrics_data object with both plan and fact values
@@ -359,7 +360,7 @@ export function Dashboard() {
         });
       });
 
-      const report = {
+      const newReport = {
         id: `report-${Date.now()}`,
         date: reportDate,
         metrics_data,
@@ -368,12 +369,13 @@ export function Dashboard() {
         general_comments: reportGeneralComments,
         user_id: user.id,
         created_at: new Date().toISOString(),
+        reviewed: false,
       };
 
       // Save the report to localStorage
-      const reports = JSON.parse(localStorage.getItem('dailyReports') || '[]');
-      reports.push(report);
-      localStorage.setItem('dailyReports', JSON.stringify(reports));
+      const updatedReports = [...reports, newReport];
+      localStorage.setItem('dailyReports', JSON.stringify(updatedReports));
+      setReports(updatedReports);
 
       // Close the form
       setMetricValues({});
@@ -381,6 +383,99 @@ export function Dashboard() {
     } catch (error) {
       console.error('Error creating report:', error);
     }
+  };
+
+  // Add a separate function for updating existing reports
+  const handleUpdateReport = async () => {
+    try {
+      if (!editingReport) return;
+      
+      // Create metrics_data object with both plan and fact values
+      const metrics_data: Record<string, { plan: number; fact: number }> = {};
+
+      // Iterate through objectives and their metrics to get plan values
+      objectives.forEach(objective => {
+        objective.metrics.forEach(metric => {
+          metrics_data[metric.id] = {
+            plan: metric.plan || 0, // Get plan value from the objective's metric
+            fact: metricValues[metric.id] || 0, // Get fact value from user input
+          };
+        });
+      });
+
+      // Update existing report
+      const updatedReport = {
+        ...editingReport,
+        date: reportDate,
+        metrics_data,
+        today_notes: reportTodayNotes,
+        tomorrow_notes: reportTomorrowNotes,
+        general_comments: reportGeneralComments,
+      };
+
+      // Update the report in localStorage
+      const updatedReports = reports.map(report => 
+        report.id === editingReport.id ? updatedReport : report
+      );
+      
+      localStorage.setItem('dailyReports', JSON.stringify(updatedReports));
+      setReports(updatedReports);
+
+      // Close the form and reset editing state
+      setMetricValues({});
+      setEditingReport(null);
+      setReportDialogOpen(false);
+    } catch (error) {
+      console.error('Error updating report:', error);
+    }
+  };
+
+  // Add function to handle toggling report review status
+  const handleToggleReview = (reportId: string) => {
+    try {
+      const updatedReports = reports.map(report => {
+        if (report.id === reportId) {
+          return {
+            ...report,
+            reviewed: !report.reviewed
+          };
+        }
+        return report;
+      });
+      
+      setReports(updatedReports);
+      localStorage.setItem('dailyReports', JSON.stringify(updatedReports));
+    } catch (error) {
+      console.error('Error toggling report review status:', error);
+    }
+  };
+
+  // Add function to handle editing a report
+  const handleEditReport = (report: any) => {
+    setEditingReport(report);
+    setReportDate(report.date);
+    
+    // Pre-fill metric values from the report
+    const initialMetricValues: Record<string, number> = {};
+    Object.entries(report.metrics_data || {}).forEach(([metricId, data]: [string, any]) => {
+      initialMetricValues[metricId] = data.fact || 0;
+    });
+    setMetricValues(initialMetricValues);
+    
+    // Pre-fill notes
+    setReportTodayNotes(report.today_notes || '');
+    setReportTomorrowNotes(report.tomorrow_notes || '');
+    setReportGeneralComments(report.general_comments || '');
+    
+    // Create a deep copy of objectives with all expanded by default
+    setReportObjectives(
+      objectives.map(obj => ({
+        ...obj,
+        isExpanded: true, // Always expand in the report dialog
+      }))
+    );
+    
+    setReportDialogOpen(true);
   };
 
   // Update handleMetricValueChange to only handle fact values
@@ -518,31 +613,6 @@ export function Dashboard() {
     } catch (error) {
       console.error('Error moving report:', error);
     }
-  };
-
-  const handleEditReport = (report: ReportItem) => {
-    setEditingReport(report);
-    setReportDate(report.date);
-    setReportTodayNotes(report.today_notes);
-    setReportTomorrowNotes(report.tomorrow_notes);
-    setReportGeneralComments(report.general_comments);
-    
-    // Set metric values from the report
-    const newMetricValues: Record<string, number> = {};
-    Object.entries(report.metrics_data || {}).forEach(([metricId, data]) => {
-      newMetricValues[metricId] = data.fact;
-    });
-    setMetricValues(newMetricValues);
-    
-    // Create a deep copy of objectives with all expanded by default
-    setReportObjectives(
-      objectives.map(obj => ({
-        ...obj,
-        isExpanded: true,
-      }))
-    );
-    
-    setReportDialogOpen(true);
   };
 
   return (
@@ -749,6 +819,7 @@ export function Dashboard() {
                     onDeleteReport={handleDeleteReport}
                     onMoveReport={handleMoveReport}
                     onEditReport={handleEditReport}
+                    onToggleReview={handleToggleReview}
                   />
                 </div>
               </TabsContent>
@@ -948,11 +1019,18 @@ export function Dashboard() {
           <DialogFooter>
             <Button
               variant='outline'
-              onClick={() => setReportDialogOpen(false)}
+              onClick={() => {
+                setReportDialogOpen(false);
+                setEditingReport(null);
+              }}
             >
               Cancel
             </Button>
-            <Button onClick={handleCreateReport}>Create Report</Button>
+            {editingReport ? (
+              <Button onClick={handleUpdateReport}>Update Report</Button>
+            ) : (
+              <Button onClick={handleCreateReport}>Create Report</Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
