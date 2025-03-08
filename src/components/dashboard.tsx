@@ -344,22 +344,33 @@ export function Dashboard() {
   // Update function for creating a report
   const handleCreateReport = async () => {
     try {
+      // Create metrics_data object with both plan and fact values
+      const metrics_data: Record<string, { plan: number; fact: number }> = {};
+
+      // Iterate through objectives and their metrics to get plan values
+      objectives.forEach(objective => {
+        objective.metrics.forEach(metric => {
+          metrics_data[metric.id] = {
+            plan: metric.plan || 0, // Get plan value from the objective's metric
+            fact: metricValues[metric.id] || 0, // Get fact value from user input
+          };
+        });
+      });
+
       const report = {
+        id: `report-${Date.now()}`,
         date: reportDate,
-        metrics_data: metricValues,
+        metrics_data,
         today_notes: reportTodayNotes,
         tomorrow_notes: reportTomorrowNotes,
         general_comments: reportGeneralComments,
         user_id: user.id,
+        created_at: new Date().toISOString(),
       };
 
       // Save the report to localStorage
       const reports = JSON.parse(localStorage.getItem('dailyReports') || '[]');
-      reports.push({
-        ...report,
-        id: `report-${Date.now()}`,
-        created_at: new Date().toISOString(),
-      });
+      reports.push(report);
       localStorage.setItem('dailyReports', JSON.stringify(reports));
 
       // Close the form
@@ -370,6 +381,7 @@ export function Dashboard() {
     }
   };
 
+  // Update handleMetricValueChange to only handle fact values
   const handleMetricValueChange = (metricId: string, value: string) => {
     setMetricValues(prev => ({
       ...prev,
