@@ -18,6 +18,7 @@ import {
   ArrowUp,
   ArrowDown,
   Edit,
+  FileText,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -183,9 +184,9 @@ export function ReportsTable({
                         onClick={() => toggleReportExpansion(report.id)}
                       >
                         {isExpanded ? (
-                          <ChevronDown className='h-4 w-4' />
+                          <FileText className='h-4 w-4 text-gray-400' />
                         ) : (
-                          <ChevronRight className='h-4 w-4' />
+                          <FileText className='h-4 w-4 text-gray-400' />
                         )}
                       </Button>
                       {formattedDate}

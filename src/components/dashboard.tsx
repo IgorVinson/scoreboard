@@ -389,7 +389,7 @@ export function Dashboard() {
   const handleUpdateReport = async () => {
     try {
       if (!editingReport) return;
-      
+
       // Create metrics_data object with both plan and fact values
       const metrics_data: Record<string, { plan: number; fact: number }> = {};
 
@@ -414,10 +414,10 @@ export function Dashboard() {
       };
 
       // Update the report in localStorage
-      const updatedReports = reports.map(report => 
+      const updatedReports = reports.map(report =>
         report.id === editingReport.id ? updatedReport : report
       );
-      
+
       localStorage.setItem('dailyReports', JSON.stringify(updatedReports));
       setReports(updatedReports);
 
@@ -437,12 +437,12 @@ export function Dashboard() {
         if (report.id === reportId) {
           return {
             ...report,
-            reviewed: !report.reviewed
+            reviewed: !report.reviewed,
           };
         }
         return report;
       });
-      
+
       setReports(updatedReports);
       localStorage.setItem('dailyReports', JSON.stringify(updatedReports));
     } catch (error) {
@@ -454,19 +454,21 @@ export function Dashboard() {
   const handleEditReport = (report: any) => {
     setEditingReport(report);
     setReportDate(report.date);
-    
+
     // Pre-fill metric values from the report
     const initialMetricValues: Record<string, number> = {};
-    Object.entries(report.metrics_data || {}).forEach(([metricId, data]: [string, any]) => {
-      initialMetricValues[metricId] = data.fact || 0;
-    });
+    Object.entries(report.metrics_data || {}).forEach(
+      ([metricId, data]: [string, any]) => {
+        initialMetricValues[metricId] = data.fact || 0;
+      }
+    );
     setMetricValues(initialMetricValues);
-    
+
     // Pre-fill notes
     setReportTodayNotes(report.today_notes || '');
     setReportTomorrowNotes(report.tomorrow_notes || '');
     setReportGeneralComments(report.general_comments || '');
-    
+
     // Create a deep copy of objectives with all expanded by default
     setReportObjectives(
       objectives.map(obj => ({
@@ -474,7 +476,7 @@ export function Dashboard() {
         isExpanded: true, // Always expand in the report dialog
       }))
     );
-    
+
     setReportDialogOpen(true);
   };
 
