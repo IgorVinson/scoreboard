@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTheme } from '@/components/theme-provider';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -30,6 +30,9 @@ import {
   TrendingUp,
   UserCircle,
   LogOut,
+  ChevronDown,
+  ChevronRight,
+  ArrowRight,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -52,94 +55,16 @@ import {
   Objective,
 } from '@/components/ObjectivesMetricsTable';
 import { DeepOverviewTable } from '@/components/DeepOverviewTable';
-
-// Mock data
-const teamMembers = [
-  {
-    id: 1,
-    name: 'Sarah Chen',
-    role: 'MANAGER',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330',
-    indicators: ['Sales Performance', 'Client Satisfaction'],
-  },
-  {
-    id: 2,
-    name: 'Alex Kim',
-    role: 'EMPLOYEE',
-    avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36',
-    indicators: ['Business Proposals', 'Lead Generation'],
-  },
-  {
-    id: 3,
-    name: 'Maria Garcia',
-    role: 'EMPLOYEE',
-    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80',
-    indicators: ['Customer Support', 'Response Time'],
-  },
-];
-
-const allIndicators = [
-  'All Indicators',
-  'Business Proposals',
-  'Customer Support',
-  'Lead Generation',
-  'Sales Performance',
-  'Client Satisfaction',
-  'Response Time',
-];
-
-const timePeriods = ['Daily', 'Weekly', 'Monthly'];
-
-const reports = [
-  {
-    date: '2024-01-29',
-    member: 'Alex Kim',
-    indicator: 'Business Proposals',
-    value: 6,
-    target: 5,
-    status: 'above',
-  },
-  {
-    date: '2024-01-29',
-    member: 'Maria Garcia',
-    indicator: 'Response Time',
-    value: 15,
-    target: 20,
-    status: 'below',
-  },
-  {
-    date: '2024-01-28',
-    member: 'Alex Kim',
-    indicator: 'Lead Generation',
-    value: 12,
-    target: 10,
-    status: 'above',
-  },
-];
-
-const indicators = [
-  {
-    name: 'Business Proposals',
-    plan: 100,
-    actual: 85,
-    member: 'Alex Kim',
-    progress: 85,
-  },
-  {
-    name: 'Customer Support Tickets',
-    plan: 50,
-    actual: 47,
-    member: 'Maria Garcia',
-    progress: 94,
-  },
-  {
-    name: 'Lead Generation',
-    plan: 200,
-    actual: 180,
-    member: 'Alex Kim',
-    progress: 90,
-  },
-];
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { ReportsTable } from '@/components/ReportsTable';
 
 export function Dashboard() {
   const { user, signOut } = useAuth();
@@ -157,9 +82,48 @@ export function Dashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState('Daily');
   const [reportsIndicator, setReportsIndicator] = useState('All Indicators');
   const [reportsPeriod, setReportsPeriod] = useState('Daily');
-  const [todayNotes, setTodayNotes] = useState('');
-  const [tomorrowNotes, setTomorrowNotes] = useState('');
-  const [generalComments, setGeneralComments] = useState('');
+  const [todayNotes, setTodayNotes] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedNotes = localStorage.getItem('dailyNotes');
+        if (savedNotes) {
+          const parsed = JSON.parse(savedNotes);
+          return parsed.today || '';
+        }
+      } catch (error) {
+        console.error('Error loading today notes:', error);
+      }
+    }
+    return '';
+  });
+  const [tomorrowNotes, setTomorrowNotes] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedNotes = localStorage.getItem('dailyNotes');
+        if (savedNotes) {
+          const parsed = JSON.parse(savedNotes);
+          return parsed.tomorrow || '';
+        }
+      } catch (error) {
+        console.error('Error loading tomorrow notes:', error);
+      }
+    }
+    return '';
+  });
+  const [generalComments, setGeneralComments] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedNotes = localStorage.getItem('dailyNotes');
+        if (savedNotes) {
+          const parsed = JSON.parse(savedNotes);
+          return parsed.general || '';
+        }
+      } catch (error) {
+        console.error('Error loading general comments:', error);
+      }
+    }
+    return '';
+  });
   const [objectives, setObjectives] = useState<Objective[]>(() => {
     // Try to load from localStorage on initial render
     if (typeof window !== 'undefined') {
@@ -173,43 +137,55 @@ export function Dashboard() {
       }
     }
 
-    // Default initial data if nothing in localStorage
-    return [
-      {
-        id: 'obj-1',
-        name: 'Get new job',
-        description: 'Find a new position in web development',
-        isExpanded: true,
-        metrics: [
-          {
-            id: 'metric-1',
-            name: 'JS tasks',
-            description: 'Complete JavaScript coding challenges',
-          },
-          {
-            id: 'metric-2',
-            name: 'GreatFrontend',
-            description: 'Finish GreatFrontend exercises',
-          },
-          {
-            id: 'metric-3',
-            name: 'React course',
-            description: 'Complete advanced React course',
-          },
-        ],
-      },
-    ];
+    // Empty array if nothing in localStorage
+    return [];
+  });
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportDate, setReportDate] = useState<string>(
+    new Date().toISOString().split('T')[0]
+  );
+  const [metricValues, setMetricValues] = useState<Record<string, number>>({});
+  const [expandedObjectives, setExpandedObjectives] = useState<Set<string>>(
+    new Set()
+  );
+
+  // Add new state variables for report
+  const [reportTodayNotes, setReportTodayNotes] = useState('');
+  const [reportTomorrowNotes, setReportTomorrowNotes] = useState('');
+  const [reportGeneralComments, setReportGeneralComments] = useState('');
+
+  const [indicators, setIndicators] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [allIndicators, setAllIndicators] = useState(['All Indicators']);
+  const [timePeriods, setTimePeriods] = useState([
+    'Daily',
+    'Weekly',
+    'Monthly',
+  ]);
+
+  const [reports, setReports] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedReports = localStorage.getItem('dailyReports');
+        if (savedReports) {
+          return JSON.parse(savedReports);
+        }
+      } catch (error) {
+        console.error('Error loading reports:', error);
+      }
+    }
+    return [];
   });
 
   const filteredIndicators =
     selectedIndicator === 'All Indicators'
       ? indicators
-      : indicators.filter(i => i.name === selectedIndicator);
+      : indicators.filter((i: any) => i.name === selectedIndicator);
 
   const filteredReports =
     reportsIndicator === 'All Indicators'
       ? reports
-      : reports.filter(r => r.indicator === reportsIndicator);
+      : reports.filter((r: any) => r.indicator === reportsIndicator);
 
   // Get initials for avatar fallback
   const getInitials = (name: string) => {
@@ -236,79 +212,410 @@ export function Dashboard() {
   const shouldShowManagerView =
     isVirtualManager || (!isSoloMode && user?.role === 'MANAGER');
 
-  // Load existing notes for today
-  useEffect(() => {
-    if (user?.id) {
-      const today = new Date().toISOString().split('T')[0];
-      const todayReport = dailyReports.find(
-        report => report.user_id === user.id && report.date === today
+  // Add functions to work with localStorage
+  const saveDailyNotesToLocalStorage = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(
+        'dailyNotes',
+        JSON.stringify({
+          today: todayNotes,
+          tomorrow: tomorrowNotes,
+          general: generalComments,
+        })
       );
-
-      if (todayReport) {
-        setTodayNotes(todayReport.today_notes || '');
-        setTomorrowNotes(todayReport.tomorrow_notes || '');
-        setGeneralComments(todayReport.general_comments || '');
-      }
-    }
-  }, [user?.id, dailyReports]);
-
-  const handleSaveNotes = async () => {
-    try {
-      // Check if there's an existing report for today
-      const today = new Date().toISOString().split('T')[0];
-      const existingReport = dailyReports.find(
-        report => report.user_id === user.id && report.date === today
-      );
-
-      if (existingReport) {
-        // Update existing report
-        const updatedReport = {
-          ...existingReport,
-          today_notes: todayNotes,
-          tomorrow_notes: tomorrowNotes,
-          general_comments: generalComments,
-          updated_at: new Date().toISOString(),
-        };
-
-        // Here you would call your update function from the data context
-        // For example: updateDailyReport(existingReport.id, updatedReport);
-      } else {
-        // Create new report
-        const newReport = {
-          user_id: user.id,
-          date: today,
-          metrics_data: {},
-          today_notes: todayNotes,
-          tomorrow_notes: tomorrowNotes,
-          general_comments: generalComments,
-        };
-
-        // Here you would call your create function from the data context
-        // For example: createDailyReport(newReport);
-      }
-
-      // Show success message
-      // toast({
-      //   title: "Notes saved",
-      //   description: "Your notes have been saved successfully.",
-      // });
-    } catch (error) {
-      console.error('Error saving notes:', error);
-      // Show error message
-      // toast({
-      //   title: "Error saving notes",
-      //   description: "There was a problem saving your notes.",
-      //   variant: "destructive",
-      // });
     }
   };
 
-  // Add this effect to save to localStorage whenever objectives change
+  // Modify useEffect for automatic saving
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('objectives', JSON.stringify(objectives));
+    const saveTimeout = setTimeout(() => {
+      saveDailyNotesToLocalStorage();
+    }, 1000);
+
+    return () => clearTimeout(saveTimeout);
+  }, [todayNotes, tomorrowNotes, generalComments]);
+
+  // Change handler for today-notes
+  const handleTodayNotesChange = (html: string) => {
+    setTodayNotes(html);
+
+    // Save to localStorage on each change
+    const currentNotes = JSON.parse(
+      localStorage.getItem('dailyNotes') ||
+        '{"today":"","tomorrow":"","general":""}'
+    );
+    localStorage.setItem(
+      'dailyNotes',
+      JSON.stringify({
+        ...currentNotes,
+        today: html,
+      })
+    );
+  };
+
+  // Change handler for tomorrow-notes
+  const handleTomorrowNotesChange = (html: string) => {
+    setTomorrowNotes(html);
+
+    // Save to localStorage on each change
+    const currentNotes = JSON.parse(
+      localStorage.getItem('dailyNotes') ||
+        '{"today":"","tomorrow":"","general":""}'
+    );
+    localStorage.setItem(
+      'dailyNotes',
+      JSON.stringify({
+        ...currentNotes,
+        tomorrow: html,
+      })
+    );
+  };
+
+  // Change handler for general-comments
+  const handleGeneralCommentsChange = (html: string) => {
+    setGeneralComments(html);
+
+    // Save to localStorage on each change
+    const currentNotes = JSON.parse(
+      localStorage.getItem('dailyNotes') ||
+        '{"today":"","tomorrow":"","general":""}'
+    );
+    localStorage.setItem(
+      'dailyNotes',
+      JSON.stringify({
+        ...currentNotes,
+        general: html,
+      })
+    );
+  };
+
+  // Add this state for report-specific objective expansion state
+  const [reportObjectives, setReportObjectives] = useState<Objective[]>([]);
+
+  // Create a separate toggle function for the report dialog
+  const toggleReportObjectiveExpansion = (objectiveId: string) => {
+    setReportObjectives(prevObjs =>
+      prevObjs.map(obj => {
+        if (obj.id === objectiveId) {
+          return {
+            ...obj,
+            isExpanded: !obj.isExpanded,
+          };
+        }
+        return obj;
+      })
+    );
+  };
+
+  // Update handleOpenReport to initialize report objectives
+  const handleOpenReport = () => {
+    const savedNotes = localStorage.getItem('dailyNotes');
+
+    // Load notes for the report
+    if (savedNotes) {
+      try {
+        const parsed = JSON.parse(savedNotes);
+        setReportTodayNotes(parsed.today || '');
+        setReportTomorrowNotes(parsed.tomorrow || '');
+        setReportGeneralComments(parsed.general || '');
+      } catch (error) {
+        console.error('Error parsing notes:', error);
+        setReportTodayNotes(todayNotes);
+        setReportTomorrowNotes(tomorrowNotes);
+        setReportGeneralComments(generalComments);
+      }
+    } else {
+      setReportTodayNotes(todayNotes);
+      setReportTomorrowNotes(tomorrowNotes);
+      setReportGeneralComments(generalComments);
     }
-  }, [objectives]);
+
+    // Create a deep copy of objectives with all expanded by default
+    setReportObjectives(
+      objectives.map(obj => ({
+        ...obj,
+        isExpanded: true, // Always expand in the report dialog
+      }))
+    );
+
+    setReportDialogOpen(true);
+  };
+
+  // Add state for tracking which report is being edited
+  const [editingReport, setEditingReport] = useState<any>(null);
+
+  // Keep the original handleCreateReport function for new reports
+  const handleCreateReport = async () => {
+    try {
+      // Create metrics_data object with both plan and fact values
+      const metrics_data: Record<string, { plan: number; fact: number }> = {};
+
+      // Iterate through objectives and their metrics to get plan values
+      objectives.forEach(objective => {
+        objective.metrics.forEach(metric => {
+          metrics_data[metric.id] = {
+            plan: metric.plan || 0, // Get plan value from the objective's metric
+            fact: metricValues[metric.id] || 0, // Get fact value from user input
+          };
+        });
+      });
+
+      const newReport = {
+        id: `report-${Date.now()}`,
+        date: reportDate,
+        metrics_data,
+        today_notes: reportTodayNotes,
+        tomorrow_notes: reportTomorrowNotes,
+        general_comments: reportGeneralComments,
+        user_id: user.id,
+        created_at: new Date().toISOString(),
+        reviewed: false,
+      };
+
+      // Save the report to localStorage
+      const updatedReports = [...reports, newReport];
+      localStorage.setItem('dailyReports', JSON.stringify(updatedReports));
+      setReports(updatedReports);
+
+      // Close the form
+      setMetricValues({});
+      setReportDialogOpen(false);
+    } catch (error) {
+      console.error('Error creating report:', error);
+    }
+  };
+
+  // Add a separate function for updating existing reports
+  const handleUpdateReport = async () => {
+    try {
+      if (!editingReport) return;
+
+      // Create metrics_data object with both plan and fact values
+      const metrics_data: Record<string, { plan: number; fact: number }> = {};
+
+      // Iterate through objectives and their metrics to get plan values
+      objectives.forEach(objective => {
+        objective.metrics.forEach(metric => {
+          metrics_data[metric.id] = {
+            plan: metric.plan || 0, // Get plan value from the objective's metric
+            fact: metricValues[metric.id] || 0, // Get fact value from user input
+          };
+        });
+      });
+
+      // Update existing report
+      const updatedReport = {
+        ...editingReport,
+        date: reportDate,
+        metrics_data,
+        today_notes: reportTodayNotes,
+        tomorrow_notes: reportTomorrowNotes,
+        general_comments: reportGeneralComments,
+      };
+
+      // Update the report in localStorage
+      const updatedReports = reports.map(report =>
+        report.id === editingReport.id ? updatedReport : report
+      );
+
+      localStorage.setItem('dailyReports', JSON.stringify(updatedReports));
+      setReports(updatedReports);
+
+      // Close the form and reset editing state
+      setMetricValues({});
+      setEditingReport(null);
+      setReportDialogOpen(false);
+    } catch (error) {
+      console.error('Error updating report:', error);
+    }
+  };
+
+  // Add function to handle toggling report review status
+  const handleToggleReview = (reportId: string) => {
+    try {
+      const updatedReports = reports.map(report => {
+        if (report.id === reportId) {
+          return {
+            ...report,
+            reviewed: !report.reviewed,
+          };
+        }
+        return report;
+      });
+
+      setReports(updatedReports);
+      localStorage.setItem('dailyReports', JSON.stringify(updatedReports));
+    } catch (error) {
+      console.error('Error toggling report review status:', error);
+    }
+  };
+
+  // Add function to handle editing a report
+  const handleEditReport = (report: any) => {
+    setEditingReport(report);
+    setReportDate(report.date);
+
+    // Pre-fill metric values from the report
+    const initialMetricValues: Record<string, number> = {};
+    Object.entries(report.metrics_data || {}).forEach(
+      ([metricId, data]: [string, any]) => {
+        initialMetricValues[metricId] = data.fact || 0;
+      }
+    );
+    setMetricValues(initialMetricValues);
+
+    // Pre-fill notes
+    setReportTodayNotes(report.today_notes || '');
+    setReportTomorrowNotes(report.tomorrow_notes || '');
+    setReportGeneralComments(report.general_comments || '');
+
+    // Create a deep copy of objectives with all expanded by default
+    setReportObjectives(
+      objectives.map(obj => ({
+        ...obj,
+        isExpanded: true, // Always expand in the report dialog
+      }))
+    );
+
+    setReportDialogOpen(true);
+  };
+
+  // Update handleMetricValueChange to only handle fact values
+  const handleMetricValueChange = (metricId: string, value: string) => {
+    setMetricValues(prev => ({
+      ...prev,
+      [metricId]: value ? Number(value) : 0,
+    }));
+  };
+
+  const toggleObjectiveExpansion = (objectiveId: string) => {
+    const updatedObjectives = objectives.map(obj => {
+      if (obj.id === objectiveId) {
+        return {
+          ...obj,
+          isExpanded: !obj.isExpanded,
+        };
+      }
+      return obj;
+    });
+    setObjectives(updatedObjectives);
+    saveObjectivesToLocalStorage(updatedObjectives);
+  };
+
+  // Add function to save objectives to localStorage
+  const saveObjectivesToLocalStorage = (updatedObjectives: Objective[]) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('objectives', JSON.stringify(updatedObjectives));
+    }
+  };
+
+  // Add functions to handle objective and metric changes
+  const handleAddObjective = (newObjective: Objective) => {
+    const updatedObjectives = [...objectives, newObjective];
+    setObjectives(updatedObjectives);
+    saveObjectivesToLocalStorage(updatedObjectives);
+  };
+
+  const handleUpdateObjective = (updatedObjective: Objective) => {
+    const updatedObjectives = objectives.map(obj =>
+      obj.id === updatedObjective.id ? updatedObjective : obj
+    );
+    setObjectives(updatedObjectives);
+    saveObjectivesToLocalStorage(updatedObjectives);
+  };
+
+  const handleDeleteObjective = (objectiveId: string) => {
+    const updatedObjectives = objectives.filter(obj => obj.id !== objectiveId);
+    setObjectives(updatedObjectives);
+    saveObjectivesToLocalStorage(updatedObjectives);
+  };
+
+  const handleAddMetric = (objectiveId: string, newMetric: Metric) => {
+    const updatedObjectives = objectives.map(obj => {
+      if (obj.id === objectiveId) {
+        return {
+          ...obj,
+          metrics: [...obj.metrics, newMetric],
+        };
+      }
+      return obj;
+    });
+    setObjectives(updatedObjectives);
+    saveObjectivesToLocalStorage(updatedObjectives);
+  };
+
+  const handleUpdateMetric = (objectiveId: string, updatedMetric: Metric) => {
+    const updatedObjectives = objectives.map(obj => {
+      if (obj.id === objectiveId) {
+        return {
+          ...obj,
+          metrics: obj.metrics.map(metric =>
+            metric.id === updatedMetric.id ? updatedMetric : metric
+          ),
+        };
+      }
+      return obj;
+    });
+    setObjectives(updatedObjectives);
+    saveObjectivesToLocalStorage(updatedObjectives);
+  };
+
+  const handleDeleteMetric = (objectiveId: string, metricId: string) => {
+    const updatedObjectives = objectives.map(obj => {
+      if (obj.id === objectiveId) {
+        return {
+          ...obj,
+          metrics: obj.metrics.filter(metric => metric.id !== metricId),
+        };
+      }
+      return obj;
+    });
+    setObjectives(updatedObjectives);
+    saveObjectivesToLocalStorage(updatedObjectives);
+  };
+
+  const handleDeleteReport = (reportId: string) => {
+    try {
+      const updatedReports = reports.filter(report => report.id !== reportId);
+      setReports(updatedReports);
+      localStorage.setItem('dailyReports', JSON.stringify(updatedReports));
+    } catch (error) {
+      console.error('Error deleting report:', error);
+    }
+  };
+
+  const handleMoveReport = (reportId: string, direction: 'up' | 'down') => {
+    try {
+      const currentReports = [...reports];
+      const reportIndex = currentReports.findIndex(
+        report => report.id === reportId
+      );
+
+      if (reportIndex === -1) return;
+
+      if (direction === 'up' && reportIndex > 0) {
+        // Swap with the previous report
+        [currentReports[reportIndex], currentReports[reportIndex - 1]] = [
+          currentReports[reportIndex - 1],
+          currentReports[reportIndex],
+        ];
+      } else if (
+        direction === 'down' &&
+        reportIndex < currentReports.length - 1
+      ) {
+        // Swap with the next report
+        [currentReports[reportIndex], currentReports[reportIndex + 1]] = [
+          currentReports[reportIndex + 1],
+          currentReports[reportIndex],
+        ];
+      }
+
+      setReports(currentReports);
+      localStorage.setItem('dailyReports', JSON.stringify(currentReports));
+    } catch (error) {
+      console.error('Error moving report:', error);
+    }
+  };
 
   return (
     <div className='min-h-screen bg-background'>
@@ -442,7 +749,10 @@ export function Dashboard() {
                 <div className='grid gap-6'>
                   <ObjectivesMetricsTable
                     objectives={objectives}
-                    onObjectivesChange={setObjectives}
+                    onObjectivesChange={updatedObjectives => {
+                      setObjectives(updatedObjectives);
+                      saveObjectivesToLocalStorage(updatedObjectives);
+                    }}
                   />
                 </div>
               </TabsContent>
@@ -451,7 +761,10 @@ export function Dashboard() {
                 <div className='grid gap-6'>
                   <DeepOverviewTable
                     objectives={objectives}
-                    onObjectivesChange={setObjectives}
+                    onObjectivesChange={updatedObjectives => {
+                      setObjectives(updatedObjectives);
+                      saveObjectivesToLocalStorage(updatedObjectives);
+                    }}
                   />
                 </div>
               </TabsContent>
@@ -497,98 +810,19 @@ export function Dashboard() {
               </TabsContent>
 
               <TabsContent value='reports' className='p-6'>
-                <div className='grid gap-4 md:grid-cols-7'>
-                  <Card className='md:col-span-5'>
-                    <div className='p-6'>
-                      <div className='flex justify-between items-center mb-6'>
-                        <h3 className='text-lg font-semibold'>
-                          Recent Reports
-                        </h3>
-                        <div className='flex gap-4'>
-                          <Select
-                            value={reportsIndicator}
-                            onValueChange={setReportsIndicator}
-                          >
-                            <SelectTrigger className='w-[180px]'>
-                              <SelectValue placeholder='Select Indicator' />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {allIndicators.map(indicator => (
-                                <SelectItem key={indicator} value={indicator}>
-                                  {indicator}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Select
-                            value={reportsPeriod}
-                            onValueChange={setReportsPeriod}
-                          >
-                            <SelectTrigger className='w-[180px]'>
-                              <SelectValue placeholder='Select Period' />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {timePeriods.map(period => (
-                                <SelectItem key={period} value={period}>
-                                  {period}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Member</TableHead>
-                            <TableHead>Indicator</TableHead>
-                            <TableHead className='text-right'>Target</TableHead>
-                            <TableHead className='text-right'>Actual</TableHead>
-                            <TableHead className='text-right'>Status</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredReports.map((report, i) => (
-                            <TableRow key={i}>
-                              <TableCell>{report.date}</TableCell>
-                              <TableCell>{report.member}</TableCell>
-                              <TableCell>{report.indicator}</TableCell>
-                              <TableCell className='text-right'>
-                                {report.target}
-                              </TableCell>
-                              <TableCell className='text-right'>
-                                {report.value}
-                              </TableCell>
-                              <TableCell className='text-right'>
-                                <Badge
-                                  variant={
-                                    report.status === 'above'
-                                      ? 'default'
-                                      : 'destructive'
-                                  }
-                                >
-                                  {report.status === 'above' ? '↑' : '↓'}{' '}
-                                  {report.status}
-                                </Badge>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </Card>
-                  <Card className='md:col-span-2'>
-                    <div className='p-6'>
-                      <h3 className='text-lg font-semibold mb-4'>Calendar</h3>
-                      <Calendar
-                        mode='single'
-                        selected={date}
-                        onSelect={setDate}
-                        className='rounded-md border'
-                      />
-                    </div>
-                  </Card>
+                <div className='space-y-4'>
+                  <div className='flex justify-between items-center'>
+                    <h2 className='text-2xl font-bold'>Reports</h2>
+                  </div>
+
+                  <ReportsTable
+                    reports={reports}
+                    objectives={objectives}
+                    onDeleteReport={handleDeleteReport}
+                    onMoveReport={handleMoveReport}
+                    onEditReport={handleEditReport}
+                    onToggleReview={handleToggleReview}
+                  />
                 </div>
               </TabsContent>
             </Tabs>
@@ -606,8 +840,8 @@ export function Dashboard() {
                   <NotesEditor
                     id='today-notes'
                     content={todayNotes}
+                    onChange={handleTodayNotesChange}
                     placeholder='What did you accomplish today?'
-                    onChange={setTodayNotes}
                   />
                 </div>
                 <div>
@@ -617,8 +851,8 @@ export function Dashboard() {
                   <NotesEditor
                     id='tomorrow-notes'
                     content={tomorrowNotes}
+                    onChange={handleTomorrowNotesChange}
                     placeholder='What do you plan to work on tomorrow?'
-                    onChange={setTomorrowNotes}
                   />
                 </div>
               </div>
@@ -627,18 +861,181 @@ export function Dashboard() {
                   General Comments
                 </h4>
                 <NotesEditor
+                  id='general-comments'
                   content={generalComments}
+                  onChange={handleGeneralCommentsChange}
                   placeholder='Any other thoughts or comments...'
-                  onChange={setGeneralComments}
                 />
               </div>
               <div className='mt-6 flex justify-end'>
-                <Button onClick={handleSaveNotes}>Save Notes</Button>
+                <Button onClick={handleOpenReport}>
+                  <ClipboardList className='h-4 w-4 mr-2' />
+                  Close Day
+                </Button>
               </div>
             </div>
           </Card>
         </div>
       </main>
+
+      {/* Add the Report Dialog */}
+      <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
+        <DialogContent className='sm:max-w-[800px] max-h-[90vh]'>
+          <DialogHeader>
+            <DialogTitle>Close Day Report</DialogTitle>
+            <DialogDescription>
+              Create a daily report by filling in metric values and reviewing
+              your notes.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className='grid gap-6 py-4 overflow-y-auto max-h-[calc(90vh-180px)]'>
+            {/* Date Selection */}
+            <div className='grid gap-2'>
+              <label className='text-sm font-medium'>Report Date</label>
+              <Input
+                type='date'
+                value={reportDate}
+                onChange={e => setReportDate(e.target.value)}
+                className='w-[200px]'
+              />
+            </div>
+
+            {/* Objectives and Metrics */}
+            <div className='grid gap-2'>
+              <label className='text-sm font-medium'>Metrics Update</label>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Plan</TableHead>
+                    <TableHead>Actual</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {reportObjectives.map(objective => (
+                    <React.Fragment key={objective.id}>
+                      {/* Objective Row */}
+                      <TableRow className='bg-muted/50'>
+                        <TableCell>
+                          <div className='flex items-center gap-2'>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              className='h-6 w-6 p-0'
+                              onClick={() =>
+                                toggleReportObjectiveExpansion(objective.id)
+                              }
+                            >
+                              {objective.isExpanded ? (
+                                <ChevronDown className='h-4 w-4' />
+                              ) : (
+                                <ChevronRight className='h-4 w-4' />
+                              )}
+                            </Button>
+                            <span className='font-medium'>
+                              {objective.name}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell></TableCell>
+                        <TableCell></TableCell>
+                      </TableRow>
+
+                      {/* Metrics Rows */}
+                      {objective.isExpanded &&
+                        objective.metrics.map(metric => (
+                          <TableRow key={metric.id}>
+                            <TableCell className='pl-8'>
+                              <div className='flex items-center gap-2'>
+                                <ArrowRight className='h-3 w-3 text-muted-foreground' />
+                                <span>{metric.name}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {metric.plan !== undefined ? metric.plan : '—'}
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type='number'
+                                placeholder='Enter value'
+                                value={metricValues[metric.id] || ''}
+                                onChange={e =>
+                                  handleMetricValueChange(
+                                    metric.id,
+                                    e.target.value
+                                  )
+                                }
+                                className='w-full'
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </React.Fragment>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Daily Notes Summary */}
+            <div className='grid gap-2'>
+              <label className='text-sm font-medium'>Daily Notes Summary</label>
+              <div className='rounded-md border p-4 space-y-4'>
+                <div>
+                  <h4 className='text-sm font-medium text-muted-foreground'>
+                    Today's Notes
+                  </h4>
+                  <NotesEditor
+                    id='report-today-notes'
+                    content={reportTodayNotes}
+                    onChange={setReportTodayNotes}
+                    placeholder='What did you accomplish today?'
+                  />
+                </div>
+                <div>
+                  <h4 className='text-sm font-medium text-muted-foreground'>
+                    Tomorrow's Plan
+                  </h4>
+                  <NotesEditor
+                    id='report-tomorrow-notes'
+                    content={reportTomorrowNotes}
+                    onChange={setReportTomorrowNotes}
+                    placeholder='What do you plan to work on tomorrow?'
+                  />
+                </div>
+                <div>
+                  <h4 className='text-sm font-medium text-muted-foreground'>
+                    General Comments
+                  </h4>
+                  <NotesEditor
+                    id='report-general-comments'
+                    content={reportGeneralComments}
+                    onChange={setReportGeneralComments}
+                    placeholder='Any other thoughts or comments...'
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={() => {
+                setReportDialogOpen(false);
+                setEditingReport(null);
+              }}
+            >
+              Cancel
+            </Button>
+            {editingReport ? (
+              <Button onClick={handleUpdateReport}>Update Report</Button>
+            ) : (
+              <Button onClick={handleCreateReport}>Create Report</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
