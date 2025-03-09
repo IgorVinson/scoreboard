@@ -629,39 +629,6 @@ export function Dashboard() {
     }
   };
 
-  const handleMoveReport = (reportId: string, direction: 'up' | 'down') => {
-    try {
-      const currentReports = [...reports];
-      const reportIndex = currentReports.findIndex(
-        report => report.id === reportId
-      );
-
-      if (reportIndex === -1) return;
-
-      if (direction === 'up' && reportIndex > 0) {
-        // Swap with the previous report
-        [currentReports[reportIndex], currentReports[reportIndex - 1]] = [
-          currentReports[reportIndex - 1],
-          currentReports[reportIndex],
-        ];
-      } else if (
-        direction === 'down' &&
-        reportIndex < currentReports.length - 1
-      ) {
-        // Swap with the next report
-        [currentReports[reportIndex], currentReports[reportIndex + 1]] = [
-          currentReports[reportIndex + 1],
-          currentReports[reportIndex],
-        ];
-      }
-
-      setReports(currentReports);
-      localStorage.setItem('dailyReports', JSON.stringify(currentReports));
-    } catch (error) {
-      console.error('Error moving report:', error);
-    }
-  };
-
   // Add new state variables for review mode and ratings
   const [reviewMode, setReviewMode] = useState(false);
   const [reportQuantityRating, setReportQuantityRating] = useState<number>(0);
@@ -935,7 +902,6 @@ export function Dashboard() {
                     reports={reports}
                     objectives={objectives}
                     onDeleteReport={handleDeleteReport}
-                    onMoveReport={handleMoveReport}
                     onEditReport={handleEditReport}
                     onReviewReport={handleReviewReport}
                     onToggleReview={handleToggleReview}
