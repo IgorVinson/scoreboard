@@ -430,15 +430,28 @@ export function Dashboard() {
     }
   };
 
-  // Add function to handle toggling report review status
+  // Update function to handle toggling report review status and clear ratings when un-reviewing
   const handleToggleReview = (reportId: string) => {
     try {
       const updatedReports = reports.map(report => {
         if (report.id === reportId) {
-          return {
-            ...report,
-            reviewed: !report.reviewed,
-          };
+          // If toggling from reviewed to not reviewed, also clear the ratings
+          if (report.reviewed) {
+            return {
+              ...report,
+              reviewed: false,
+              reviewed_at: null,
+              quality_rating: undefined,
+              quantity_rating: undefined,
+            };
+          } else {
+            // When toggling from not reviewed to reviewed without the modal,
+            // just change the reviewed status
+            return {
+              ...report,
+              reviewed: true,
+            };
+          }
         }
         return report;
       });
@@ -1095,22 +1108,22 @@ export function Dashboard() {
                 <div className="rounded-md border p-4 space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <h4 className="text-sm font-medium text-muted-foreground">Quantity Rating (0-10)</h4>
+                      <h4 className="text-sm font-medium text-muted-foreground">Quantity Rating (0-5)</h4>
                       <Input
                         type="number"
                         min="0"
-                        max="10"
+                        max="5"
                         value={reportQuantityRating}
                         onChange={(e) => setReportQuantityRating(Number(e.target.value))}
                         className="mt-2"
                       />
                     </div>
                     <div>
-                      <h4 className="text-sm font-medium text-muted-foreground">Quality Rating (0-10)</h4>
+                      <h4 className="text-sm font-medium text-muted-foreground">Quality Rating (0-5)</h4>
                       <Input
                         type="number"
                         min="0"
-                        max="10"
+                        max="5"
                         value={reportQualityRating}
                         onChange={(e) => setReportQualityRating(Number(e.target.value))}
                         className="mt-2"

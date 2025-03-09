@@ -296,7 +296,15 @@ export function ReportsTable({
                       variant='ghost' 
                       size='sm' 
                       className='h-8 w-8 p-0 rounded-full'
-                      onClick={() => onReviewReport(report)} 
+                      onClick={() => {
+                        if (report.reviewed) {
+                          // If already reviewed, just toggle it off
+                          onToggleReview(report.id);
+                        } else {
+                          // If not reviewed, open the review modal
+                          onReviewReport(report);
+                        }
+                      }} 
                     >
                       <input
                         type='checkbox'
@@ -312,7 +320,7 @@ export function ReportsTable({
                     {report.quantity_rating !== undefined ? (
                       <div className='flex items-center justify-center'>
                         <Star className='h-4 w-4 text-amber-500 mr-1' />
-                        <span>{report.quantity_rating}/10</span>
+                        <span>{report.quantity_rating}/5</span>
                       </div>
                     ) : (
                       <span className='text-muted-foreground'>—</span>
@@ -324,7 +332,7 @@ export function ReportsTable({
                     {report.quality_rating !== undefined ? (
                       <div className='flex items-center justify-center'>
                         <Star className='h-4 w-4 text-amber-500 mr-1' />
-                        <span>{report.quality_rating}/10</span>
+                        <span>{report.quality_rating}/5</span>
                       </div>
                     ) : (
                       <span className='text-muted-foreground'>—</span>
