@@ -33,6 +33,7 @@ import {
   ChevronDown,
   ChevronRight,
   ArrowRight,
+  Star,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -65,6 +66,37 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { ReportsTable } from '@/components/ReportsTable';
+
+// Add a StarRating component to replace numeric inputs
+function StarRating({ rating, maxRating = 5, onRatingChange }) {
+  const [hoverRating, setHoverRating] = useState(0);
+  
+  return (
+    <div className="flex space-x-1">
+      {[...Array(maxRating)].map((_, i) => {
+        const starValue = i + 1;
+        return (
+          <button
+            key={i}
+            type="button"
+            className="focus:outline-none p-1"
+            onClick={() => onRatingChange(starValue)}
+            onMouseEnter={() => setHoverRating(starValue)}
+            onMouseLeave={() => setHoverRating(0)}
+          >
+            <Star
+              className={`h-6 w-6 ${
+                (hoverRating || rating) >= starValue
+                  ? 'text-amber-500 fill-amber-500'
+                  : 'text-gray-300'
+              }`}
+            />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export function Dashboard() {
   const { user, signOut } = useAuth();
@@ -1108,25 +1140,17 @@ export function Dashboard() {
                 <div className="rounded-md border p-4 space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <h4 className="text-sm font-medium text-muted-foreground">Quantity Rating (0-5)</h4>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="5"
-                        value={reportQuantityRating}
-                        onChange={(e) => setReportQuantityRating(Number(e.target.value))}
-                        className="mt-2"
+                      <h4 className="text-sm font-medium text-muted-foreground mb-2">Quantity Rating</h4>
+                      <StarRating 
+                        rating={reportQuantityRating} 
+                        onRatingChange={setReportQuantityRating} 
                       />
                     </div>
                     <div>
-                      <h4 className="text-sm font-medium text-muted-foreground">Quality Rating (0-5)</h4>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="5"
-                        value={reportQualityRating}
-                        onChange={(e) => setReportQualityRating(Number(e.target.value))}
-                        className="mt-2"
+                      <h4 className="text-sm font-medium text-muted-foreground mb-2">Quality Rating</h4>
+                      <StarRating 
+                        rating={reportQualityRating} 
+                        onRatingChange={setReportQualityRating} 
                       />
                     </div>
                   </div>
