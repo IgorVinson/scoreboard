@@ -202,16 +202,16 @@ export function ReportsTable({
           <TableHead className='text-center'>Plan</TableHead>
           <TableHead className='text-center'>Actual</TableHead>
           <TableHead className='text-center'>Deviation</TableHead>
-          <TableHead className='text-center'>Quality</TableHead>
-          <TableHead className='text-center'>Quantity</TableHead>
           <TableHead className='text-center'>Actions</TableHead>
           <TableHead className='text-center'>Reviewed</TableHead>
+          <TableHead className='text-center'>Quantity</TableHead>
+          <TableHead className='text-center'>Quality</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {reports.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={7} className='text-center'>
+            <TableCell colSpan={9} className='text-center'>
               No reports found
             </TableCell>
           </TableRow>
@@ -249,30 +249,6 @@ export function ReportsTable({
                   {/* Deviation Column */}
                   <TableCell>
                     {renderMetricValues(report, 'deviation')}
-                  </TableCell>
-
-                  {/* Quality Column */}
-                  <TableCell className='text-center'>
-                    {report.quality_rating !== undefined ? (
-                      <div className='flex items-center justify-center'>
-                        <Star className='h-4 w-4 text-amber-500 mr-1' />
-                        <span>{report.quality_rating}/10</span>
-                      </div>
-                    ) : (
-                      <span className='text-muted-foreground'>—</span>
-                    )}
-                  </TableCell>
-
-                  {/* Quantity Column */}
-                  <TableCell className='text-center'>
-                    {report.quantity_rating !== undefined ? (
-                      <div className='flex items-center justify-center'>
-                        <Star className='h-4 w-4 text-amber-500 mr-1' />
-                        <span>{report.quantity_rating}/10</span>
-                      </div>
-                    ) : (
-                      <span className='text-muted-foreground'>—</span>
-                    )}
                   </TableCell>
 
                   <TableCell>
@@ -321,6 +297,7 @@ export function ReportsTable({
                       </Button>
                     </div>
                   </TableCell>
+                  
                   <TableCell className='text-center'>
                     <input
                       type='checkbox'
@@ -329,12 +306,36 @@ export function ReportsTable({
                       className='h-4 w-4'
                     />
                   </TableCell>
+                  
+                  {/* Quantity Column */}
+                  <TableCell className='text-center'>
+                    {report.quantity_rating !== undefined ? (
+                      <div className='flex items-center justify-center'>
+                        <Star className='h-4 w-4 text-amber-500 mr-1' />
+                        <span>{report.quantity_rating}/10</span>
+                      </div>
+                    ) : (
+                      <span className='text-muted-foreground'>—</span>
+                    )}
+                  </TableCell>
+
+                  {/* Quality Column */}
+                  <TableCell className='text-center'>
+                    {report.quality_rating !== undefined ? (
+                      <div className='flex items-center justify-center'>
+                        <Star className='h-4 w-4 text-amber-500 mr-1' />
+                        <span>{report.quality_rating}/10</span>
+                      </div>
+                    ) : (
+                      <span className='text-muted-foreground'>—</span>
+                    )}
+                  </TableCell>
                 </TableRow>
 
                 {/* Expanded content */}
                 {isExpanded && (
                   <TableRow>
-                    <TableCell colSpan={7} className='bg-muted/50 p-0'>
+                    <TableCell colSpan={9} className='bg-muted/50 p-0'>
                       <div className='py-2 px-4'>
                         {/* Notes Sections */}
                         <div className='grid grid-cols-2 gap-4'>
@@ -370,25 +371,6 @@ export function ReportsTable({
                             }}
                           />
                         </div>
-                        
-                        {/* Performance Ratings - Only show if reviewed */}
-                        {report.reviewed && (report.quality_rating !== undefined || report.quantity_rating !== undefined) && (
-                          <div className='mt-4 flex gap-4'>
-                            <div>
-                              <h4 className='font-medium mb-2'>Performance Ratings</h4>
-                              <div className='flex gap-4'>
-                                <Badge variant="outline" className="p-2">
-                                  <Star className="h-4 w-4 text-amber-500 mr-1 inline" /> 
-                                  Quantity: {report.quantity_rating || 0}/10
-                                </Badge>
-                                <Badge variant="outline" className="p-2">
-                                  <Star className="h-4 w-4 text-amber-500 mr-1 inline" /> 
-                                  Quality: {report.quality_rating || 0}/10
-                                </Badge>
-                              </div>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </TableCell>
                   </TableRow>
