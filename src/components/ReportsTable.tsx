@@ -287,24 +287,24 @@ export function ReportsTable({
                       >
                         <Edit className='h-4 w-4 text-muted-foreground' />
                       </Button>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-8 w-8 p-0'
-                        onClick={() => onReviewReport(report)}
-                      >
-                        <Star className='h-4 w-4 text-amber-500' />
-                      </Button>
                     </div>
                   </TableCell>
                   
+                  {/* Modified Reviewed column */}
                   <TableCell className='text-center'>
-                    <input
-                      type='checkbox'
-                      checked={report.reviewed}
-                      onChange={() => onToggleReview(report.id)}
-                      className='h-4 w-4'
-                    />
+                    <Button 
+                      variant='ghost' 
+                      size='sm' 
+                      className='h-8 w-8 p-0 rounded-full'
+                      onClick={() => onReviewReport(report)} 
+                    >
+                      <input
+                        type='checkbox'
+                        checked={report.reviewed}
+                        className='h-4 w-4 cursor-pointer'
+                        readOnly
+                      />
+                    </Button>
                   </TableCell>
                   
                   {/* Quantity Column */}
