@@ -13,8 +13,6 @@ import {
   ChevronDown,
   ChevronRight,
   Trash2,
-  ArrowUp,
-  ArrowDown,
   Edit,
   FileText,
   Star,
@@ -25,7 +23,6 @@ export function ReportsTable({
   reports,
   objectives,
   onDeleteReport,
-  onMoveReport,
   onToggleReview,
   onEditReport,
   onReviewReport,
@@ -260,24 +257,6 @@ export function ReportsTable({
                         onClick={() => onDeleteReport(report.id)}
                       >
                         <Trash2 className='h-4 w-4 text-destructive' />
-                      </Button>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-8 w-8 p-0'
-                        onClick={() => onMoveReport(report.id, 'up')}
-                        disabled={reportIndex === 0}
-                      >
-                        <ArrowUp className='h-4 w-4' />
-                      </Button>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-8 w-8 p-0'
-                        onClick={() => onMoveReport(report.id, 'down')}
-                        disabled={reportIndex === reports.length - 1}
-                      >
-                        <ArrowDown className='h-4 w-4' />
                       </Button>
                       <Button
                         variant='ghost'
