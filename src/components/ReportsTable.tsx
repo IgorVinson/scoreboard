@@ -202,6 +202,8 @@ export function ReportsTable({
           <TableHead className='text-center'>Plan</TableHead>
           <TableHead className='text-center'>Actual</TableHead>
           <TableHead className='text-center'>Deviation</TableHead>
+          <TableHead className='text-center'>Quality</TableHead>
+          <TableHead className='text-center'>Quantity</TableHead>
           <TableHead className='text-center'>Actions</TableHead>
           <TableHead className='text-center'>Reviewed</TableHead>
         </TableRow>
@@ -247,6 +249,30 @@ export function ReportsTable({
                   {/* Deviation Column */}
                   <TableCell>
                     {renderMetricValues(report, 'deviation')}
+                  </TableCell>
+
+                  {/* Quality Column */}
+                  <TableCell className='text-center'>
+                    {report.quality_rating !== undefined ? (
+                      <div className='flex items-center justify-center'>
+                        <Star className='h-4 w-4 text-amber-500 mr-1' />
+                        <span>{report.quality_rating}/10</span>
+                      </div>
+                    ) : (
+                      <span className='text-muted-foreground'>—</span>
+                    )}
+                  </TableCell>
+
+                  {/* Quantity Column */}
+                  <TableCell className='text-center'>
+                    {report.quantity_rating !== undefined ? (
+                      <div className='flex items-center justify-center'>
+                        <Star className='h-4 w-4 text-amber-500 mr-1' />
+                        <span>{report.quantity_rating}/10</span>
+                      </div>
+                    ) : (
+                      <span className='text-muted-foreground'>—</span>
+                    )}
                   </TableCell>
 
                   <TableCell>
