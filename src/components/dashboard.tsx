@@ -33,6 +33,7 @@ import {
   ChevronDown,
   ChevronRight,
   ArrowRight,
+  Star,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -65,6 +66,37 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { ReportsTable } from '@/components/ReportsTable';
+
+// Add a StarRating component to replace numeric inputs
+function StarRating({ rating, maxRating = 5, onRatingChange }) {
+  const [hoverRating, setHoverRating] = useState(0);
+  
+  return (
+    <div className="flex space-x-1">
+      {[...Array(maxRating)].map((_, i) => {
+        const starValue = i + 1;
+        return (
+          <button
+            key={i}
+            type="button"
+            className="focus:outline-none p-1"
+            onClick={() => onRatingChange(starValue)}
+            onMouseEnter={() => setHoverRating(starValue)}
+            onMouseLeave={() => setHoverRating(0)}
+          >
+            <Star
+              className={`h-6 w-6 ${
+                (hoverRating || rating) >= starValue
+                  ? 'text-amber-500 fill-amber-500'
+                  : 'text-gray-300'
+              }`}
+            />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export function Dashboard() {
   const { user, signOut } = useAuth();
@@ -430,15 +462,28 @@ export function Dashboard() {
     }
   };
 
-  // Add function to handle toggling report review status
+  // Update function to handle toggling report review status and clear ratings when un-reviewing
   const handleToggleReview = (reportId: string) => {
     try {
       const updatedReports = reports.map(report => {
         if (report.id === reportId) {
-          return {
-            ...report,
-            reviewed: !report.reviewed,
-          };
+          // If toggling from reviewed to not reviewed, also clear the ratings
+          if (report.reviewed) {
+            return {
+              ...report,
+              reviewed: false,
+              reviewed_at: null,
+              quality_rating: undefined,
+              quantity_rating: undefined,
+            };
+          } else {
+            // When toggling from not reviewed to reviewed without the modal,
+            // just change the reviewed status
+            return {
+              ...report,
+              reviewed: true,
+            };
+          }
         }
         return report;
       });
@@ -584,36 +629,75 @@ export function Dashboard() {
     }
   };
 
-  const handleMoveReport = (reportId: string, direction: 'up' | 'down') => {
+  // Add new state variables for review mode and ratings
+  const [reviewMode, setReviewMode] = useState(false);
+  const [reportQuantityRating, setReportQuantityRating] = useState<number>(0);
+  const [reportQualityRating, setReportQualityRating] = useState<number>(0);
+
+  // Add function to handle opening report for review (after handleEditReport function)
+  const handleReviewReport = (report: any) => {
+    setEditingReport(report);
+    setReportDate(report.date);
+    setReviewMode(true);
+    
+    // Pre-fill existing ratings if available
+    setReportQuantityRating(report.quantity_rating || 0);
+    setReportQualityRating(report.quality_rating || 0);
+
+    // Pre-fill metric values from the report
+    const initialMetricValues: Record<string, number> = {};
+    Object.entries(report.metrics_data || {}).forEach(
+      ([metricId, data]: [string, any]) => {
+        initialMetricValues[metricId] = data.fact || 0;
+      }
+    );
+    setMetricValues(initialMetricValues);
+
+    // Pre-fill notes
+    setReportTodayNotes(report.today_notes || '');
+    setReportTomorrowNotes(report.tomorrow_notes || '');
+    setReportGeneralComments(report.general_comments || '');
+
+    // Create a deep copy of objectives with all expanded by default
+    setReportObjectives(
+      objectives.map(obj => ({
+        ...obj,
+        isExpanded: true, // Always expand in the report dialog
+      }))
+    );
+
+    setReportDialogOpen(true);
+  };
+
+  // Add function to handle review submission
+  const handleSubmitReview = async () => {
     try {
-      const currentReports = [...reports];
-      const reportIndex = currentReports.findIndex(
-        report => report.id === reportId
+      if (!editingReport) return;
+
+      // Update existing report with review data
+      const updatedReport = {
+        ...editingReport,
+        quantity_rating: reportQuantityRating,
+        quality_rating: reportQualityRating,
+        reviewed: true,
+        reviewed_at: new Date().toISOString(),
+      };
+
+      // Update the report in localStorage
+      const updatedReports = reports.map(report =>
+        report.id === editingReport.id ? updatedReport : report
       );
 
-      if (reportIndex === -1) return;
+      localStorage.setItem('dailyReports', JSON.stringify(updatedReports));
+      setReports(updatedReports);
 
-      if (direction === 'up' && reportIndex > 0) {
-        // Swap with the previous report
-        [currentReports[reportIndex], currentReports[reportIndex - 1]] = [
-          currentReports[reportIndex - 1],
-          currentReports[reportIndex],
-        ];
-      } else if (
-        direction === 'down' &&
-        reportIndex < currentReports.length - 1
-      ) {
-        // Swap with the next report
-        [currentReports[reportIndex], currentReports[reportIndex + 1]] = [
-          currentReports[reportIndex + 1],
-          currentReports[reportIndex],
-        ];
-      }
-
-      setReports(currentReports);
-      localStorage.setItem('dailyReports', JSON.stringify(currentReports));
+      // Close the form and reset editing state
+      setMetricValues({});
+      setEditingReport(null);
+      setReviewMode(false);
+      setReportDialogOpen(false);
     } catch (error) {
-      console.error('Error moving report:', error);
+      console.error('Error submitting review:', error);
     }
   };
 
@@ -818,8 +902,8 @@ export function Dashboard() {
                     reports={reports}
                     objectives={objectives}
                     onDeleteReport={handleDeleteReport}
-                    onMoveReport={handleMoveReport}
                     onEditReport={handleEditReport}
+                    onReviewReport={handleReviewReport}
                     onToggleReview={handleToggleReview}
                   />
                 </div>
@@ -1015,6 +1099,30 @@ export function Dashboard() {
                 </div>
               </div>
             </div>
+
+            {reviewMode && (
+              <div className="grid gap-6">
+                <label className="text-sm font-medium">Performance Review</label>
+                <div className="rounded-md border p-4 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="text-sm font-medium text-muted-foreground mb-2">Quantity Rating</h4>
+                      <StarRating 
+                        rating={reportQuantityRating} 
+                        onRatingChange={setReportQuantityRating} 
+                      />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-muted-foreground mb-2">Quality Rating</h4>
+                      <StarRating 
+                        rating={reportQualityRating} 
+                        onRatingChange={setReportQualityRating} 
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -1023,11 +1131,14 @@ export function Dashboard() {
               onClick={() => {
                 setReportDialogOpen(false);
                 setEditingReport(null);
+                setReviewMode(false);
               }}
             >
               Cancel
             </Button>
-            {editingReport ? (
+            {reviewMode ? (
+              <Button onClick={handleSubmitReview}>Submit Review</Button>
+            ) : editingReport ? (
               <Button onClick={handleUpdateReport}>Update Report</Button>
             ) : (
               <Button onClick={handleCreateReport}>Create Report</Button>

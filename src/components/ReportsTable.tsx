@@ -13,10 +13,9 @@ import {
   ChevronDown,
   ChevronRight,
   Trash2,
-  ArrowUp,
-  ArrowDown,
   Edit,
   FileText,
+  Star,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -24,9 +23,9 @@ export function ReportsTable({
   reports,
   objectives,
   onDeleteReport,
-  onMoveReport,
   onToggleReview,
   onEditReport,
+  onReviewReport,
 }) {
   const [expandedReports, setExpandedReports] = useState(new Set());
   const [expandedMainObjectives, setExpandedMainObjectives] = useState(
@@ -202,12 +201,14 @@ export function ReportsTable({
           <TableHead className='text-center'>Deviation</TableHead>
           <TableHead className='text-center'>Actions</TableHead>
           <TableHead className='text-center'>Reviewed</TableHead>
+          <TableHead className='text-center'>Quantity</TableHead>
+          <TableHead className='text-center'>Quality</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {reports.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={7} className='text-center'>
+            <TableCell colSpan={9} className='text-center'>
               No reports found
             </TableCell>
           </TableRow>
@@ -261,44 +262,67 @@ export function ReportsTable({
                         variant='ghost'
                         size='sm'
                         className='h-8 w-8 p-0'
-                        onClick={() => onMoveReport(report.id, 'up')}
-                        disabled={reportIndex === 0}
-                      >
-                        <ArrowUp className='h-4 w-4' />
-                      </Button>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-8 w-8 p-0'
-                        onClick={() => onMoveReport(report.id, 'down')}
-                        disabled={reportIndex === reports.length - 1}
-                      >
-                        <ArrowDown className='h-4 w-4' />
-                      </Button>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-8 w-8 p-0'
                         onClick={() => onEditReport(report)}
                       >
                         <Edit className='h-4 w-4 text-muted-foreground' />
                       </Button>
                     </div>
                   </TableCell>
+                  
+                  {/* Modified Reviewed column */}
                   <TableCell className='text-center'>
-                    <input
-                      type='checkbox'
-                      checked={report.reviewed}
-                      onChange={() => onToggleReview(report.id)}
-                      className='h-4 w-4'
-                    />
+                    <Button 
+                      variant='ghost' 
+                      size='sm' 
+                      className='h-8 w-8 p-0 rounded-full'
+                      onClick={() => {
+                        if (report.reviewed) {
+                          // If already reviewed, just toggle it off
+                          onToggleReview(report.id);
+                        } else {
+                          // If not reviewed, open the review modal
+                          onReviewReport(report);
+                        }
+                      }} 
+                    >
+                      <input
+                        type='checkbox'
+                        checked={report.reviewed}
+                        className='h-4 w-4 cursor-pointer'
+                        readOnly
+                      />
+                    </Button>
+                  </TableCell>
+                  
+                  {/* Quantity Column */}
+                  <TableCell className='text-center'>
+                    {report.quantity_rating !== undefined ? (
+                      <div className='flex items-center justify-center'>
+                        <Star className='h-4 w-4 text-amber-500 mr-1' />
+                        <span>{report.quantity_rating}/5</span>
+                      </div>
+                    ) : (
+                      <span className='text-muted-foreground'>—</span>
+                    )}
+                  </TableCell>
+
+                  {/* Quality Column */}
+                  <TableCell className='text-center'>
+                    {report.quality_rating !== undefined ? (
+                      <div className='flex items-center justify-center'>
+                        <Star className='h-4 w-4 text-amber-500 mr-1' />
+                        <span>{report.quality_rating}/5</span>
+                      </div>
+                    ) : (
+                      <span className='text-muted-foreground'>—</span>
+                    )}
                   </TableCell>
                 </TableRow>
 
                 {/* Expanded content */}
                 {isExpanded && (
                   <TableRow>
-                    <TableCell colSpan={7} className='bg-muted/50 p-0'>
+                    <TableCell colSpan={9} className='bg-muted/50 p-0'>
                       <div className='py-2 px-4'>
                         {/* Notes Sections */}
                         <div className='grid grid-cols-2 gap-4'>
