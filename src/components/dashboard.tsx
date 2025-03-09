@@ -740,7 +740,6 @@ export function Dashboard() {
                 <TabsList className='my-2'>
                   <TabsTrigger value='overview'>Overview</TabsTrigger>
                   <TabsTrigger value='deep-overview'>Performance</TabsTrigger>
-                  <TabsTrigger value='team'>Team</TabsTrigger>
                   <TabsTrigger value='reports'>Reports</TabsTrigger>
                 </TabsList>
               </div>

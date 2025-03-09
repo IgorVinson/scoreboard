@@ -271,29 +271,23 @@ export function ObjectivesMetricsTable({
       <Table className='border'>
         <TableHeader>
           <TableRow>
-            <TableHead className='w-[60%]'>Objectives/Metrics</TableHead>
+            <TableHead className='w-[40%]'>Objectives/Metrics</TableHead>
             <TableHead className='w-[40%]'>Description</TableHead>
+            <TableHead className='w-[20%] text-right'>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {objectives.length === 0 ? (
             <TableRow>
-              <TableCell
-                colSpan={2}
-                className='text-center py-4 text-muted-foreground'
-              >
-                No objectives added yet. Add your first objective to get
-                started.
+              <TableCell colSpan={3} className='text-center py-4 text-muted-foreground'>
+                No objectives added yet. Add your first objective to get started.
               </TableCell>
             </TableRow>
           ) : (
             objectives.map((objective, objIndex) => (
               <>
                 {/* Objective Row */}
-                <TableRow
-                  key={objective.id}
-                  className='bg-muted/10 font-medium'
-                >
+                <TableRow key={objective.id} className='bg-muted/10 font-medium'>
                   <TableCell>
                     <div className='flex items-center gap-2'>
                       <Button
@@ -308,47 +302,48 @@ export function ObjectivesMetricsTable({
                           <ChevronRight className='h-4 w-4' />
                         )}
                       </Button>
-                      <div className='flex items-center gap-1 cursor-grab'></div>
                       <div className='flex-1'>{objective.name}</div>
-                      <div className='flex gap-1'>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          className='h-6 w-6 p-0'
-                          onClick={() => openEditObjectiveDialog(objective)}
-                        >
-                          <Edit className='h-3.5 w-3.5' />
-                        </Button>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          className='h-6 w-6 p-0 text-destructive'
-                          onClick={() => handleDeleteObjective(objective.id)}
-                        >
-                          <Trash2 className='h-3.5 w-3.5' />
-                        </Button>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          className='h-6 w-6 p-0'
-                          onClick={() => moveObjective(objIndex, 'up')}
-                          disabled={objIndex === 0}
-                        >
-                          ↑
-                        </Button>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          className='h-6 w-6 p-0'
-                          onClick={() => moveObjective(objIndex, 'down')}
-                          disabled={objIndex === objectives.length - 1}
-                        >
-                          ↓
-                        </Button>
-                      </div>
                     </div>
                   </TableCell>
                   <TableCell>{objective.description}</TableCell>
+                  <TableCell className='text-right'>
+                    <div className='flex gap-1 justify-end'>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        className='h-6 w-6 p-0'
+                        onClick={() => openEditObjectiveDialog(objective)}
+                      >
+                        <Edit className='h-3.5 w-3.5' />
+                      </Button>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        className='h-6 w-6 p-0 text-destructive'
+                        onClick={() => handleDeleteObjective(objective.id)}
+                      >
+                        <Trash2 className='h-3.5 w-3.5' />
+                      </Button>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        className='h-6 w-6 p-0'
+                        onClick={() => moveObjective(objIndex, 'up')}
+                        disabled={objIndex === 0}
+                      >
+                        ↑
+                      </Button>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        className='h-6 w-6 p-0'
+                        onClick={() => moveObjective(objIndex, 'down')}
+                        disabled={objIndex === objectives.length - 1}
+                      >
+                        ↓
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
 
                 {/* Metrics Rows */}
@@ -358,65 +353,55 @@ export function ObjectivesMetricsTable({
                       <TableRow key={metric.id}>
                         <TableCell>
                           <div className='flex items-center gap-2 pl-8'>
-                            <div className='flex items-center gap-1'>
-                              <ArrowRight className='h-3 w-3 text-muted-foreground' />
-                            </div>
+                            <ArrowRight className='h-3 w-3 text-muted-foreground' />
                             <div className='flex-1'>{metric.name}</div>
-                            <div className='flex gap-1'>
-                              <Button
-                                variant='ghost'
-                                size='sm'
-                                className='h-6 w-6 p-0'
-                                onClick={() =>
-                                  openEditMetricDialog(metric, objective.id)
-                                }
-                              >
-                                <Edit className='h-3.5 w-3.5' />
-                              </Button>
-                              <Button
-                                variant='ghost'
-                                size='sm'
-                                className='h-6 w-6 p-0 text-destructive'
-                                onClick={() =>
-                                  handleDeleteMetric(objective.id, metric.id)
-                                }
-                              >
-                                <Trash2 className='h-3.5 w-3.5' />
-                              </Button>
-                              <Button
-                                variant='ghost'
-                                size='sm'
-                                className='h-6 w-6 p-0'
-                                onClick={() =>
-                                  moveMetric(objIndex, metricIndex, 'up')
-                                }
-                                disabled={metricIndex === 0}
-                              >
-                                ↑
-                              </Button>
-                              <Button
-                                variant='ghost'
-                                size='sm'
-                                className='h-6 w-6 p-0'
-                                onClick={() =>
-                                  moveMetric(objIndex, metricIndex, 'down')
-                                }
-                                disabled={
-                                  metricIndex === objective.metrics.length - 1
-                                }
-                              >
-                                ↓
-                              </Button>
-                            </div>
                           </div>
                         </TableCell>
                         <TableCell>{metric.description}</TableCell>
+                        <TableCell className='text-right'>
+                          <div className='flex gap-1 justify-end'>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              className='h-6 w-6 p-0'
+                              onClick={() => openEditMetricDialog(metric, objective.id)}
+                            >
+                              <Edit className='h-3.5 w-3.5' />
+                            </Button>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              className='h-6 w-6 p-0 text-destructive'
+                              onClick={() => handleDeleteMetric(objective.id, metric.id)}
+                            >
+                              <Trash2 className='h-3.5 w-3.5' />
+                            </Button>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              className='h-6 w-6 p-0'
+                              onClick={() => moveMetric(objIndex, metricIndex, 'up')}
+                              disabled={metricIndex === 0}
+                            >
+                              ↑
+                            </Button>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              className='h-6 w-6 p-0'
+                              onClick={() => moveMetric(objIndex, metricIndex, 'down')}
+                              disabled={metricIndex === objective.metrics.length - 1}
+                            >
+                              ↓
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))}
 
                     {/* Add Metric Button */}
                     <TableRow>
-                      <TableCell colSpan={2}>
+                      <TableCell colSpan={3}>
                         <Button
                           variant='ghost'
                           size='sm'
