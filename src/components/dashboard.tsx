@@ -617,6 +617,78 @@ export function Dashboard() {
     }
   };
 
+  // Add new state variables for review mode and ratings
+  const [reviewMode, setReviewMode] = useState(false);
+  const [reportQuantityRating, setReportQuantityRating] = useState<number>(0);
+  const [reportQualityRating, setReportQualityRating] = useState<number>(0);
+
+  // Add function to handle opening report for review (after handleEditReport function)
+  const handleReviewReport = (report: any) => {
+    setEditingReport(report);
+    setReportDate(report.date);
+    setReviewMode(true);
+    
+    // Pre-fill existing ratings if available
+    setReportQuantityRating(report.quantity_rating || 0);
+    setReportQualityRating(report.quality_rating || 0);
+
+    // Pre-fill metric values from the report
+    const initialMetricValues: Record<string, number> = {};
+    Object.entries(report.metrics_data || {}).forEach(
+      ([metricId, data]: [string, any]) => {
+        initialMetricValues[metricId] = data.fact || 0;
+      }
+    );
+    setMetricValues(initialMetricValues);
+
+    // Pre-fill notes
+    setReportTodayNotes(report.today_notes || '');
+    setReportTomorrowNotes(report.tomorrow_notes || '');
+    setReportGeneralComments(report.general_comments || '');
+
+    // Create a deep copy of objectives with all expanded by default
+    setReportObjectives(
+      objectives.map(obj => ({
+        ...obj,
+        isExpanded: true, // Always expand in the report dialog
+      }))
+    );
+
+    setReportDialogOpen(true);
+  };
+
+  // Add function to handle review submission
+  const handleSubmitReview = async () => {
+    try {
+      if (!editingReport) return;
+
+      // Update existing report with review data
+      const updatedReport = {
+        ...editingReport,
+        quantity_rating: reportQuantityRating,
+        quality_rating: reportQualityRating,
+        reviewed: true,
+        reviewed_at: new Date().toISOString(),
+      };
+
+      // Update the report in localStorage
+      const updatedReports = reports.map(report =>
+        report.id === editingReport.id ? updatedReport : report
+      );
+
+      localStorage.setItem('dailyReports', JSON.stringify(updatedReports));
+      setReports(updatedReports);
+
+      // Close the form and reset editing state
+      setMetricValues({});
+      setEditingReport(null);
+      setReviewMode(false);
+      setReportDialogOpen(false);
+    } catch (error) {
+      console.error('Error submitting review:', error);
+    }
+  };
+
   return (
     <div className='min-h-screen bg-background'>
       {/* Header */}
@@ -820,6 +892,7 @@ export function Dashboard() {
                     onDeleteReport={handleDeleteReport}
                     onMoveReport={handleMoveReport}
                     onEditReport={handleEditReport}
+                    onReviewReport={handleReviewReport}
                     onToggleReview={handleToggleReview}
                   />
                 </div>
@@ -1015,6 +1088,38 @@ export function Dashboard() {
                 </div>
               </div>
             </div>
+
+            {reviewMode && (
+              <div className="grid gap-6">
+                <label className="text-sm font-medium">Performance Review</label>
+                <div className="rounded-md border p-4 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="text-sm font-medium text-muted-foreground">Quantity Rating (0-10)</h4>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="10"
+                        value={reportQuantityRating}
+                        onChange={(e) => setReportQuantityRating(Number(e.target.value))}
+                        className="mt-2"
+                      />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-muted-foreground">Quality Rating (0-10)</h4>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="10"
+                        value={reportQualityRating}
+                        onChange={(e) => setReportQualityRating(Number(e.target.value))}
+                        className="mt-2"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -1023,11 +1128,14 @@ export function Dashboard() {
               onClick={() => {
                 setReportDialogOpen(false);
                 setEditingReport(null);
+                setReviewMode(false);
               }}
             >
               Cancel
             </Button>
-            {editingReport ? (
+            {reviewMode ? (
+              <Button onClick={handleSubmitReview}>Submit Review</Button>
+            ) : editingReport ? (
               <Button onClick={handleUpdateReport}>Update Report</Button>
             ) : (
               <Button onClick={handleCreateReport}>Create Report</Button>

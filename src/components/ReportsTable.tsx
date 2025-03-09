@@ -17,6 +17,7 @@ import {
   ArrowDown,
   Edit,
   FileText,
+  Star,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -27,6 +28,7 @@ export function ReportsTable({
   onMoveReport,
   onToggleReview,
   onEditReport,
+  onReviewReport,
 }) {
   const [expandedReports, setExpandedReports] = useState(new Set());
   const [expandedMainObjectives, setExpandedMainObjectives] = useState(
@@ -283,6 +285,14 @@ export function ReportsTable({
                       >
                         <Edit className='h-4 w-4 text-muted-foreground' />
                       </Button>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        className='h-8 w-8 p-0'
+                        onClick={() => onReviewReport(report)}
+                      >
+                        <Star className='h-4 w-4 text-amber-500' />
+                      </Button>
                     </div>
                   </TableCell>
                   <TableCell className='text-center'>
@@ -334,6 +344,25 @@ export function ReportsTable({
                             }}
                           />
                         </div>
+                        
+                        {/* Performance Ratings - Only show if reviewed */}
+                        {report.reviewed && (report.quality_rating !== undefined || report.quantity_rating !== undefined) && (
+                          <div className='mt-4 flex gap-4'>
+                            <div>
+                              <h4 className='font-medium mb-2'>Performance Ratings</h4>
+                              <div className='flex gap-4'>
+                                <Badge variant="outline" className="p-2">
+                                  <Star className="h-4 w-4 text-amber-500 mr-1 inline" /> 
+                                  Quantity: {report.quantity_rating || 0}/10
+                                </Badge>
+                                <Badge variant="outline" className="p-2">
+                                  <Star className="h-4 w-4 text-amber-500 mr-1 inline" /> 
+                                  Quality: {report.quality_rating || 0}/10
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
