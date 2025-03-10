@@ -37,6 +37,7 @@ import {
   Play,
   Edit,
   ArrowRight,
+  Target,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Objective, Metric } from '@/components/ObjectivesMetricsTable';
@@ -59,6 +60,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Calendar as CalendarIcon } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface DeepOverviewTableProps {
   objectives: Objective[];
@@ -359,6 +361,143 @@ export function DeepOverviewTable({
     return objectives;
   };
 
+  // Add these state variables to the component
+  const [plansDialogOpen, setPlansDialogOpen] = useState(false);
+  const [planPeriod, setplanPeriod] = useState<'day' | 'week' | 'month'>('day');
+  const [planSelectedDate, setPlanSelectedDate] = useState<Date>(new Date());
+  const [planSelectedDates, setPlanSelectedDates] = useState<Date[]>([new Date()]);
+  const [metricPlans, setMetricPlans] = useState<Record<string, { selected: boolean, value: number | undefined }>>({});
+
+  // Add this state variable for calendar visibility
+  const [showPlanCalendar, setShowPlanCalendar] = useState(false);
+
+  // Add this function to handle opening the plans dialog
+  const openPlansDialog = () => {
+    // Initialize metric plans with all metrics
+    const initialMetricPlans: Record<string, { selected: boolean, value: number | undefined }> = {};
+    
+    objectives.forEach(objective => {
+      objective.metrics.forEach(metric => {
+        initialMetricPlans[metric.id] = { 
+          selected: false, 
+          value: undefined 
+        };
+      });
+    });
+    
+    setMetricPlans(initialMetricPlans);
+    setPlansDialogOpen(true);
+  };
+
+  // Add these functions to handle date range selection in the plans dialog
+  const getPlanDateRangeText = () => {
+    if (planPeriod === 'day') {
+      return format(planSelectedDate, 'MMM d, yyyy');
+    } else if (planPeriod === 'week') {
+      const start = startOfWeek(planSelectedDate);
+      const end = endOfWeek(planSelectedDate);
+      return `${format(start, 'MMM d')} - ${format(end, 'MMM d, yyyy')}`;
+    } else {
+      return format(planSelectedDate, 'MMMM yyyy');
+    }
+  };
+
+  const handlePlanDateRangeChange = (range: 'day' | 'week' | 'month') => {
+    setplanPeriod(range);
+    // Set the date to current date when changing ranges
+    const today = new Date();
+    setPlanSelectedDate(today);
+    
+    // Update the selected dates array based on the range
+    if (range === 'day') {
+      setPlanSelectedDates([today]);
+    } else if (range === 'week') {
+      const start = startOfWeek(today);
+      const end = endOfWeek(today);
+      setPlanSelectedDates(eachDayOfInterval({ start, end }));
+    } else if (range === 'month') {
+      const start = startOfMonth(today);
+      const end = endOfMonth(today);
+      setPlanSelectedDates(eachDayOfInterval({ start, end }));
+    }
+  };
+
+  const handlePlanDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+    
+    setPlanSelectedDate(date);
+    
+    // Update the selected dates array based on the current range
+    if (planPeriod === 'day') {
+      setPlanSelectedDates([date]);
+    } else if (planPeriod === 'week') {
+      const start = startOfWeek(date);
+      const end = endOfWeek(date);
+      setPlanSelectedDates(eachDayOfInterval({ start, end }));
+    } else if (planPeriod === 'month') {
+      const start = startOfMonth(date);
+      const end = endOfMonth(date);
+      setPlanSelectedDates(eachDayOfInterval({ start, end }));
+    }
+  };
+
+  // Add function to handle metric selection for planning
+  const handleMetricSelectionChange = (metricId: string, selected: boolean) => {
+    setMetricPlans(prev => ({
+      ...prev,
+      [metricId]: {
+        ...prev[metricId],
+        selected
+      }
+    }));
+  };
+
+  // Add function to handle metric plan value change
+  const handleMetricPlanValueChange = (metricId: string, value: string) => {
+    setMetricPlans(prev => ({
+      ...prev,
+      [metricId]: {
+        ...prev[metricId],
+        value: value ? Number(value) : undefined
+      }
+    }));
+  };
+
+  // Add function to save plans
+  const handleSavePlans = () => {
+    // Create plans object
+    const plans = {
+      id: `plan-${Date.now()}`,
+      period: planPeriod,
+      startDate: planPeriod === 'day' 
+        ? planSelectedDate.toISOString() 
+        : planPeriod === 'week'
+          ? startOfWeek(planSelectedDate).toISOString()
+          : startOfMonth(planSelectedDate).toISOString(),
+      endDate: planPeriod === 'day'
+        ? planSelectedDate.toISOString()
+        : planPeriod === 'week'
+          ? endOfWeek(planSelectedDate).toISOString()
+          : endOfMonth(planSelectedDate).toISOString(),
+      metrics: Object.entries(metricPlans)
+        .filter(([_, data]) => data.selected)
+        .map(([metricId, data]) => ({
+          metricId,
+          planValue: data.value
+        })),
+      createdAt: new Date().toISOString()
+    };
+    
+    // Save to localStorage
+    const savedPlans = localStorage.getItem('metricPlans');
+    const existingPlans = savedPlans ? JSON.parse(savedPlans) : [];
+    const updatedPlans = [...existingPlans, plans];
+    localStorage.setItem('metricPlans', JSON.stringify(updatedPlans));
+    
+    // Close dialog
+    setPlansDialogOpen(false);
+  };
+
   return (
     <div>
       <div className='flex justify-between items-center mb-4'>
@@ -415,10 +554,10 @@ export function DeepOverviewTable({
           <Button
             variant='outline'
             size='sm'
-            onClick={() => {/* Add plans handler */}}
+            onClick={openPlansDialog}
             className='flex items-center gap-1'
           >
-            <PlusCircle className='h-4 w-4' /> Add Plans
+            <Target className='h-4 w-4' /> Add Plans
           </Button>
           <Button
             variant='outline'
@@ -796,6 +935,128 @@ export function DeepOverviewTable({
             </Button>
             <Button onClick={handleObjectiveSave}>
               {isEditing ? 'Save Changes' : 'Add Objective'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Plans Dialog */}
+      <Dialog open={plansDialogOpen} onOpenChange={setPlansDialogOpen}>
+        <DialogContent className='sm:max-w-[600px] max-h-[90vh] overflow-hidden flex flex-col'>
+          <DialogHeader>
+            <DialogTitle>Create Plans</DialogTitle>
+            <DialogDescription>
+              Set plans for your metrics for a specific time period.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className='space-y-4 py-4 overflow-y-auto'>
+            {/* Time Period Selection */}
+            <div className='border rounded-md p-4'>
+              <div className='flex justify-between items-center mb-2'>
+                <h4 className='text-sm font-medium'>Select Time Period</h4>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setShowPlanCalendar(!showPlanCalendar)}
+                >
+                  {showPlanCalendar ? 'Hide Calendar' : 'Show Calendar'}
+                </Button>
+              </div>
+              <div className='flex flex-col gap-4'>
+                <div className='flex justify-between items-center'>
+                  <div className='flex space-x-2'>
+                    <Button 
+                      variant={planPeriod === 'day' ? 'default' : 'outline'} 
+                      size='sm'
+                      onClick={() => handlePlanDateRangeChange('day')}
+                    >
+                      Today
+                    </Button>
+                    <Button 
+                      variant={planPeriod === 'week' ? 'default' : 'outline'} 
+                      size='sm'
+                      onClick={() => handlePlanDateRangeChange('week')}
+                    >
+                      This Week
+                    </Button>
+                    <Button 
+                      variant={planPeriod === 'month' ? 'default' : 'outline'} 
+                      size='sm'
+                      onClick={() => handlePlanDateRangeChange('month')}
+                    >
+                      This Month
+                    </Button>
+                  </div>
+                  <div className='text-sm font-medium'>
+                    {getPlanDateRangeText()}
+                  </div>
+                </div>
+                
+                {showPlanCalendar && (
+                  <Calendar
+                    mode={planPeriod === 'day' ? 'single' : 'multiple'}
+                    selected={planPeriod === 'day' ? planSelectedDate : planSelectedDates}
+                    onSelect={(date) => handlePlanDateSelect(Array.isArray(date) ? date[0] : date)}
+                    initialFocus
+                    className="custom-calendar"
+                    classNames={{
+                      day_selected: "bg-gray-200 text-gray-900 hover:bg-gray-300 hover:text-gray-900 focus:bg-gray-300 focus:text-gray-900",
+                      day_today: "bg-primary text-primary-foreground"
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+            
+            {/* Metrics Selection */}
+            <div className='border rounded-md p-4 max-h-[300px] overflow-y-auto'>
+              <h4 className='text-sm font-medium mb-2'>Select Metrics to Plan</h4>
+              <div className='space-y-4'>
+                {objectives.map(objective => (
+                  <div key={objective.id} className='space-y-2'>
+                    <div className='font-medium'>{objective.name}</div>
+                    <div className='pl-4 space-y-2'>
+                      {objective.metrics.map(metric => (
+                        <div key={metric.id} className='flex items-center justify-between'>
+                          <div className='flex items-center gap-2'>
+                            <Checkbox 
+                              id={`metric-${metric.id}`}
+                              checked={metricPlans[metric.id]?.selected || false}
+                              onCheckedChange={(checked) => 
+                                handleMetricSelectionChange(metric.id, checked === true)
+                              }
+                            />
+                            <label 
+                              htmlFor={`metric-${metric.id}`}
+                              className='text-sm'
+                            >
+                              {metric.name}
+                            </label>
+                          </div>
+                          <Input
+                            type='number'
+                            placeholder='Plan value'
+                            className='w-24'
+                            value={metricPlans[metric.id]?.value !== undefined ? metricPlans[metric.id].value : ''}
+                            onChange={(e) => handleMetricPlanValueChange(metric.id, e.target.value)}
+                            disabled={!metricPlans[metric.id]?.selected}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant='outline' onClick={() => setPlansDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSavePlans}>
+              Save Plans
             </Button>
           </DialogFooter>
         </DialogContent>
