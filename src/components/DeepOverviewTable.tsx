@@ -415,6 +415,14 @@ export function DeepOverviewTable({
           <Button
             variant='outline'
             size='sm'
+            onClick={() => {/* Add plans handler */}}
+            className='flex items-center gap-1'
+          >
+            <PlusCircle className='h-4 w-4' /> Add Plans
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
             onClick={openAddObjectiveDialog}
             className='flex items-center gap-1'
           >
