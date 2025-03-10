@@ -366,7 +366,11 @@ export function DeepOverviewTable({
   const [planPeriod, setplanPeriod] = useState<'day' | 'week' | 'month'>('day');
   const [planSelectedDate, setPlanSelectedDate] = useState<Date>(new Date());
   const [planSelectedDates, setPlanSelectedDates] = useState<Date[]>([new Date()]);
-  const [metricPlans, setMetricPlans] = useState<Record<string, { selected: boolean, value: number | undefined }>>({});
+  const [metricPlans, setMetricPlans] = useState<Record<string, { 
+    selected: boolean, 
+    value: number | undefined,
+    period: 'day' | 'week' | 'month'
+  }>>({});
 
   // Add this state variable for calendar visibility
   const [showPlanCalendar, setShowPlanCalendar] = useState(false);
@@ -374,13 +378,18 @@ export function DeepOverviewTable({
   // Add this function to handle opening the plans dialog
   const openPlansDialog = () => {
     // Initialize metric plans with all metrics
-    const initialMetricPlans: Record<string, { selected: boolean, value: number | undefined }> = {};
+    const initialMetricPlans: Record<string, { 
+      selected: boolean, 
+      value: number | undefined,
+      period: 'day' | 'week' | 'month'
+    }> = {};
     
     objectives.forEach(objective => {
       objective.metrics.forEach(metric => {
         initialMetricPlans[metric.id] = { 
           selected: false, 
-          value: undefined 
+          value: undefined,
+          period: 'day' // Default period
         };
       });
     });
@@ -463,39 +472,87 @@ export function DeepOverviewTable({
     }));
   };
 
+  // Add function to handle metric period change
+  const handleMetricPeriodChange = (metricId: string, period: 'day' | 'week' | 'month') => {
+    setMetricPlans(prev => ({
+      ...prev,
+      [metricId]: {
+        ...prev[metricId],
+        period
+      }
+    }));
+  };
+
   // Add function to save plans
   const handleSavePlans = () => {
-    // Create plans object
-    const plans = {
-      id: `plan-${Date.now()}`,
-      period: planPeriod,
-      startDate: planPeriod === 'day' 
-        ? planSelectedDate.toISOString() 
-        : planPeriod === 'week'
-          ? startOfWeek(planSelectedDate).toISOString()
-          : startOfMonth(planSelectedDate).toISOString(),
-      endDate: planPeriod === 'day'
-        ? planSelectedDate.toISOString()
-        : planPeriod === 'week'
-          ? endOfWeek(planSelectedDate).toISOString()
-          : endOfMonth(planSelectedDate).toISOString(),
-      metrics: Object.entries(metricPlans)
-        .filter(([_, data]) => data.selected)
-        .map(([metricId, data]) => ({
-          metricId,
-          planValue: data.value
-        })),
-      createdAt: new Date().toISOString()
-    };
+    // Get selected metrics with their plans
+    const selectedMetricPlans = Object.entries(metricPlans)
+      .filter(([_, data]) => data.selected && data.value !== undefined)
+      .map(([metricId, data]) => ({
+        metricId,
+        planValue: data.value as number,
+        period: data.period
+      }));
     
-    // Save to localStorage
-    const savedPlans = localStorage.getItem('metricPlans');
-    const existingPlans = savedPlans ? JSON.parse(savedPlans) : [];
-    const updatedPlans = [...existingPlans, plans];
-    localStorage.setItem('metricPlans', JSON.stringify(updatedPlans));
+    // Update objectives with the new plans
+    const updatedObjectives = objectives.map(objective => {
+      const updatedMetrics = objective.metrics.map(metric => {
+        const metricPlan = selectedMetricPlans.find(plan => plan.metricId === metric.id);
+        if (metricPlan) {
+          return {
+            ...metric,
+            plan: metricPlan.planValue,
+            planPeriod: metricPlan.period
+          };
+        }
+        return metric;
+      });
+      
+      return {
+        ...objective,
+        metrics: updatedMetrics
+      };
+    });
+    
+    // Update objectives through the parent component
+    onObjectivesChange(updatedObjectives);
     
     // Close dialog
     setPlansDialogOpen(false);
+  };
+
+  // Add function to calculate plan value based on view period
+  const calculatePlanValueForPeriod = (metric: Metric, viewPeriod: 'day' | 'week' | 'month') => {
+    if (!metric.plan || !metric.planPeriod) return '-';
+    
+    // If the view period matches the plan period, return the plan value
+    if (viewPeriod === metric.planPeriod) {
+      return metric.plan;
+    }
+    
+    // Calculate proportional values
+    const workDaysInMonth = 22; // Assumption for work days in a month
+    const workDaysInWeek = 5;   // Assumption for work days in a week
+    
+    // Convert all to daily value first
+    let dailyValue: number;
+    
+    if (metric.planPeriod === 'day') {
+      dailyValue = metric.plan;
+    } else if (metric.planPeriod === 'week') {
+      dailyValue = metric.plan / workDaysInWeek;
+    } else { // month
+      dailyValue = metric.plan / workDaysInMonth;
+    }
+    
+    // Convert daily value to requested period
+    if (viewPeriod === 'day') {
+      return dailyValue.toFixed(2);
+    } else if (viewPeriod === 'week') {
+      return (dailyValue * workDaysInWeek).toFixed(2);
+    } else { // month
+      return (dailyValue * workDaysInMonth).toFixed(2);
+    }
   };
 
   return (
@@ -672,7 +729,14 @@ export function DeepOverviewTable({
                         </TableCell>
                         <TableCell>{metric.description || '-'}</TableCell>
                         <TableCell className='text-right'>
-                          {metric.plan !== undefined ? metric.plan : '-'}
+                          {metric.plan !== undefined 
+                            ? calculatePlanValueForPeriod(metric, dateRange) 
+                            : '-'}
+                          {metric.planPeriod && (
+                            <span className="text-xs text-muted-foreground ml-1">
+                              ({metric.planPeriod})
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell className='text-right'>
                           {metric.actual !== undefined ? metric.actual : '-'}
@@ -1018,30 +1082,72 @@ export function DeepOverviewTable({
                     <div className='font-medium'>{objective.name}</div>
                     <div className='pl-4 space-y-2'>
                       {objective.metrics.map(metric => (
-                        <div key={metric.id} className='flex items-center justify-between'>
-                          <div className='flex items-center gap-2'>
-                            <Checkbox 
-                              id={`metric-${metric.id}`}
-                              checked={metricPlans[metric.id]?.selected || false}
-                              onCheckedChange={(checked) => 
-                                handleMetricSelectionChange(metric.id, checked === true)
-                              }
-                            />
-                            <label 
-                              htmlFor={`metric-${metric.id}`}
-                              className='text-sm'
-                            >
-                              {metric.name}
-                            </label>
+                        <div key={metric.id} className='space-y-2'>
+                          <div className='flex items-center justify-between'>
+                            <div className='flex items-center gap-2'>
+                              <Checkbox 
+                                id={`metric-${metric.id}`}
+                                checked={metricPlans[metric.id]?.selected || false}
+                                onCheckedChange={(checked) => 
+                                  handleMetricSelectionChange(metric.id, checked === true)
+                                }
+                              />
+                              <label 
+                                htmlFor={`metric-${metric.id}`}
+                                className='text-sm'
+                              >
+                                {metric.name}
+                              </label>
+                            </div>
                           </div>
-                          <Input
-                            type='number'
-                            placeholder='Plan value'
-                            className='w-24'
-                            value={metricPlans[metric.id]?.value !== undefined ? metricPlans[metric.id].value : ''}
-                            onChange={(e) => handleMetricPlanValueChange(metric.id, e.target.value)}
-                            disabled={!metricPlans[metric.id]?.selected}
-                          />
+                          
+                          {metricPlans[metric.id]?.selected && (
+                            <div className='pl-6 grid grid-cols-2 gap-4'>
+                              <div>
+                                <label className='text-xs text-muted-foreground mb-1 block'>
+                                  Plan Value
+                                </label>
+                                <Input
+                                  type='number'
+                                  placeholder='Plan value'
+                                  className='w-full'
+                                  value={metricPlans[metric.id]?.value !== undefined ? metricPlans[metric.id].value : ''}
+                                  onChange={(e) => handleMetricPlanValueChange(metric.id, e.target.value)}
+                                />
+                              </div>
+                              <div>
+                                <label className='text-xs text-muted-foreground mb-1 block'>
+                                  Period
+                                </label>
+                                <div className='flex space-x-1'>
+                                  <Button 
+                                    size='sm'
+                                    variant={metricPlans[metric.id]?.period === 'day' ? 'default' : 'outline'}
+                                    className='flex-1 text-xs'
+                                    onClick={() => handleMetricPeriodChange(metric.id, 'day')}
+                                  >
+                                    Day
+                                  </Button>
+                                  <Button 
+                                    size='sm'
+                                    variant={metricPlans[metric.id]?.period === 'week' ? 'default' : 'outline'}
+                                    className='flex-1 text-xs'
+                                    onClick={() => handleMetricPeriodChange(metric.id, 'week')}
+                                  >
+                                    Week
+                                  </Button>
+                                  <Button 
+                                    size='sm'
+                                    variant={metricPlans[metric.id]?.period === 'month' ? 'default' : 'outline'}
+                                    className='flex-1 text-xs'
+                                    onClick={() => handleMetricPeriodChange(metric.id, 'month')}
+                                  >
+                                    Month
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
