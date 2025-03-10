@@ -363,33 +363,35 @@ export function DeepOverviewTable({
 
   // Add these state variables to the component
   const [plansDialogOpen, setPlansDialogOpen] = useState(false);
-  const [planPeriod, setplanPeriod] = useState<'day' | 'week' | 'month'>('day');
-  const [planSelectedDate, setPlanSelectedDate] = useState<Date>(new Date());
-  const [planSelectedDates, setPlanSelectedDates] = useState<Date[]>([new Date()]);
+  const [planPeriod, setPlanPeriod] = useState<'week' | 'month' | 'until_week_end' | 'until_month_end'>('week');
   const [metricPlans, setMetricPlans] = useState<Record<string, { 
     selected: boolean, 
     value: number | undefined,
-    period: 'day' | 'week' | 'month'
+    period: 'week' | 'month' | 'until_week_end' | 'until_month_end'
   }>>({});
 
-  // Add this state variable for calendar visibility
-  const [showPlanCalendar, setShowPlanCalendar] = useState(false);
+  // Add a function to check if any metrics have plans
+  const hasAnyPlans = () => {
+    return objectives.some(obj => 
+      obj.metrics.some(metric => metric.plan !== undefined && metric.planPeriod !== undefined)
+    );
+  };
 
-  // Add this function to handle opening the plans dialog
+  // Update the openPlansDialog function
   const openPlansDialog = () => {
-    // Initialize metric plans with all metrics
+    // Initialize metric plans with all metrics and their existing plans
     const initialMetricPlans: Record<string, { 
       selected: boolean, 
       value: number | undefined,
-      period: 'day' | 'week' | 'month'
+      period: 'week' | 'month' | 'until_week_end' | 'until_month_end'
     }> = {};
     
     objectives.forEach(objective => {
       objective.metrics.forEach(metric => {
         initialMetricPlans[metric.id] = { 
-          selected: false, 
-          value: undefined,
-          period: 'day' // Default period
+          selected: metric.plan !== undefined,
+          value: metric.plan,
+          period: metric.planPeriod || 'week'
         };
       });
     });
@@ -398,55 +400,17 @@ export function DeepOverviewTable({
     setPlansDialogOpen(true);
   };
 
-  // Add these functions to handle date range selection in the plans dialog
-  const getPlanDateRangeText = () => {
-    if (planPeriod === 'day') {
-      return format(planSelectedDate, 'MMM d, yyyy');
-    } else if (planPeriod === 'week') {
-      const start = startOfWeek(planSelectedDate);
-      const end = endOfWeek(planSelectedDate);
-      return `${format(start, 'MMM d')} - ${format(end, 'MMM d, yyyy')}`;
-    } else {
-      return format(planSelectedDate, 'MMMM yyyy');
-    }
-  };
-
-  const handlePlanDateRangeChange = (range: 'day' | 'week' | 'month') => {
-    setplanPeriod(range);
-    // Set the date to current date when changing ranges
-    const today = new Date();
-    setPlanSelectedDate(today);
-    
-    // Update the selected dates array based on the range
-    if (range === 'day') {
-      setPlanSelectedDates([today]);
-    } else if (range === 'week') {
-      const start = startOfWeek(today);
-      const end = endOfWeek(today);
-      setPlanSelectedDates(eachDayOfInterval({ start, end }));
-    } else if (range === 'month') {
-      const start = startOfMonth(today);
-      const end = endOfMonth(today);
-      setPlanSelectedDates(eachDayOfInterval({ start, end }));
-    }
-  };
-
-  const handlePlanDateSelect = (date: Date | undefined) => {
-    if (!date) return;
-    
-    setPlanSelectedDate(date);
-    
-    // Update the selected dates array based on the current range
-    if (planPeriod === 'day') {
-      setPlanSelectedDates([date]);
-    } else if (planPeriod === 'week') {
-      const start = startOfWeek(date);
-      const end = endOfWeek(date);
-      setPlanSelectedDates(eachDayOfInterval({ start, end }));
-    } else if (planPeriod === 'month') {
-      const start = startOfMonth(date);
-      const end = endOfMonth(date);
-      setPlanSelectedDates(eachDayOfInterval({ start, end }));
+  // Update the getPlanDateRangeText function (if you still need it)
+  const getPlanPeriodText = (period: 'week' | 'month' | 'until_week_end' | 'until_month_end') => {
+    switch (period) {
+      case 'week':
+        return 'Weekly';
+      case 'month':
+        return 'Monthly';
+      case 'until_week_end':
+        return 'Until week end';
+      case 'until_month_end':
+        return 'Until month end';
     }
   };
 
@@ -473,7 +437,7 @@ export function DeepOverviewTable({
   };
 
   // Add function to handle metric period change
-  const handleMetricPeriodChange = (metricId: string, period: 'day' | 'week' | 'month') => {
+  const handleMetricPeriodChange = (metricId: string, period: 'week' | 'month' | 'until_week_end' | 'until_month_end') => {
     setMetricPlans(prev => ({
       ...prev,
       [metricId]: {
@@ -521,28 +485,45 @@ export function DeepOverviewTable({
     setPlansDialogOpen(false);
   };
 
-  // Add function to calculate plan value based on view period
+  // Update function to calculate plan value based on view period
   const calculatePlanValueForPeriod = (metric: Metric, viewPeriod: 'day' | 'week' | 'month') => {
     if (!metric.plan || !metric.planPeriod) return '-';
     
-    // If the view period matches the plan period, return the plan value
-    if (viewPeriod === metric.planPeriod) {
-      return metric.plan;
-    }
-    
-    // Calculate proportional values
+    // Constants for calculations
     const workDaysInMonth = 22; // Assumption for work days in a month
     const workDaysInWeek = 5;   // Assumption for work days in a week
     
-    // Convert all to daily value first
+    // Get current date info for "until" calculations
+    const today = new Date();
+    const currentDayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
+    const daysUntilWeekEnd = Math.max(5 - currentDayOfWeek, 0); // Assuming work week ends on Friday
+    
+    const currentDate = today.getDate();
+    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const daysUntilMonthEnd = Math.max(lastDayOfMonth - currentDate, 0);
+    
+    // Calculate daily value based on plan period
     let dailyValue: number;
     
-    if (metric.planPeriod === 'day') {
-      dailyValue = metric.plan;
-    } else if (metric.planPeriod === 'week') {
-      dailyValue = metric.plan / workDaysInWeek;
-    } else { // month
-      dailyValue = metric.plan / workDaysInMonth;
+    switch (metric.planPeriod) {
+      case 'week':
+        dailyValue = metric.plan / workDaysInWeek;
+        break;
+      case 'month':
+        dailyValue = metric.plan / workDaysInMonth;
+        break;
+      case 'until_week_end':
+        // If no days left in week, return the full value
+        if (daysUntilWeekEnd === 0) return metric.plan;
+        dailyValue = metric.plan / daysUntilWeekEnd;
+        break;
+      case 'until_month_end':
+        // If no days left in month, return the full value
+        if (daysUntilMonthEnd === 0) return metric.plan;
+        dailyValue = metric.plan / daysUntilMonthEnd;
+        break;
+      default:
+        return metric.plan;
     }
     
     // Convert daily value to requested period
@@ -614,7 +595,7 @@ export function DeepOverviewTable({
             onClick={openPlansDialog}
             className='flex items-center gap-1'
           >
-            <Target className='h-4 w-4' /> Add Plans
+            <Target className='h-4 w-4' /> {hasAnyPlans() ? 'Change Plans' : 'Add Plans'}
           </Button>
           <Button
             variant='outline'
@@ -1008,73 +989,15 @@ export function DeepOverviewTable({
       <Dialog open={plansDialogOpen} onOpenChange={setPlansDialogOpen}>
         <DialogContent className='sm:max-w-[600px] max-h-[90vh] overflow-hidden flex flex-col'>
           <DialogHeader>
-            <DialogTitle>Create Plans</DialogTitle>
+            <DialogTitle>{hasAnyPlans() ? 'Manage Plans' : 'Create Plans'}</DialogTitle>
             <DialogDescription>
-              Set plans for your metrics for a specific time period.
+              Set or update plans for your metrics.
             </DialogDescription>
           </DialogHeader>
           
           <div className='space-y-4 py-4 overflow-y-auto'>
-            {/* Time Period Selection */}
-            <div className='border rounded-md p-4'>
-              <div className='flex justify-between items-center mb-2'>
-                <h4 className='text-sm font-medium'>Select Time Period</h4>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => setShowPlanCalendar(!showPlanCalendar)}
-                >
-                  {showPlanCalendar ? 'Hide Calendar' : 'Show Calendar'}
-                </Button>
-              </div>
-              <div className='flex flex-col gap-4'>
-                <div className='flex justify-between items-center'>
-                  <div className='flex space-x-2'>
-                    <Button 
-                      variant={planPeriod === 'day' ? 'default' : 'outline'} 
-                      size='sm'
-                      onClick={() => handlePlanDateRangeChange('day')}
-                    >
-                      Today
-                    </Button>
-                    <Button 
-                      variant={planPeriod === 'week' ? 'default' : 'outline'} 
-                      size='sm'
-                      onClick={() => handlePlanDateRangeChange('week')}
-                    >
-                      This Week
-                    </Button>
-                    <Button 
-                      variant={planPeriod === 'month' ? 'default' : 'outline'} 
-                      size='sm'
-                      onClick={() => handlePlanDateRangeChange('month')}
-                    >
-                      This Month
-                    </Button>
-                  </div>
-                  <div className='text-sm font-medium'>
-                    {getPlanDateRangeText()}
-                  </div>
-                </div>
-                
-                {showPlanCalendar && (
-                  <Calendar
-                    mode={planPeriod === 'day' ? 'single' : 'multiple'}
-                    selected={planPeriod === 'day' ? planSelectedDate : planSelectedDates}
-                    onSelect={(date) => handlePlanDateSelect(Array.isArray(date) ? date[0] : date)}
-                    initialFocus
-                    className="custom-calendar"
-                    classNames={{
-                      day_selected: "bg-gray-200 text-gray-900 hover:bg-gray-300 hover:text-gray-900 focus:bg-gray-300 focus:text-gray-900",
-                      day_today: "bg-primary text-primary-foreground"
-                    }}
-                  />
-                )}
-              </div>
-            </div>
-            
             {/* Metrics Selection */}
-            <div className='border rounded-md p-4 max-h-[300px] overflow-y-auto'>
+            <div className='border rounded-md p-4 max-h-[400px] overflow-y-auto'>
               <h4 className='text-sm font-medium mb-2'>Select Metrics to Plan</h4>
               <div className='space-y-4'>
                 {objectives.map(objective => (
@@ -1119,22 +1042,14 @@ export function DeepOverviewTable({
                                 <label className='text-xs text-muted-foreground mb-1 block'>
                                   Period
                                 </label>
-                                <div className='flex space-x-1'>
-                                  <Button 
-                                    size='sm'
-                                    variant={metricPlans[metric.id]?.period === 'day' ? 'default' : 'outline'}
-                                    className='flex-1 text-xs'
-                                    onClick={() => handleMetricPeriodChange(metric.id, 'day')}
-                                  >
-                                    Day
-                                  </Button>
+                                <div className='flex flex-wrap gap-1'>
                                   <Button 
                                     size='sm'
                                     variant={metricPlans[metric.id]?.period === 'week' ? 'default' : 'outline'}
                                     className='flex-1 text-xs'
                                     onClick={() => handleMetricPeriodChange(metric.id, 'week')}
                                   >
-                                    Week
+                                    Weekly
                                   </Button>
                                   <Button 
                                     size='sm'
@@ -1142,7 +1057,23 @@ export function DeepOverviewTable({
                                     className='flex-1 text-xs'
                                     onClick={() => handleMetricPeriodChange(metric.id, 'month')}
                                   >
-                                    Month
+                                    Monthly
+                                  </Button>
+                                  <Button 
+                                    size='sm'
+                                    variant={metricPlans[metric.id]?.period === 'until_week_end' ? 'default' : 'outline'}
+                                    className='flex-1 text-xs'
+                                    onClick={() => handleMetricPeriodChange(metric.id, 'until_week_end')}
+                                  >
+                                    Until week end
+                                  </Button>
+                                  <Button 
+                                    size='sm'
+                                    variant={metricPlans[metric.id]?.period === 'until_month_end' ? 'default' : 'outline'}
+                                    className='flex-1 text-xs'
+                                    onClick={() => handleMetricPeriodChange(metric.id, 'until_month_end')}
+                                  >
+                                    Until month end
                                   </Button>
                                 </div>
                               </div>
