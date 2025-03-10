@@ -41,6 +41,24 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Objective, Metric } from '@/components/ObjectivesMetricsTable';
 import { Textarea } from '@/components/ui/textarea';
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import {
+  Calendar,
+  CalendarCell,
+  CalendarGrid,
+  CalendarHeadCell,
+  CalendarHeader,
+  CalendarMonthHeader,
+  CalendarNextButton,
+  CalendarPrevButton,
+  CalendarViewButton,
+} from '@/components/ui/calendar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Calendar as CalendarIcon } from 'lucide-react';
 
 interface DeepOverviewTableProps {
   objectives: Objective[];
@@ -275,20 +293,91 @@ export function DeepOverviewTable({
     setObjectiveDialogOpen(false);
   };
 
+  // Add these state variables to the DeepOverviewTable component
+  const [dateRange, setDateRange] = useState<'day' | 'week' | 'month'>('day');
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+
+  // Add this function to get the formatted date range string
+  const getDateRangeText = () => {
+    if (dateRange === 'day') {
+      return format(selectedDate, 'MMM d, yyyy');
+    } else if (dateRange === 'week') {
+      const start = startOfWeek(selectedDate);
+      const end = endOfWeek(selectedDate);
+      return `${format(start, 'MMM d')} - ${format(end, 'MMM d, yyyy')}`;
+    } else {
+      return format(selectedDate, 'MMMM yyyy');
+    }
+  };
+
+  // Add this function to filter objectives based on date range
+  const filterObjectivesByDate = (objectives) => {
+    // In a real implementation, you would filter based on dates in your data
+    // For now, we'll just return all objectives
+    return objectives;
+  };
+
   return (
     <div>
       <div className='flex justify-between items-center mb-4'>
         <h3 className='text-lg font-semibold'>
           Objectives & Metrics Performance
         </h3>
-        <Button
-          variant='outline'
-          size='sm'
-          onClick={openAddObjectiveDialog}
-          className='flex items-center gap-1'
-        >
-          <PlusCircle className='h-4 w-4' /> Add Objective
-        </Button>
+        <div className='flex items-center gap-2'>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant='outline' size='sm' className='flex items-center gap-1'>
+                <CalendarIcon className='h-4 w-4' />
+                {getDateRangeText()}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className='w-auto p-0' align='end'>
+              <div className='p-3 border-b'>
+                <div className='flex justify-center space-x-2'>
+                  <Button 
+                    variant={dateRange === 'day' ? 'default' : 'outline'} 
+                    size='sm'
+                    onClick={() => setDateRange('day')}
+                  >
+                    Today
+                  </Button>
+                  <Button 
+                    variant={dateRange === 'week' ? 'default' : 'outline'} 
+                    size='sm'
+                    onClick={() => setDateRange('week')}
+                  >
+                    This Week
+                  </Button>
+                  <Button 
+                    variant={dateRange === 'month' ? 'default' : 'outline'} 
+                    size='sm'
+                    onClick={() => setDateRange('month')}
+                  >
+                    This Month
+                  </Button>
+                </div>
+              </div>
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={(date) => {
+                  if (date) {
+                    setSelectedDate(date);
+                  }
+                }}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={openAddObjectiveDialog}
+            className='flex items-center gap-1'
+          >
+            <PlusCircle className='h-4 w-4' /> Add Objective
+          </Button>
+        </div>
       </div>
 
       <Table>
