@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Objective, Metric } from '@/components/ObjectivesMetricsTable';
+import { Textarea } from '@/components/ui/textarea';
 
 interface DeepOverviewTableProps {
   objectives: Objective[];
@@ -72,6 +73,12 @@ export function DeepOverviewTable({
   const [metricActual, setMetricActual] = useState<number | undefined>(
     undefined
   );
+  const [metricDescription, setMetricDescription] = useState('');
+
+  // Add these state variables
+  const [objectiveDialogOpen, setObjectiveDialogOpen] = useState(false);
+  const [objectiveName, setObjectiveName] = useState('');
+  const [objectiveDescription, setObjectiveDescription] = useState('');
 
   // Toggle objective expansion
   const toggleObjectiveExpansion = (objectiveId: string) => {
@@ -86,6 +93,7 @@ export function DeepOverviewTable({
     setMetricName(metric.name);
     setMetricPlan(metric.plan);
     setMetricActual(metric.actual);
+    setMetricDescription(metric.description || '');
     setCurrentMetricId(metric.id);
     setCurrentObjectiveId(objectiveId);
     setIsEditing(true);
@@ -103,7 +111,13 @@ export function DeepOverviewTable({
           ...obj,
           metrics: obj.metrics.map(m =>
             m.id === currentMetricId
-              ? { ...m, plan: metricPlan, actual: metricActual }
+              ? { 
+                  ...m, 
+                  name: metricName,
+                  description: metricDescription,
+                  plan: metricPlan, 
+                  actual: metricActual 
+                }
               : m
           ),
         };
@@ -215,18 +229,73 @@ export function DeepOverviewTable({
     return 'destructive';
   };
 
+  // Open dialog to add a new objective
+  const openAddObjectiveDialog = () => {
+    setObjectiveName('');
+    setObjectiveDescription('');
+    setIsEditing(false);
+    setObjectiveDialogOpen(true);
+  };
+
+  // Open dialog to add a new metric
+  const openAddMetricDialog = (objectiveId) => {
+    setMetricName('');
+    setMetricDescription('');
+    setMetricPlan(undefined);
+    setMetricActual(undefined);
+    setCurrentObjectiveId(objectiveId);
+    setIsEditing(false);
+    setMetricDialogOpen(true);
+  };
+
+  // Add handleObjectiveSave function
+  const handleObjectiveSave = () => {
+    if (objectiveName.trim() === '') return;
+
+    if (isEditing && currentObjectiveId) {
+      // Update existing objective
+      const updatedObjectives = objectives.map(obj =>
+        obj.id === currentObjectiveId
+          ? { ...obj, name: objectiveName, description: objectiveDescription }
+          : obj
+      );
+      onObjectivesChange(updatedObjectives);
+    } else {
+      // Add new objective
+      const newObjective = {
+        id: `obj-${Date.now()}`,
+        name: objectiveName,
+        description: objectiveDescription,
+        metrics: [],
+        isExpanded: true,
+      };
+      onObjectivesChange([...objectives, newObjective]);
+    }
+
+    setObjectiveDialogOpen(false);
+  };
+
   return (
     <div>
       <div className='flex justify-between items-center mb-4'>
         <h3 className='text-lg font-semibold'>
           Objectives & Metrics Performance
         </h3>
+        <Button
+          variant='outline'
+          size='sm'
+          onClick={openAddObjectiveDialog}
+          className='flex items-center gap-1'
+        >
+          <PlusCircle className='h-4 w-4' /> Add Objective
+        </Button>
       </div>
 
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className='w-[40%]'>Objectives/Metrics</TableHead>
+            <TableHead className='w-[30%]'>Objectives/Metrics</TableHead>
+            <TableHead className='w-[20%]'>Description</TableHead>
             <TableHead className='text-right'>Plan</TableHead>
             <TableHead className='text-right'>Actual</TableHead>
             <TableHead className='text-right'>Deviation</TableHead>
@@ -267,6 +336,7 @@ export function DeepOverviewTable({
                       <div className='flex-1'>{objective.name}</div>
                     </div>
                   </TableCell>
+                  <TableCell>{objective.description || '-'}</TableCell>
                   <TableCell className='text-right'>-</TableCell>
                   <TableCell className='text-right'>-</TableCell>
                   <TableCell className='text-right'>-</TableCell>
@@ -321,6 +391,7 @@ export function DeepOverviewTable({
                             </div>
                           </div>
                         </TableCell>
+                        <TableCell>{metric.description || '-'}</TableCell>
                         <TableCell className='text-right'>
                           {metric.plan !== undefined ? metric.plan : '-'}
                         </TableCell>
@@ -394,6 +465,21 @@ export function DeepOverviewTable({
                       </TableRow>
                     );
                   })}
+
+                {objective.isExpanded && (
+                  <TableRow>
+                    <TableCell colSpan={6}>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        className='ml-8 text-xs'
+                        onClick={() => openAddMetricDialog(objective.id)}
+                      >
+                        <PlusCircle className='h-3 w-3 mr-1' /> Add Metric
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )}
               </>
             ))
           )}
@@ -404,12 +490,41 @@ export function DeepOverviewTable({
       <Dialog open={metricDialogOpen} onOpenChange={setMetricDialogOpen}>
         <DialogContent className='sm:max-w-[425px]'>
           <DialogHeader>
-            <DialogTitle>Edit Metric Values</DialogTitle>
+            <DialogTitle>Edit Metric</DialogTitle>
             <DialogDescription>
-              Update the plan and actual values for {metricName}.
+              Update the details for {metricName}.
             </DialogDescription>
           </DialogHeader>
           <div className='grid gap-4 py-4'>
+            <div className='grid grid-cols-4 items-center gap-4'>
+              <label
+                htmlFor='metric-name'
+                className='text-right text-sm font-medium'
+              >
+                Name
+              </label>
+              <Input
+                id='metric-name'
+                value={metricName}
+                onChange={e => setMetricName(e.target.value)}
+                className='col-span-3'
+              />
+            </div>
+            <div className='grid grid-cols-4 items-center gap-4'>
+              <label
+                htmlFor='metric-description'
+                className='text-right text-sm font-medium'
+              >
+                Description
+              </label>
+              <Textarea
+                id='metric-description'
+                value={metricDescription}
+                onChange={e => setMetricDescription(e.target.value)}
+                className='col-span-3'
+                rows={3}
+              />
+            </div>
             <div className='grid grid-cols-4 items-center gap-4'>
               <label
                 htmlFor='metric-plan'
@@ -487,6 +602,64 @@ export function DeepOverviewTable({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Objective Dialog */}
+      <Dialog open={objectiveDialogOpen} onOpenChange={setObjectiveDialogOpen}>
+        <DialogContent className='sm:max-w-[425px]'>
+          <DialogHeader>
+            <DialogTitle>
+              {isEditing ? 'Edit Objective' : 'Add New Objective'}
+            </DialogTitle>
+            <DialogDescription>
+              {isEditing
+                ? 'Update the objective details below.'
+                : 'Enter the details for your new objective.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className='grid gap-4 py-4'>
+            <div className='grid grid-cols-4 items-center gap-4'>
+              <label
+                htmlFor='objective-name'
+                className='text-right text-sm font-medium'
+              >
+                Name
+              </label>
+              <Input
+                id='objective-name'
+                value={objectiveName}
+                onChange={e => setObjectiveName(e.target.value)}
+                className='col-span-3'
+              />
+            </div>
+            <div className='grid grid-cols-4 items-center gap-4'>
+              <label
+                htmlFor='objective-description'
+                className='text-right text-sm font-medium'
+              >
+                Description
+              </label>
+              <Textarea
+                id='objective-description'
+                value={objectiveDescription}
+                onChange={e => setObjectiveDescription(e.target.value)}
+                className='col-span-3'
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={() => setObjectiveDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleObjectiveSave}>
+              {isEditing ? 'Save Changes' : 'Add Objective'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
