@@ -66,20 +66,21 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { ReportsTable } from '@/components/ReportsTable';
+import { SimpleOverview } from '@/components/SimpleOverview';
 
 // Add a StarRating component to replace numeric inputs
 function StarRating({ rating, maxRating = 5, onRatingChange }) {
   const [hoverRating, setHoverRating] = useState(0);
-  
+
   return (
-    <div className="flex space-x-1">
+    <div className='flex space-x-1'>
       {[...Array(maxRating)].map((_, i) => {
         const starValue = i + 1;
         return (
           <button
             key={i}
-            type="button"
-            className="focus:outline-none p-1"
+            type='button'
+            className='focus:outline-none p-1'
             onClick={() => onRatingChange(starValue)}
             onMouseEnter={() => setHoverRating(starValue)}
             onMouseLeave={() => setHoverRating(0)}
@@ -639,7 +640,7 @@ export function Dashboard() {
     setEditingReport(report);
     setReportDate(report.date);
     setReviewMode(true);
-    
+
     // Pre-fill existing ratings if available
     setReportQuantityRating(report.quantity_rating || 0);
     setReportQualityRating(report.quality_rating || 0);
@@ -819,26 +820,13 @@ export function Dashboard() {
 
           {/* Tabs */}
           <Card>
-            <Tabs defaultValue='overview' className='w-full'>
+            <Tabs defaultValue='deep-overview' className='w-full'>
               <div className='border-b px-4'>
                 <TabsList className='my-2'>
-                  <TabsTrigger value='overview'>Overview</TabsTrigger>
                   <TabsTrigger value='deep-overview'>Performance</TabsTrigger>
                   <TabsTrigger value='reports'>Reports</TabsTrigger>
                 </TabsList>
               </div>
-
-              <TabsContent value='overview' className='p-6'>
-                <div className='grid gap-6'>
-                  <ObjectivesMetricsTable
-                    objectives={objectives}
-                    onObjectivesChange={updatedObjectives => {
-                      setObjectives(updatedObjectives);
-                      saveObjectivesToLocalStorage(updatedObjectives);
-                    }}
-                  />
-                </div>
-              </TabsContent>
 
               <TabsContent value='deep-overview' className='p-6'>
                 <div className='grid gap-6'>
@@ -849,46 +837,6 @@ export function Dashboard() {
                       saveObjectivesToLocalStorage(updatedObjectives);
                     }}
                   />
-                </div>
-              </TabsContent>
-
-              <TabsContent value='team' className='p-6'>
-                <h3 className='text-lg font-semibold mb-4'>Team Members</h3>
-                <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-3'>
-                  {teamMembers.map(member => (
-                    <Card key={member.id} className='p-6'>
-                      <div className='flex items-start gap-4'>
-                        <Avatar className='h-12 w-12'>
-                          <AvatarImage src={member.avatar} alt={member.name} />
-                          <AvatarFallback>
-                            <UserCircle className='h-6 w-6' />
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className='flex-1'>
-                          <div className='flex items-center justify-between'>
-                            <h4 className='font-semibold'>{member.name}</h4>
-                            <Badge variant='secondary'>{member.role}</Badge>
-                          </div>
-                          <div className='mt-2'>
-                            <p className='text-sm text-muted-foreground mb-1'>
-                              Indicators:
-                            </p>
-                            <div className='flex flex-wrap gap-2'>
-                              {member.indicators.map(indicator => (
-                                <Badge
-                                  key={indicator}
-                                  variant='outline'
-                                  className='text-xs'
-                                >
-                                  {indicator}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
                 </div>
               </TabsContent>
 
@@ -906,6 +854,12 @@ export function Dashboard() {
                     onReviewReport={handleReviewReport}
                     onToggleReview={handleToggleReview}
                   />
+                </div>
+              </TabsContent>
+
+              <TabsContent value='overview' className='p-6'>
+                <div className='grid gap-6'>
+                  <SimpleOverview objectives={objectives} />
                 </div>
               </TabsContent>
             </Tabs>
@@ -1101,22 +1055,28 @@ export function Dashboard() {
             </div>
 
             {reviewMode && (
-              <div className="grid gap-6">
-                <label className="text-sm font-medium">Performance Review</label>
-                <div className="rounded-md border p-4 space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+              <div className='grid gap-6'>
+                <label className='text-sm font-medium'>
+                  Performance Review
+                </label>
+                <div className='rounded-md border p-4 space-y-4'>
+                  <div className='grid grid-cols-2 gap-4'>
                     <div>
-                      <h4 className="text-sm font-medium text-muted-foreground mb-2">Quantity Rating</h4>
-                      <StarRating 
-                        rating={reportQuantityRating} 
-                        onRatingChange={setReportQuantityRating} 
+                      <h4 className='text-sm font-medium text-muted-foreground mb-2'>
+                        Quantity Rating
+                      </h4>
+                      <StarRating
+                        rating={reportQuantityRating}
+                        onRatingChange={setReportQuantityRating}
                       />
                     </div>
                     <div>
-                      <h4 className="text-sm font-medium text-muted-foreground mb-2">Quality Rating</h4>
-                      <StarRating 
-                        rating={reportQualityRating} 
-                        onRatingChange={setReportQualityRating} 
+                      <h4 className='text-sm font-medium text-muted-foreground mb-2'>
+                        Quality Rating
+                      </h4>
+                      <StarRating
+                        rating={reportQualityRating}
+                        onRatingChange={setReportQualityRating}
                       />
                     </div>
                   </div>
