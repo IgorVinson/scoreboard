@@ -41,7 +41,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Objective, Metric } from '@/components/ObjectivesMetricsTable';
 import { Textarea } from '@/components/ui/textarea';
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, eachDayOfInterval } from 'date-fns';
 import {
   Calendar,
   CalendarCell,
@@ -296,8 +296,9 @@ export function DeepOverviewTable({
   // Add these state variables to the DeepOverviewTable component
   const [dateRange, setDateRange] = useState<'day' | 'week' | 'month'>('day');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedDates, setSelectedDates] = useState<Date[]>([new Date()]);
 
-  // Add this function to get the formatted date range string
+  // Updated function to get the formatted date range string
   const getDateRangeText = () => {
     if (dateRange === 'day') {
       return format(selectedDate, 'MMM d, yyyy');
@@ -307,6 +308,47 @@ export function DeepOverviewTable({
       return `${format(start, 'MMM d')} - ${format(end, 'MMM d, yyyy')}`;
     } else {
       return format(selectedDate, 'MMMM yyyy');
+    }
+  };
+
+  // Updated function to handle date range selection
+  const handleDateRangeChange = (range: 'day' | 'week' | 'month') => {
+    setDateRange(range);
+    // Set the date to current date when changing ranges
+    const today = new Date();
+    setSelectedDate(today);
+    
+    // Update the selected dates array based on the range
+    if (range === 'day') {
+      setSelectedDates([today]);
+    } else if (range === 'week') {
+      const start = startOfWeek(today);
+      const end = endOfWeek(today);
+      setSelectedDates(eachDayOfInterval({ start, end }));
+    } else if (range === 'month') {
+      const start = startOfMonth(today);
+      const end = endOfMonth(today);
+      setSelectedDates(eachDayOfInterval({ start, end }));
+    }
+  };
+
+  // Add a function to handle date selection in the calendar
+  const handleDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+    
+    setSelectedDate(date);
+    
+    // Update the selected dates array based on the current range
+    if (dateRange === 'day') {
+      setSelectedDates([date]);
+    } else if (dateRange === 'week') {
+      const start = startOfWeek(date);
+      const end = endOfWeek(date);
+      setSelectedDates(eachDayOfInterval({ start, end }));
+    } else if (dateRange === 'month') {
+      const start = startOfMonth(date);
+      const end = endOfMonth(date);
+      setSelectedDates(eachDayOfInterval({ start, end }));
     }
   };
 
@@ -337,35 +379,36 @@ export function DeepOverviewTable({
                   <Button 
                     variant={dateRange === 'day' ? 'default' : 'outline'} 
                     size='sm'
-                    onClick={() => setDateRange('day')}
+                    onClick={() => handleDateRangeChange('day')}
                   >
                     Today
                   </Button>
                   <Button 
                     variant={dateRange === 'week' ? 'default' : 'outline'} 
                     size='sm'
-                    onClick={() => setDateRange('week')}
+                    onClick={() => handleDateRangeChange('week')}
                   >
                     This Week
                   </Button>
                   <Button 
                     variant={dateRange === 'month' ? 'default' : 'outline'} 
                     size='sm'
-                    onClick={() => setDateRange('month')}
+                    onClick={() => handleDateRangeChange('month')}
                   >
                     This Month
                   </Button>
                 </div>
               </div>
               <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={(date) => {
-                  if (date) {
-                    setSelectedDate(date);
-                  }
-                }}
+                mode={dateRange === 'day' ? 'single' : 'multiple'}
+                selected={dateRange === 'day' ? selectedDate : selectedDates}
+                onSelect={(date) => handleDateSelect(Array.isArray(date) ? date[0] : date)}
                 initialFocus
+                className="custom-calendar"
+                classNames={{
+                  day_selected: "bg-gray-200 text-gray-900 hover:bg-gray-300 hover:text-gray-900 focus:bg-gray-300 focus:text-gray-900",
+                  day_today: "bg-primary text-primary-foreground"
+                }}
               />
             </PopoverContent>
           </Popover>
