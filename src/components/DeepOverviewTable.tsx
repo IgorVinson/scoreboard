@@ -363,11 +363,11 @@ export function DeepOverviewTable({
 
   // Add these state variables to the component
   const [plansDialogOpen, setPlansDialogOpen] = useState(false);
-  const [planPeriod, setPlanPeriod] = useState<'week' | 'month' | 'until_week_end' | 'until_month_end'>('week');
+  const [planPeriod, setPlanPeriod] = useState<'until_week_end' | 'until_month_end'>('until_week_end');
   const [metricPlans, setMetricPlans] = useState<Record<string, { 
     selected: boolean, 
     value: number | undefined,
-    period: 'week' | 'month' | 'until_week_end' | 'until_month_end'
+    period: 'until_week_end' | 'until_month_end'
   }>>({});
 
   // Add a function to check if any metrics have plans
@@ -383,7 +383,7 @@ export function DeepOverviewTable({
     const initialMetricPlans: Record<string, { 
       selected: boolean, 
       value: number | undefined,
-      period: 'week' | 'month' | 'until_week_end' | 'until_month_end'
+      period: 'until_week_end' | 'until_month_end'
     }> = {};
     
     objectives.forEach(objective => {
@@ -391,7 +391,7 @@ export function DeepOverviewTable({
         initialMetricPlans[metric.id] = { 
           selected: metric.plan !== undefined,
           value: metric.plan,
-          period: metric.planPeriod || 'week'
+          period: metric.planPeriod as 'until_week_end' | 'until_month_end' || 'until_week_end'
         };
       });
     });
@@ -400,13 +400,9 @@ export function DeepOverviewTable({
     setPlansDialogOpen(true);
   };
 
-  // Update the getPlanDateRangeText function (if you still need it)
-  const getPlanPeriodText = (period: 'week' | 'month' | 'until_week_end' | 'until_month_end') => {
+  // Update the getPlanPeriodText function
+  const getPlanPeriodText = (period: 'until_week_end' | 'until_month_end') => {
     switch (period) {
-      case 'week':
-        return 'Weekly';
-      case 'month':
-        return 'Monthly';
       case 'until_week_end':
         return 'Until week end';
       case 'until_month_end':
@@ -414,8 +410,31 @@ export function DeepOverviewTable({
     }
   };
 
-  // Add function to handle metric selection for planning
+  // Update the handleMetricSelectionChange function
   const handleMetricSelectionChange = (metricId: string, selected: boolean) => {
+    if (!selected) {
+      // If deselecting, update the objectives to remove the plan for this metric
+      const updatedObjectives = objectives.map(objective => {
+        const updatedMetrics = objective.metrics.map(metric => {
+          if (metric.id === metricId) {
+            // Remove plan and planPeriod
+            const { plan, planPeriod, ...rest } = metric;
+            return rest;
+          }
+          return metric;
+        });
+        
+        return {
+          ...objective,
+          metrics: updatedMetrics
+        };
+      });
+      
+      // Update objectives through the parent component
+      onObjectivesChange(updatedObjectives);
+    }
+    
+    // Update the local state
     setMetricPlans(prev => ({
       ...prev,
       [metricId]: {
@@ -425,6 +444,86 @@ export function DeepOverviewTable({
     }));
   };
 
+  // Update the handleMetricPeriodChange function
+  const handleMetricPeriodChange = (metricId: string, period: 'until_week_end' | 'until_month_end') => {
+    setMetricPlans(prev => ({
+      ...prev,
+      [metricId]: {
+        ...prev[metricId],
+        period
+      }
+    }));
+  };
+
+  // Update the calculatePlanValueForPeriod function for more accurate calculations
+  const calculatePlanValueForPeriod = (metric: Metric, viewPeriod: 'day' | 'week' | 'month') => {
+    if (!metric.plan || !metric.planPeriod) return '-';
+    
+    // Constants for calculations
+    const workDaysInMonth = 22; // Assumption for work days in a month
+    const workDaysInWeek = 5;   // Assumption for work days in a week
+    
+    // Get current date info for "until" calculations
+    const today = new Date();
+    const currentDayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
+    
+    // Calculate work days remaining in the week (Mon-Fri)
+    let daysUntilWeekEnd = 0;
+    if (currentDayOfWeek >= 1 && currentDayOfWeek <= 5) {
+      // If today is a weekday (Mon-Fri), count days until Friday
+      daysUntilWeekEnd = 6 - currentDayOfWeek; // 6 = Friday + 1
+    } else if (currentDayOfWeek === 0) {
+      // If today is Sunday, there are 5 work days left in the week
+      daysUntilWeekEnd = 5;
+    } else {
+      // If today is Saturday, there are 5 work days in the next week
+      daysUntilWeekEnd = 5;
+    }
+    
+    // Calculate work days remaining in the month
+    const currentDate = today.getDate();
+    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const totalDaysRemaining = lastDayOfMonth - currentDate;
+    
+    // Calculate work days remaining (excluding weekends)
+    let workDaysUntilMonthEnd = 0;
+    let tempDate = new Date(today);
+    for (let i = 0; i <= totalDaysRemaining; i++) {
+      tempDate.setDate(currentDate + i);
+      const dayOfWeek = tempDate.getDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Not Sunday (0) or Saturday (6)
+        workDaysUntilMonthEnd++;
+      }
+    }
+    
+    // Calculate daily value based on plan period
+    let dailyValue: number;
+    
+    switch (metric.planPeriod) {
+      case 'until_week_end':
+        // If no work days left in week, return the full value
+        if (daysUntilWeekEnd === 0) return metric.plan;
+        dailyValue = metric.plan / daysUntilWeekEnd;
+        break;
+      case 'until_month_end':
+        // If no work days left in month, return the full value
+        if (workDaysUntilMonthEnd === 0) return metric.plan;
+        dailyValue = metric.plan / workDaysUntilMonthEnd;
+        break;
+      default:
+        return metric.plan;
+    }
+    
+    // Convert daily value to requested period
+    if (viewPeriod === 'day') {
+      return dailyValue.toFixed(2);
+    } else if (viewPeriod === 'week') {
+      return (dailyValue * workDaysInWeek).toFixed(2);
+    } else { // month
+      return (dailyValue * workDaysInMonth).toFixed(2);
+    }
+  };
+
   // Add function to handle metric plan value change
   const handleMetricPlanValueChange = (metricId: string, value: string) => {
     setMetricPlans(prev => ({
@@ -432,17 +531,6 @@ export function DeepOverviewTable({
       [metricId]: {
         ...prev[metricId],
         value: value ? Number(value) : undefined
-      }
-    }));
-  };
-
-  // Add function to handle metric period change
-  const handleMetricPeriodChange = (metricId: string, period: 'week' | 'month' | 'until_week_end' | 'until_month_end') => {
-    setMetricPlans(prev => ({
-      ...prev,
-      [metricId]: {
-        ...prev[metricId],
-        period
       }
     }));
   };
@@ -483,57 +571,6 @@ export function DeepOverviewTable({
     
     // Close dialog
     setPlansDialogOpen(false);
-  };
-
-  // Update function to calculate plan value based on view period
-  const calculatePlanValueForPeriod = (metric: Metric, viewPeriod: 'day' | 'week' | 'month') => {
-    if (!metric.plan || !metric.planPeriod) return '-';
-    
-    // Constants for calculations
-    const workDaysInMonth = 22; // Assumption for work days in a month
-    const workDaysInWeek = 5;   // Assumption for work days in a week
-    
-    // Get current date info for "until" calculations
-    const today = new Date();
-    const currentDayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
-    const daysUntilWeekEnd = Math.max(5 - currentDayOfWeek, 0); // Assuming work week ends on Friday
-    
-    const currentDate = today.getDate();
-    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-    const daysUntilMonthEnd = Math.max(lastDayOfMonth - currentDate, 0);
-    
-    // Calculate daily value based on plan period
-    let dailyValue: number;
-    
-    switch (metric.planPeriod) {
-      case 'week':
-        dailyValue = metric.plan / workDaysInWeek;
-        break;
-      case 'month':
-        dailyValue = metric.plan / workDaysInMonth;
-        break;
-      case 'until_week_end':
-        // If no days left in week, return the full value
-        if (daysUntilWeekEnd === 0) return metric.plan;
-        dailyValue = metric.plan / daysUntilWeekEnd;
-        break;
-      case 'until_month_end':
-        // If no days left in month, return the full value
-        if (daysUntilMonthEnd === 0) return metric.plan;
-        dailyValue = metric.plan / daysUntilMonthEnd;
-        break;
-      default:
-        return metric.plan;
-    }
-    
-    // Convert daily value to requested period
-    if (viewPeriod === 'day') {
-      return dailyValue.toFixed(2);
-    } else if (viewPeriod === 'week') {
-      return (dailyValue * workDaysInWeek).toFixed(2);
-    } else { // month
-      return (dailyValue * workDaysInMonth).toFixed(2);
-    }
   };
 
   return (
@@ -1042,23 +1079,7 @@ export function DeepOverviewTable({
                                 <label className='text-xs text-muted-foreground mb-1 block'>
                                   Period
                                 </label>
-                                <div className='flex flex-wrap gap-1'>
-                                  <Button 
-                                    size='sm'
-                                    variant={metricPlans[metric.id]?.period === 'week' ? 'default' : 'outline'}
-                                    className='flex-1 text-xs'
-                                    onClick={() => handleMetricPeriodChange(metric.id, 'week')}
-                                  >
-                                    Weekly
-                                  </Button>
-                                  <Button 
-                                    size='sm'
-                                    variant={metricPlans[metric.id]?.period === 'month' ? 'default' : 'outline'}
-                                    className='flex-1 text-xs'
-                                    onClick={() => handleMetricPeriodChange(metric.id, 'month')}
-                                  >
-                                    Monthly
-                                  </Button>
+                                <div className='flex gap-2'>
                                   <Button 
                                     size='sm'
                                     variant={metricPlans[metric.id]?.period === 'until_week_end' ? 'default' : 'outline'}
