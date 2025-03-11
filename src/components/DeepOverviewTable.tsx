@@ -42,7 +42,15 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Objective, Metric } from '@/components/ObjectivesMetricsTable';
 import { Textarea } from '@/components/ui/textarea';
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, eachDayOfInterval } from 'date-fns';
+import {
+  format,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  isWithinInterval,
+  eachDayOfInterval,
+} from 'date-fns';
 import {
   Calendar,
   CalendarCell,
@@ -131,12 +139,12 @@ export function DeepOverviewTable({
           ...obj,
           metrics: obj.metrics.map(m =>
             m.id === currentMetricId
-              ? { 
-                  ...m, 
+              ? {
+                  ...m,
                   name: metricName,
                   description: metricDescription,
-                  plan: metricPlan, 
-                  actual: metricActual 
+                  plan: metricPlan,
+                  actual: metricActual,
                 }
               : m
           ),
@@ -162,9 +170,9 @@ export function DeepOverviewTable({
   // Handle confirmed delete
   const handleConfirmedDelete = () => {
     if (!itemToDelete) return;
-    
+
     let updatedObjectives = [...objectives];
-    
+
     if (itemToDelete.type === 'objective') {
       // Filter out the deleted objective
       updatedObjectives = updatedObjectives.filter(
@@ -182,7 +190,7 @@ export function DeepOverviewTable({
         return obj;
       });
     }
-    
+
     // Update state and localStorage through parent component
     onObjectivesChange(updatedObjectives);
     setDeleteConfirmOpen(false);
@@ -258,7 +266,7 @@ export function DeepOverviewTable({
   };
 
   // Open dialog to add a new metric
-  const openAddMetricDialog = (objectiveId) => {
+  const openAddMetricDialog = objectiveId => {
     setMetricName('');
     setMetricDescription('');
     setMetricPlan(undefined);
@@ -319,7 +327,7 @@ export function DeepOverviewTable({
     // Set the date to current date when changing ranges
     const today = new Date();
     setSelectedDate(today);
-    
+
     // Update the selected dates array based on the range
     if (range === 'day') {
       setSelectedDates([today]);
@@ -337,9 +345,9 @@ export function DeepOverviewTable({
   // Add a function to handle date selection in the calendar
   const handleDateSelect = (date: Date | undefined) => {
     if (!date) return;
-    
+
     setSelectedDate(date);
-    
+
     // Update the selected dates array based on the current range
     if (dateRange === 'day') {
       setSelectedDates([date]);
@@ -355,7 +363,7 @@ export function DeepOverviewTable({
   };
 
   // Add this function to filter objectives based on date range
-  const filterObjectivesByDate = (objectives) => {
+  const filterObjectivesByDate = objectives => {
     // In a real implementation, you would filter based on dates in your data
     // For now, we'll just return all objectives
     return objectives;
@@ -363,39 +371,53 @@ export function DeepOverviewTable({
 
   // Add these state variables to the component
   const [plansDialogOpen, setPlansDialogOpen] = useState(false);
-  const [planPeriod, setPlanPeriod] = useState<'until_week_end' | 'until_month_end'>('until_week_end');
-  const [metricPlans, setMetricPlans] = useState<Record<string, { 
-    selected: boolean, 
-    value: number | undefined,
-    period: 'until_week_end' | 'until_month_end'
-  }>>({});
+  const [planPeriod, setPlanPeriod] = useState<
+    'until_week_end' | 'until_month_end'
+  >('until_week_end');
+  const [metricPlans, setMetricPlans] = useState<
+    Record<
+      string,
+      {
+        selected: boolean;
+        value: number | undefined;
+        period: 'until_week_end' | 'until_month_end';
+      }
+    >
+  >({});
 
   // Add a function to check if any metrics have plans
   const hasAnyPlans = () => {
-    return objectives.some(obj => 
-      obj.metrics.some(metric => metric.plan !== undefined && metric.planPeriod !== undefined)
+    return objectives.some(obj =>
+      obj.metrics.some(
+        metric => metric.plan !== undefined && metric.planPeriod !== undefined
+      )
     );
   };
 
   // Update the openPlansDialog function
   const openPlansDialog = () => {
     // Initialize metric plans with all metrics and their existing plans
-    const initialMetricPlans: Record<string, { 
-      selected: boolean, 
-      value: number | undefined,
-      period: 'until_week_end' | 'until_month_end'
-    }> = {};
-    
+    const initialMetricPlans: Record<
+      string,
+      {
+        selected: boolean;
+        value: number | undefined;
+        period: 'until_week_end' | 'until_month_end';
+      }
+    > = {};
+
     objectives.forEach(objective => {
       objective.metrics.forEach(metric => {
-        initialMetricPlans[metric.id] = { 
+        initialMetricPlans[metric.id] = {
           selected: metric.plan !== undefined,
           value: metric.plan,
-          period: metric.planPeriod as 'until_week_end' | 'until_month_end' || 'until_week_end'
+          period:
+            (metric.planPeriod as 'until_week_end' | 'until_month_end') ||
+            'until_week_end',
         };
       });
     });
-    
+
     setMetricPlans(initialMetricPlans);
     setPlansDialogOpen(true);
   };
@@ -423,50 +445,56 @@ export function DeepOverviewTable({
           }
           return metric;
         });
-        
+
         return {
           ...objective,
-          metrics: updatedMetrics
+          metrics: updatedMetrics,
         };
       });
-      
+
       // Update objectives through the parent component
       onObjectivesChange(updatedObjectives);
     }
-    
+
     // Update the local state
     setMetricPlans(prev => ({
       ...prev,
       [metricId]: {
         ...prev[metricId],
-        selected
-      }
+        selected,
+      },
     }));
   };
 
   // Update the handleMetricPeriodChange function
-  const handleMetricPeriodChange = (metricId: string, period: 'until_week_end' | 'until_month_end') => {
+  const handleMetricPeriodChange = (
+    metricId: string,
+    period: 'until_week_end' | 'until_month_end'
+  ) => {
     setMetricPlans(prev => ({
       ...prev,
       [metricId]: {
         ...prev[metricId],
-        period
-      }
+        period,
+      },
     }));
   };
 
   // Update the calculatePlanValueForPeriod function for more accurate calculations
-  const calculatePlanValueForPeriod = (metric: Metric, viewPeriod: 'day' | 'week' | 'month') => {
+  const calculatePlanValueForPeriod = (
+    metric: Metric,
+    viewPeriod: 'day' | 'week' | 'month'
+  ) => {
     if (!metric.plan || !metric.planPeriod) return '-';
-    
+
     // Constants for calculations
     const workDaysInMonth = 22; // Assumption for work days in a month
-    const workDaysInWeek = 5;   // Assumption for work days in a week
-    
+    const workDaysInWeek = 5; // Assumption for work days in a week
+
     // Get current date info for "until" calculations
     const today = new Date();
     const currentDayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
-    
+
     // Calculate work days remaining in the week (Mon-Fri)
     let daysUntilWeekEnd = 0;
     if (currentDayOfWeek >= 1 && currentDayOfWeek <= 5) {
@@ -479,26 +507,31 @@ export function DeepOverviewTable({
       // If today is Saturday, there are 5 work days in the next week
       daysUntilWeekEnd = 5;
     }
-    
+
     // Calculate work days remaining in the month
     const currentDate = today.getDate();
-    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const lastDayOfMonth = new Date(
+      today.getFullYear(),
+      today.getMonth() + 1,
+      0
+    ).getDate();
     const totalDaysRemaining = lastDayOfMonth - currentDate;
-    
+
     // Calculate work days remaining (excluding weekends)
     let workDaysUntilMonthEnd = 0;
     let tempDate = new Date(today);
     for (let i = 0; i <= totalDaysRemaining; i++) {
       tempDate.setDate(currentDate + i);
       const dayOfWeek = tempDate.getDay();
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Not Sunday (0) or Saturday (6)
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        // Not Sunday (0) or Saturday (6)
         workDaysUntilMonthEnd++;
       }
     }
-    
+
     // Calculate daily value based on plan period
     let dailyValue: number;
-    
+
     switch (metric.planPeriod) {
       case 'until_week_end':
         // If no work days left in week, return the full value
@@ -513,13 +546,14 @@ export function DeepOverviewTable({
       default:
         return metric.plan;
     }
-    
+
     // Convert daily value to requested period
     if (viewPeriod === 'day') {
       return dailyValue.toFixed(2);
     } else if (viewPeriod === 'week') {
       return (dailyValue * workDaysInWeek).toFixed(2);
-    } else { // month
+    } else {
+      // month
       return (dailyValue * workDaysInMonth).toFixed(2);
     }
   };
@@ -530,8 +564,8 @@ export function DeepOverviewTable({
       ...prev,
       [metricId]: {
         ...prev[metricId],
-        value: value ? Number(value) : undefined
-      }
+        value: value ? Number(value) : undefined,
+      },
     }));
   };
 
@@ -543,32 +577,34 @@ export function DeepOverviewTable({
       .map(([metricId, data]) => ({
         metricId,
         planValue: data.value as number,
-        period: data.period
+        period: data.period,
       }));
-    
+
     // Update objectives with the new plans
     const updatedObjectives = objectives.map(objective => {
       const updatedMetrics = objective.metrics.map(metric => {
-        const metricPlan = selectedMetricPlans.find(plan => plan.metricId === metric.id);
+        const metricPlan = selectedMetricPlans.find(
+          plan => plan.metricId === metric.id
+        );
         if (metricPlan) {
           return {
             ...metric,
             plan: metricPlan.planValue,
-            planPeriod: metricPlan.period
+            planPeriod: metricPlan.period,
           };
         }
         return metric;
       });
-      
+
       return {
         ...objective,
-        metrics: updatedMetrics
+        metrics: updatedMetrics,
       };
     });
-    
+
     // Update objectives through the parent component
     onObjectivesChange(updatedObjectives);
-    
+
     // Close dialog
     setPlansDialogOpen(false);
   };
@@ -576,7 +612,7 @@ export function DeepOverviewTable({
   // Add this function to get a user-friendly display name for plan periods
   const getPlanPeriodDisplayName = (period: string | undefined) => {
     if (!period) return '';
-    
+
     switch (period) {
       case 'until_week_end':
         return 'weekly';
@@ -594,28 +630,28 @@ export function DeepOverviewTable({
           Objectives & Metrics Performance
         </h3>
         <div className='flex items-center gap-2'>
-          <div className="flex border rounded-md overflow-hidden">
-            <Button 
-              variant={dateRange === 'day' ? 'default' : 'ghost'} 
+          <div className='flex border rounded-md overflow-hidden'>
+            <Button
+              variant={dateRange === 'day' ? 'default' : 'ghost'}
               size='sm'
               onClick={() => handleDateRangeChange('day')}
-              className="rounded-none border-r"
+              className='rounded-none border-r'
             >
               Today
             </Button>
-            <Button 
-              variant={dateRange === 'week' ? 'default' : 'ghost'} 
+            <Button
+              variant={dateRange === 'week' ? 'default' : 'ghost'}
               size='sm'
               onClick={() => handleDateRangeChange('week')}
-              className="rounded-none border-r"
+              className='rounded-none border-r'
             >
               This Week
             </Button>
-            <Button 
-              variant={dateRange === 'month' ? 'default' : 'ghost'} 
+            <Button
+              variant={dateRange === 'month' ? 'default' : 'ghost'}
               size='sm'
               onClick={() => handleDateRangeChange('month')}
-              className="rounded-none"
+              className='rounded-none'
             >
               This Month
             </Button>
@@ -626,7 +662,8 @@ export function DeepOverviewTable({
             onClick={openPlansDialog}
             className='flex items-center gap-1'
           >
-            <Target className='h-4 w-4' /> {hasAnyPlans() ? 'Change Plans' : 'Add Plans'}
+            <Target className='h-4 w-4' />{' '}
+            {hasAnyPlans() ? 'Change Plans' : 'Add Plans'}
           </Button>
           <Button
             variant='outline'
@@ -732,20 +769,20 @@ export function DeepOverviewTable({
                     return (
                       <TableRow key={metric.id}>
                         <TableCell>
-                          <div className="pl-8">
-                            <div className="flex items-center gap-2">
-                              <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                          <div className='pl-8'>
+                            <div className='flex items-center gap-2'>
+                              <ArrowRight className='h-3 w-3 text-muted-foreground' />
                               <span>{metric.name}</span>
                             </div>
                           </div>
                         </TableCell>
                         <TableCell>{metric.description || '-'}</TableCell>
                         <TableCell className='text-right'>
-                          {metric.plan !== undefined 
-                            ? calculatePlanValueForPeriod(metric, dateRange) 
+                          {metric.plan !== undefined
+                            ? calculatePlanValueForPeriod(metric, dateRange)
                             : '-'}
                           {metric.planPeriod && (
-                            <span className="text-xs text-muted-foreground ml-1">
+                            <span className='text-xs text-muted-foreground ml-1'>
                               ({getPlanPeriodDisplayName(metric.planPeriod)})
                             </span>
                           )}
@@ -1020,16 +1057,20 @@ export function DeepOverviewTable({
       <Dialog open={plansDialogOpen} onOpenChange={setPlansDialogOpen}>
         <DialogContent className='sm:max-w-[600px] max-h-[90vh] overflow-hidden flex flex-col'>
           <DialogHeader>
-            <DialogTitle>{hasAnyPlans() ? 'Manage Plans' : 'Create Plans'}</DialogTitle>
+            <DialogTitle>
+              {hasAnyPlans() ? 'Manage Plans' : 'Create Plans'}
+            </DialogTitle>
             <DialogDescription>
               Set or update plans for your metrics.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className='space-y-4 py-4 overflow-y-auto'>
             {/* Metrics Selection */}
             <div className='border rounded-md p-4 max-h-[400px] overflow-y-auto'>
-              <h4 className='text-sm font-medium mb-2'>Select Metrics to Plan</h4>
+              <h4 className='text-sm font-medium mb-2'>
+                Select Metrics to Plan
+              </h4>
               <div className='space-y-4'>
                 {objectives.map(objective => (
                   <div key={objective.id} className='space-y-2'>
@@ -1039,14 +1080,19 @@ export function DeepOverviewTable({
                         <div key={metric.id} className='space-y-2'>
                           <div className='flex items-center justify-between'>
                             <div className='flex items-center gap-2'>
-                              <Checkbox 
+                              <Checkbox
                                 id={`metric-${metric.id}`}
-                                checked={metricPlans[metric.id]?.selected || false}
-                                onCheckedChange={(checked) => 
-                                  handleMetricSelectionChange(metric.id, checked === true)
+                                checked={
+                                  metricPlans[metric.id]?.selected || false
+                                }
+                                onCheckedChange={checked =>
+                                  handleMetricSelectionChange(
+                                    metric.id,
+                                    checked === true
+                                  )
                                 }
                               />
-                              <label 
+                              <label
                                 htmlFor={`metric-${metric.id}`}
                                 className='text-sm'
                               >
@@ -1054,7 +1100,7 @@ export function DeepOverviewTable({
                               </label>
                             </div>
                           </div>
-                          
+
                           {metricPlans[metric.id]?.selected && (
                             <div className='pl-6 grid grid-cols-2 gap-4'>
                               <div>
@@ -1065,8 +1111,17 @@ export function DeepOverviewTable({
                                   type='number'
                                   placeholder='Plan value'
                                   className='w-full'
-                                  value={metricPlans[metric.id]?.value !== undefined ? metricPlans[metric.id].value : ''}
-                                  onChange={(e) => handleMetricPlanValueChange(metric.id, e.target.value)}
+                                  value={
+                                    metricPlans[metric.id]?.value !== undefined
+                                      ? metricPlans[metric.id].value
+                                      : ''
+                                  }
+                                  onChange={e =>
+                                    handleMetricPlanValueChange(
+                                      metric.id,
+                                      e.target.value
+                                    )
+                                  }
                                 />
                               </div>
                               <div>
@@ -1074,19 +1129,39 @@ export function DeepOverviewTable({
                                   Period
                                 </label>
                                 <div className='flex gap-2'>
-                                  <Button 
+                                  <Button
                                     size='sm'
-                                    variant={metricPlans[metric.id]?.period === 'until_week_end' ? 'default' : 'outline'}
+                                    variant={
+                                      metricPlans[metric.id]?.period ===
+                                      'until_week_end'
+                                        ? 'default'
+                                        : 'outline'
+                                    }
                                     className='flex-1 text-xs'
-                                    onClick={() => handleMetricPeriodChange(metric.id, 'until_week_end')}
+                                    onClick={() =>
+                                      handleMetricPeriodChange(
+                                        metric.id,
+                                        'until_week_end'
+                                      )
+                                    }
                                   >
                                     Weekly
                                   </Button>
-                                  <Button 
+                                  <Button
                                     size='sm'
-                                    variant={metricPlans[metric.id]?.period === 'until_month_end' ? 'default' : 'outline'}
+                                    variant={
+                                      metricPlans[metric.id]?.period ===
+                                      'until_month_end'
+                                        ? 'default'
+                                        : 'outline'
+                                    }
                                     className='flex-1 text-xs'
-                                    onClick={() => handleMetricPeriodChange(metric.id, 'until_month_end')}
+                                    onClick={() =>
+                                      handleMetricPeriodChange(
+                                        metric.id,
+                                        'until_month_end'
+                                      )
+                                    }
                                   >
                                     Monthly
                                   </Button>
@@ -1102,14 +1177,12 @@ export function DeepOverviewTable({
               </div>
             </div>
           </div>
-          
+
           <DialogFooter>
             <Button variant='outline' onClick={() => setPlansDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSavePlans}>
-              Save Plans
-            </Button>
+            <Button onClick={handleSavePlans}>Save Plans</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
