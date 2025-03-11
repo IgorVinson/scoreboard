@@ -836,6 +836,7 @@ export function Dashboard() {
                       setObjectives(updatedObjectives);
                       saveObjectivesToLocalStorage(updatedObjectives);
                     }}
+                    reports={reports}
                   />
                 </div>
               </TabsContent>
