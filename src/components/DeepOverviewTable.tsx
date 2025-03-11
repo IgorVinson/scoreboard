@@ -562,82 +562,39 @@ export function DeepOverviewTable({
     }));
   };
 
-  // Update the calculatePlanValueForPeriod function for more accurate calculations
-  const calculatePlanValueForPeriod = (
-    metric: Metric,
-    viewPeriod: 'day' | 'week' | 'month'
-  ) => {
-    if (!metric.plan || !metric.planPeriod) return '-';
-
-    // Constants for calculations
+  // Add a function to calculate plan value for different periods
+  const calculatePlanValueForPeriod = (metric: Metric, viewPeriod: 'day' | 'week' | 'month') => {
+    if (!metric.plan || !metric.planPeriod) return metric.plan;
+    
     const workDaysInMonth = 22; // Assumption for work days in a month
-    const workDaysInWeek = 5; // Assumption for work days in a week
-
-    // Get current date info for "until" calculations
-    const today = new Date();
-    const currentDayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
-
-    // Calculate work days remaining in the week (Mon-Fri)
-    let daysUntilWeekEnd = 0;
-    if (currentDayOfWeek >= 1 && currentDayOfWeek <= 5) {
-      // If today is a weekday (Mon-Fri), count days until Friday
-      daysUntilWeekEnd = 6 - currentDayOfWeek; // 6 = Friday + 1
-    } else if (currentDayOfWeek === 0) {
-      // If today is Sunday, there are 5 work days left in the week
-      daysUntilWeekEnd = 5;
-    } else {
-      // If today is Saturday, there are 5 work days in the next week
-      daysUntilWeekEnd = 5;
+    const workDaysInWeek = 5;   // Assumption for work days in a week
+    
+    // If the metric is already in the right period, return as is
+    if ((metric.planPeriod === 'until_week_end' && viewPeriod === 'week') ||
+        (metric.planPeriod === 'until_month_end' && viewPeriod === 'month')) {
+      return metric.plan;
     }
-
-    // Calculate work days remaining in the month
-    const currentDate = today.getDate();
-    const lastDayOfMonth = new Date(
-      today.getFullYear(),
-      today.getMonth() + 1,
-      0
-    ).getDate();
-    const totalDaysRemaining = lastDayOfMonth - currentDate;
-
-    // Calculate work days remaining (excluding weekends)
-    let workDaysUntilMonthEnd = 0;
-    let tempDate = new Date(today);
-    for (let i = 0; i <= totalDaysRemaining; i++) {
-      tempDate.setDate(currentDate + i);
-      const dayOfWeek = tempDate.getDay();
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-        // Not Sunday (0) or Saturday (6)
-        workDaysUntilMonthEnd++;
-      }
-    }
-
-    // Calculate daily value based on plan period
+    
+    // Convert to daily value first
     let dailyValue: number;
-
-    switch (metric.planPeriod) {
-      case 'until_week_end':
-        // If no work days left in week, return the full value
-        if (daysUntilWeekEnd === 0) return metric.plan;
-        dailyValue = metric.plan / daysUntilWeekEnd;
-        break;
-      case 'until_month_end':
-        // If no work days left in month, return the full value
-        if (workDaysUntilMonthEnd === 0) return metric.plan;
-        dailyValue = metric.plan / workDaysUntilMonthEnd;
-        break;
-      default:
-        return metric.plan;
-    }
-
-    // Convert daily value to requested period
-    if (viewPeriod === 'day') {
-      return dailyValue.toFixed(2);
-    } else if (viewPeriod === 'week') {
-      return (dailyValue * workDaysInWeek).toFixed(2);
+    if (metric.planPeriod === 'until_week_end') {
+      dailyValue = metric.plan / workDaysInWeek;
+    } else if (metric.planPeriod === 'until_month_end') {
+      dailyValue = metric.plan / workDaysInMonth;
     } else {
-      // month
-      return (dailyValue * workDaysInMonth).toFixed(2);
+      dailyValue = metric.plan; // Already daily
     }
+    
+    // Then convert to the requested period
+    if (viewPeriod === 'day') {
+      return dailyValue;
+    } else if (viewPeriod === 'week') {
+      return dailyValue * workDaysInWeek;
+    } else if (viewPeriod === 'month') {
+      return dailyValue * workDaysInMonth;
+    }
+    
+    return metric.plan; // Fallback
   };
 
   // Add function to handle metric plan value change
@@ -971,7 +928,28 @@ export function DeepOverviewTable({
                         <TableCell>{metric.description || '-'}</TableCell>
                         <TableCell className='text-right'>
                           {metric.plan !== undefined 
-                            ? calculatePlanValueForPeriod(metric, dateRange) 
+                            ? (() => {
+                                // Calculate the appropriate value based on the view period
+                                if (dateRange === 'day') {
+                                  // For daily view, show daily value
+                                  if (metric.planPeriod === 'until_week_end') {
+                                    return (metric.plan / 5).toFixed(2);
+                                  } else if (metric.planPeriod === 'until_month_end') {
+                                    return (metric.plan / 22).toFixed(2);
+                                  }
+                                } else if (dateRange === 'week') {
+                                  // For weekly view, show weekly value (daily * 5)
+                                  if (metric.planPeriod === 'until_month_end') {
+                                    // Convert monthly to weekly: (monthly / 22) * 5
+                                    return ((metric.plan / 22) * 5).toFixed(2);
+                                  } else if (metric.planPeriod === 'until_week_end') {
+                                    // Already weekly
+                                    return metric.plan;
+                                  }
+                                }
+                                // For monthly view or default, show the original plan value
+                                return metric.plan;
+                              })()
                             : '-'}
                           {metric.planPeriod && (
                             <span className="text-xs text-muted-foreground ml-1">

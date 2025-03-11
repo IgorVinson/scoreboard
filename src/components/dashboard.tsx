@@ -719,6 +719,39 @@ export function Dashboard() {
     }
   };
 
+  // Update the calculateDailyPlanValue function
+  const calculateDailyPlanValue = (metric) => {
+    if (!metric.plan || !metric.planPeriod) return '-';
+    
+    const workDaysInMonth = 22; // Assumption for work days in a month
+    const workDaysInWeek = 5;   // Assumption for work days in a week
+    
+    let dailyValue;
+    if (metric.planPeriod === 'until_week_end') {
+      dailyValue = metric.plan / workDaysInWeek;
+    } else if (metric.planPeriod === 'until_month_end') {
+      dailyValue = metric.plan / workDaysInMonth;
+    } else {
+      dailyValue = metric.plan; // Already daily
+    }
+    
+    return dailyValue.toFixed(2);
+  };
+
+  // Add function to get user-friendly display name for plan periods
+  const getPlanPeriodDisplayName = (period) => {
+    if (!period) return '';
+    
+    switch (period) {
+      case 'until_week_end':
+        return 'weekly';
+      case 'until_month_end':
+        return 'monthly';
+      default:
+        return period;
+    }
+  };
+
   return (
     <div className='min-h-screen bg-background'>
       {/* Header */}
@@ -1001,27 +1034,31 @@ export function Dashboard() {
                       {objective.isExpanded &&
                         objective.metrics.map(metric => (
                           <TableRow key={metric.id}>
-                            <TableCell className='pl-8'>
-                              <div className='flex items-center gap-2'>
-                                <ArrowRight className='h-3 w-3 text-muted-foreground' />
-                                <span>{metric.name}</span>
-                              </div>
-                            </TableCell>
+                            <TableCell className='pl-8'>{metric.name}</TableCell>
                             <TableCell>
-                              {metric.plan !== undefined ? metric.plan : '—'}
+                              {metric.plan !== undefined ? (
+                                <div className="flex flex-col">
+                                  <span>{metric.plan} {metric.planPeriod && `(${getPlanPeriodDisplayName(metric.planPeriod)})`}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {calculateDailyPlanValue(metric)} daily
+                                  </span>
+                                </div>
+                              ) : (
+                                '-'
+                              )}
                             </TableCell>
                             <TableCell>
                               <Input
                                 type='number'
                                 placeholder='Enter value'
-                                value={metricValues[metric.id] || ''}
-                                onChange={e =>
-                                  handleMetricValueChange(
-                                    metric.id,
-                                    e.target.value
-                                  )
+                                value={
+                                  metricValues[metric.id] !== undefined
+                                    ? metricValues[metric.id]
+                                    : ''
                                 }
-                                className='w-full'
+                                onChange={e =>
+                                  handleMetricValueChange(metric.id, e.target.value)
+                                }
                               />
                             </TableCell>
                           </TableRow>
