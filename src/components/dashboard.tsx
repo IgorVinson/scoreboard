@@ -67,6 +67,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { ReportsTable } from '@/components/ReportsTable';
 import { SimpleOverview } from '@/components/SimpleOverview';
+import { format, parseISO } from 'date-fns';
 
 // Add a StarRating component to replace numeric inputs
 function StarRating({ rating, maxRating = 5, onRatingChange }) {
@@ -174,9 +175,7 @@ export function Dashboard() {
     return [];
   });
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
-  const [reportDate, setReportDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
+  const [reportDate, setReportDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [metricValues, setMetricValues] = useState<Record<string, number>>({});
   const [expandedObjectives, setExpandedObjectives] = useState<Set<string>>(
     new Set()
@@ -371,31 +370,49 @@ export function Dashboard() {
       }))
     );
 
+    // Set today's date by default
+    setReportDate(format(new Date(), 'yyyy-MM-dd'));
+
     setReportDialogOpen(true);
   };
 
   // Add state for tracking which report is being edited
   const [editingReport, setEditingReport] = useState<any>(null);
 
-  // Keep the original handleCreateReport function for new reports
+  // Update the date handling in the report dialog
+  const handleDateChange = (e) => {
+    // Get the raw value from the input
+    const inputValue = e.target.value;
+    
+    // Create a date object without timezone conversion
+    // This ensures we get exactly what the user selected
+    setReportDate(inputValue);
+    
+    console.log('Date selected:', inputValue); // Debug log
+  };
+
+  // Update the handleCreateReport function to ensure the date is preserved correctly
   const handleCreateReport = async () => {
     try {
       // Create metrics_data object with both plan and fact values
-      const metrics_data: Record<string, { plan: number; fact: number }> = {};
-
-      // Iterate through objectives and their metrics to get plan values
+      const metrics_data = {};
+      
+      // Iterate through objectives and their metrics
       objectives.forEach(objective => {
         objective.metrics.forEach(metric => {
           metrics_data[metric.id] = {
-            plan: metric.plan || 0, // Get plan value from the objective's metric
-            fact: metricValues[metric.id] || 0, // Get fact value from user input
+            plan: metric.plan || 0,
+            fact: metricValues[metric.id] || 0,
           };
         });
       });
 
+      // Log the date being saved
+      console.log('Saving report with date:', reportDate);
+
       const newReport = {
         id: `report-${Date.now()}`,
-        date: reportDate,
+        date: reportDate, // Use the raw string value directly
         metrics_data,
         today_notes: reportTodayNotes,
         tomorrow_notes: reportTomorrowNotes,
@@ -405,12 +422,12 @@ export function Dashboard() {
         reviewed: false,
       };
 
-      // Save the report to localStorage
+      // Save the report
       const updatedReports = [...reports, newReport];
       localStorage.setItem('dailyReports', JSON.stringify(updatedReports));
       setReports(updatedReports);
 
-      // Close the form
+      // Close the form and reset values
       setMetricValues({});
       setReportDialogOpen(false);
     } catch (error) {
@@ -499,7 +516,7 @@ export function Dashboard() {
   // Add function to handle editing a report
   const handleEditReport = (report: any) => {
     setEditingReport(report);
-    setReportDate(report.date);
+    setReportDate(format(parseISO(report.date), 'yyyy-MM-dd'));
 
     // Pre-fill metric values from the report
     const initialMetricValues: Record<string, number> = {};
@@ -638,7 +655,7 @@ export function Dashboard() {
   // Add function to handle opening report for review (after handleEditReport function)
   const handleReviewReport = (report: any) => {
     setEditingReport(report);
-    setReportDate(report.date);
+    setReportDate(format(parseISO(report.date), 'yyyy-MM-dd'));
     setReviewMode(true);
 
     // Pre-fill existing ratings if available
@@ -934,7 +951,7 @@ export function Dashboard() {
               <Input
                 type='date'
                 value={reportDate}
-                onChange={e => setReportDate(e.target.value)}
+                onChange={handleDateChange}
                 className='w-[200px]'
               />
             </div>
