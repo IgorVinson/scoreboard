@@ -573,6 +573,20 @@ export function DeepOverviewTable({
     setPlansDialogOpen(false);
   };
 
+  // Add this function to get a user-friendly display name for plan periods
+  const getPlanPeriodDisplayName = (period: string | undefined) => {
+    if (!period) return '';
+    
+    switch (period) {
+      case 'until_week_end':
+        return 'weekly';
+      case 'until_month_end':
+        return 'monthly';
+      default:
+        return period;
+    }
+  };
+
   return (
     <div>
       <div className='flex justify-between items-center mb-4'>
@@ -580,52 +594,32 @@ export function DeepOverviewTable({
           Objectives & Metrics Performance
         </h3>
         <div className='flex items-center gap-2'>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant='outline' size='sm' className='flex items-center gap-1'>
-                <CalendarIcon className='h-4 w-4' />
-                {getDateRangeText()}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className='w-auto p-0' align='end'>
-              <div className='p-3 border-b'>
-                <div className='flex justify-center space-x-2'>
-                  <Button 
-                    variant={dateRange === 'day' ? 'default' : 'outline'} 
-                    size='sm'
-                    onClick={() => handleDateRangeChange('day')}
-                  >
-                    Today
-                  </Button>
-                  <Button 
-                    variant={dateRange === 'week' ? 'default' : 'outline'} 
-                    size='sm'
-                    onClick={() => handleDateRangeChange('week')}
-                  >
-                    This Week
-                  </Button>
-                  <Button 
-                    variant={dateRange === 'month' ? 'default' : 'outline'} 
-                    size='sm'
-                    onClick={() => handleDateRangeChange('month')}
-                  >
-                    This Month
-                  </Button>
-                </div>
-              </div>
-              <Calendar
-                mode={dateRange === 'day' ? 'single' : 'multiple'}
-                selected={dateRange === 'day' ? selectedDate : selectedDates}
-                onSelect={(date) => handleDateSelect(Array.isArray(date) ? date[0] : date)}
-                initialFocus
-                className="custom-calendar"
-                classNames={{
-                  day_selected: "bg-gray-200 text-gray-900 hover:bg-gray-300 hover:text-gray-900 focus:bg-gray-300 focus:text-gray-900",
-                  day_today: "bg-primary text-primary-foreground"
-                }}
-              />
-            </PopoverContent>
-          </Popover>
+          <div className="flex border rounded-md overflow-hidden">
+            <Button 
+              variant={dateRange === 'day' ? 'default' : 'ghost'} 
+              size='sm'
+              onClick={() => handleDateRangeChange('day')}
+              className="rounded-none border-r"
+            >
+              Today
+            </Button>
+            <Button 
+              variant={dateRange === 'week' ? 'default' : 'ghost'} 
+              size='sm'
+              onClick={() => handleDateRangeChange('week')}
+              className="rounded-none border-r"
+            >
+              This Week
+            </Button>
+            <Button 
+              variant={dateRange === 'month' ? 'default' : 'ghost'} 
+              size='sm'
+              onClick={() => handleDateRangeChange('month')}
+              className="rounded-none"
+            >
+              This Month
+            </Button>
+          </div>
           <Button
             variant='outline'
             size='sm'
@@ -752,7 +746,7 @@ export function DeepOverviewTable({
                             : '-'}
                           {metric.planPeriod && (
                             <span className="text-xs text-muted-foreground ml-1">
-                              ({metric.planPeriod})
+                              ({getPlanPeriodDisplayName(metric.planPeriod)})
                             </span>
                           )}
                         </TableCell>
@@ -1086,7 +1080,7 @@ export function DeepOverviewTable({
                                     className='flex-1 text-xs'
                                     onClick={() => handleMetricPeriodChange(metric.id, 'until_week_end')}
                                   >
-                                    Until week end
+                                    Weekly
                                   </Button>
                                   <Button 
                                     size='sm'
@@ -1094,7 +1088,7 @@ export function DeepOverviewTable({
                                     className='flex-1 text-xs'
                                     onClick={() => handleMetricPeriodChange(metric.id, 'until_month_end')}
                                   >
-                                    Until month end
+                                    Monthly
                                   </Button>
                                 </div>
                               </div>
