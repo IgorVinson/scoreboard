@@ -733,49 +733,54 @@ export function DeepOverviewTable({
     return metric.plan;
   };
 
-  // Update the getAccumulatedActualValue function to properly handle date comparisons
+  // Fix the getAccumulatedActualValue function to properly handle date comparisons
   const getAccumulatedActualValue = (metricId: string, viewPeriod: 'day' | 'week' | 'month') => {
     if (!reports || reports.length === 0) return null;
     
+    // Debug the reports data
+    console.log('All reports:', reports);
+    
+    // Get today's date without time component
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Reset time part for proper date comparison
-    let startDate: Date;
+    today.setHours(0, 0, 0, 0);
+    
+    let startDate = new Date();
+    startDate.setHours(0, 0, 0, 0);
     
     // Determine the start date based on view period
     if (viewPeriod === 'day') {
-      // For day view, use today's date
-      startDate = today;
+      // For day view, just use today
+      // startDate is already today
     } else if (viewPeriod === 'week') {
       // For week view, get Monday of current week
       const dayOfWeek = today.getDay();
-      startDate = new Date(today);
-      startDate.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
-    } else {
+      const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Adjust for Sunday (0)
+      startDate.setDate(today.getDate() - diff);
+    } else if (viewPeriod === 'month') {
       // For month view, use the start of the current month
       startDate = new Date(today.getFullYear(), today.getMonth(), 1);
     }
-
-    // Filter and accumulate reports
+    
+    console.log(`View period: ${viewPeriod}`);
+    console.log(`Start date: ${startDate.toISOString()}`);
+    console.log(`Today: ${today.toISOString()}`);
+    
+    // Filter reports within the date range
     const relevantReports = reports.filter(report => {
-      const reportDate = new Date(report.date);
-      reportDate.setHours(0, 0, 0, 0); // Reset time part for proper comparison
+      // Parse the report date string to a Date object
+      const reportDate = new Date(report.date + 'T00:00:00'); // Add time component to ensure proper parsing
+      reportDate.setHours(0, 0, 0, 0);
       
-      // Debug logging
-      console.log({
-        reportDate: reportDate.toISOString(),
-        startDate: startDate.toISOString(),
-        today: today.toISOString(),
-        isWithinRange: reportDate >= startDate && reportDate <= today
-      });
+      console.log(`Report date: ${report.date}, parsed: ${reportDate.toISOString()}`);
+      console.log(`Is within range: ${reportDate >= startDate && reportDate <= today}`);
       
       return reportDate >= startDate && reportDate <= today;
     });
-
-    // Debug logging
-    console.log('Relevant reports:', relevantReports);
-
+    
+    console.log(`Relevant reports for ${viewPeriod} view:`, relevantReports);
+    
     if (relevantReports.length === 0) return null;
-
+    
     // Accumulate actual values from relevant reports
     let accumulatedValue = 0;
     relevantReports.forEach(report => {
@@ -783,10 +788,11 @@ export function DeepOverviewTable({
         const factValue = report.metrics_data[metricId].fact;
         if (typeof factValue === 'number') {
           accumulatedValue += factValue;
+          console.log(`Adding ${factValue} for metric ${metricId}, total now: ${accumulatedValue}`);
         }
       }
     });
-
+    
     return accumulatedValue > 0 ? accumulatedValue : null;
   };
 
