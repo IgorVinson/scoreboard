@@ -66,20 +66,22 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { ReportsTable } from '@/components/ReportsTable';
+import { SimpleOverview } from '@/components/SimpleOverview';
+import { format, parseISO } from 'date-fns';
 
 // Add a StarRating component to replace numeric inputs
 function StarRating({ rating, maxRating = 5, onRatingChange }) {
   const [hoverRating, setHoverRating] = useState(0);
-  
+
   return (
-    <div className="flex space-x-1">
+    <div className='flex space-x-1'>
       {[...Array(maxRating)].map((_, i) => {
         const starValue = i + 1;
         return (
           <button
             key={i}
-            type="button"
-            className="focus:outline-none p-1"
+            type='button'
+            className='focus:outline-none p-1'
             onClick={() => onRatingChange(starValue)}
             onMouseEnter={() => setHoverRating(starValue)}
             onMouseLeave={() => setHoverRating(0)}
@@ -173,9 +175,7 @@ export function Dashboard() {
     return [];
   });
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
-  const [reportDate, setReportDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
+  const [reportDate, setReportDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [metricValues, setMetricValues] = useState<Record<string, number>>({});
   const [expandedObjectives, setExpandedObjectives] = useState<Set<string>>(
     new Set()
@@ -370,31 +370,49 @@ export function Dashboard() {
       }))
     );
 
+    // Set today's date by default
+    setReportDate(format(new Date(), 'yyyy-MM-dd'));
+
     setReportDialogOpen(true);
   };
 
   // Add state for tracking which report is being edited
   const [editingReport, setEditingReport] = useState<any>(null);
 
-  // Keep the original handleCreateReport function for new reports
+  // Update the date handling in the report dialog
+  const handleDateChange = (e) => {
+    // Get the raw value from the input
+    const inputValue = e.target.value;
+    
+    // Create a date object without timezone conversion
+    // This ensures we get exactly what the user selected
+    setReportDate(inputValue);
+    
+    console.log('Date selected:', inputValue); // Debug log
+  };
+
+  // Update the handleCreateReport function to ensure the date is preserved correctly
   const handleCreateReport = async () => {
     try {
       // Create metrics_data object with both plan and fact values
-      const metrics_data: Record<string, { plan: number; fact: number }> = {};
-
-      // Iterate through objectives and their metrics to get plan values
+      const metrics_data = {};
+      
+      // Iterate through objectives and their metrics
       objectives.forEach(objective => {
         objective.metrics.forEach(metric => {
           metrics_data[metric.id] = {
-            plan: metric.plan || 0, // Get plan value from the objective's metric
-            fact: metricValues[metric.id] || 0, // Get fact value from user input
+            plan: metric.plan || 0,
+            fact: metricValues[metric.id] || 0,
           };
         });
       });
 
+      // Log the date being saved
+      console.log('Saving report with date:', reportDate);
+
       const newReport = {
         id: `report-${Date.now()}`,
-        date: reportDate,
+        date: reportDate, // Use the raw string value directly
         metrics_data,
         today_notes: reportTodayNotes,
         tomorrow_notes: reportTomorrowNotes,
@@ -404,12 +422,12 @@ export function Dashboard() {
         reviewed: false,
       };
 
-      // Save the report to localStorage
+      // Save the report
       const updatedReports = [...reports, newReport];
       localStorage.setItem('dailyReports', JSON.stringify(updatedReports));
       setReports(updatedReports);
 
-      // Close the form
+      // Close the form and reset values
       setMetricValues({});
       setReportDialogOpen(false);
     } catch (error) {
@@ -498,7 +516,7 @@ export function Dashboard() {
   // Add function to handle editing a report
   const handleEditReport = (report: any) => {
     setEditingReport(report);
-    setReportDate(report.date);
+    setReportDate(format(parseISO(report.date), 'yyyy-MM-dd'));
 
     // Pre-fill metric values from the report
     const initialMetricValues: Record<string, number> = {};
@@ -637,9 +655,9 @@ export function Dashboard() {
   // Add function to handle opening report for review (after handleEditReport function)
   const handleReviewReport = (report: any) => {
     setEditingReport(report);
-    setReportDate(report.date);
+    setReportDate(format(parseISO(report.date), 'yyyy-MM-dd'));
     setReviewMode(true);
-    
+
     // Pre-fill existing ratings if available
     setReportQuantityRating(report.quantity_rating || 0);
     setReportQualityRating(report.quality_rating || 0);
@@ -698,6 +716,39 @@ export function Dashboard() {
       setReportDialogOpen(false);
     } catch (error) {
       console.error('Error submitting review:', error);
+    }
+  };
+
+  // Update the calculateDailyPlanValue function
+  const calculateDailyPlanValue = (metric) => {
+    if (!metric.plan || !metric.planPeriod) return '-';
+    
+    const workDaysInMonth = 22; // Assumption for work days in a month
+    const workDaysInWeek = 5;   // Assumption for work days in a week
+    
+    let dailyValue;
+    if (metric.planPeriod === 'until_week_end') {
+      dailyValue = metric.plan / workDaysInWeek;
+    } else if (metric.planPeriod === 'until_month_end') {
+      dailyValue = metric.plan / workDaysInMonth;
+    } else {
+      dailyValue = metric.plan; // Already daily
+    }
+    
+    return dailyValue.toFixed(2);
+  };
+
+  // Add function to get user-friendly display name for plan periods
+  const getPlanPeriodDisplayName = (period) => {
+    if (!period) return '';
+    
+    switch (period) {
+      case 'until_week_end':
+        return 'weekly';
+      case 'until_month_end':
+        return 'monthly';
+      default:
+        return period;
     }
   };
 
@@ -819,26 +870,13 @@ export function Dashboard() {
 
           {/* Tabs */}
           <Card>
-            <Tabs defaultValue='overview' className='w-full'>
+            <Tabs defaultValue='deep-overview' className='w-full'>
               <div className='border-b px-4'>
                 <TabsList className='my-2'>
-                  <TabsTrigger value='overview'>Overview</TabsTrigger>
                   <TabsTrigger value='deep-overview'>Performance</TabsTrigger>
                   <TabsTrigger value='reports'>Reports</TabsTrigger>
                 </TabsList>
               </div>
-
-              <TabsContent value='overview' className='p-6'>
-                <div className='grid gap-6'>
-                  <ObjectivesMetricsTable
-                    objectives={objectives}
-                    onObjectivesChange={updatedObjectives => {
-                      setObjectives(updatedObjectives);
-                      saveObjectivesToLocalStorage(updatedObjectives);
-                    }}
-                  />
-                </div>
-              </TabsContent>
 
               <TabsContent value='deep-overview' className='p-6'>
                 <div className='grid gap-6'>
@@ -848,47 +886,8 @@ export function Dashboard() {
                       setObjectives(updatedObjectives);
                       saveObjectivesToLocalStorage(updatedObjectives);
                     }}
+                    reports={reports}
                   />
-                </div>
-              </TabsContent>
-
-              <TabsContent value='team' className='p-6'>
-                <h3 className='text-lg font-semibold mb-4'>Team Members</h3>
-                <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-3'>
-                  {teamMembers.map(member => (
-                    <Card key={member.id} className='p-6'>
-                      <div className='flex items-start gap-4'>
-                        <Avatar className='h-12 w-12'>
-                          <AvatarImage src={member.avatar} alt={member.name} />
-                          <AvatarFallback>
-                            <UserCircle className='h-6 w-6' />
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className='flex-1'>
-                          <div className='flex items-center justify-between'>
-                            <h4 className='font-semibold'>{member.name}</h4>
-                            <Badge variant='secondary'>{member.role}</Badge>
-                          </div>
-                          <div className='mt-2'>
-                            <p className='text-sm text-muted-foreground mb-1'>
-                              Indicators:
-                            </p>
-                            <div className='flex flex-wrap gap-2'>
-                              {member.indicators.map(indicator => (
-                                <Badge
-                                  key={indicator}
-                                  variant='outline'
-                                  className='text-xs'
-                                >
-                                  {indicator}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
                 </div>
               </TabsContent>
 
@@ -906,6 +905,12 @@ export function Dashboard() {
                     onReviewReport={handleReviewReport}
                     onToggleReview={handleToggleReview}
                   />
+                </div>
+              </TabsContent>
+
+              <TabsContent value='overview' className='p-6'>
+                <div className='grid gap-6'>
+                  <SimpleOverview objectives={objectives} />
                 </div>
               </TabsContent>
             </Tabs>
@@ -979,7 +984,7 @@ export function Dashboard() {
               <Input
                 type='date'
                 value={reportDate}
-                onChange={e => setReportDate(e.target.value)}
+                onChange={handleDateChange}
                 className='w-[200px]'
               />
             </div>
@@ -1029,27 +1034,31 @@ export function Dashboard() {
                       {objective.isExpanded &&
                         objective.metrics.map(metric => (
                           <TableRow key={metric.id}>
-                            <TableCell className='pl-8'>
-                              <div className='flex items-center gap-2'>
-                                <ArrowRight className='h-3 w-3 text-muted-foreground' />
-                                <span>{metric.name}</span>
-                              </div>
-                            </TableCell>
+                            <TableCell className='pl-8'>{metric.name}</TableCell>
                             <TableCell>
-                              {metric.plan !== undefined ? metric.plan : '—'}
+                              {metric.plan !== undefined ? (
+                                <div className="flex flex-col">
+                                  <span>{metric.plan} {metric.planPeriod && `(${getPlanPeriodDisplayName(metric.planPeriod)})`}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {calculateDailyPlanValue(metric)} daily
+                                  </span>
+                                </div>
+                              ) : (
+                                '-'
+                              )}
                             </TableCell>
                             <TableCell>
                               <Input
                                 type='number'
                                 placeholder='Enter value'
-                                value={metricValues[metric.id] || ''}
-                                onChange={e =>
-                                  handleMetricValueChange(
-                                    metric.id,
-                                    e.target.value
-                                  )
+                                value={
+                                  metricValues[metric.id] !== undefined
+                                    ? metricValues[metric.id]
+                                    : ''
                                 }
-                                className='w-full'
+                                onChange={e =>
+                                  handleMetricValueChange(metric.id, e.target.value)
+                                }
                               />
                             </TableCell>
                           </TableRow>
@@ -1101,22 +1110,28 @@ export function Dashboard() {
             </div>
 
             {reviewMode && (
-              <div className="grid gap-6">
-                <label className="text-sm font-medium">Performance Review</label>
-                <div className="rounded-md border p-4 space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+              <div className='grid gap-6'>
+                <label className='text-sm font-medium'>
+                  Performance Review
+                </label>
+                <div className='rounded-md border p-4 space-y-4'>
+                  <div className='grid grid-cols-2 gap-4'>
                     <div>
-                      <h4 className="text-sm font-medium text-muted-foreground mb-2">Quantity Rating</h4>
-                      <StarRating 
-                        rating={reportQuantityRating} 
-                        onRatingChange={setReportQuantityRating} 
+                      <h4 className='text-sm font-medium text-muted-foreground mb-2'>
+                        Quantity Rating
+                      </h4>
+                      <StarRating
+                        rating={reportQuantityRating}
+                        onRatingChange={setReportQuantityRating}
                       />
                     </div>
                     <div>
-                      <h4 className="text-sm font-medium text-muted-foreground mb-2">Quality Rating</h4>
-                      <StarRating 
-                        rating={reportQualityRating} 
-                        onRatingChange={setReportQualityRating} 
+                      <h4 className='text-sm font-medium text-muted-foreground mb-2'>
+                        Quality Rating
+                      </h4>
+                      <StarRating
+                        rating={reportQualityRating}
+                        onRatingChange={setReportQualityRating}
                       />
                     </div>
                   </div>

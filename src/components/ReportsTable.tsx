@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -17,7 +17,7 @@ import {
   FileText,
   Star,
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 
 export function ReportsTable({
   reports,
@@ -31,6 +31,7 @@ export function ReportsTable({
   const [expandedMainObjectives, setExpandedMainObjectives] = useState(
     new Map()
   );
+  const [activeTab, setActiveTab] = useState('overview-performance');
 
   const toggleReportExpansion = reportId => {
     setExpandedReports(prev => {
@@ -190,6 +191,54 @@ export function ReportsTable({
     );
   };
 
+  // Modify the tabs array to remove the separate tabs and create a combined one
+  const tabs = [
+    {
+      name: 'Overview & Performance',
+      href: '#',
+      current: activeTab === 'overview-performance',
+    },
+    // ... keep other tabs if they exist ...
+  ];
+
+  // Update the tab content rendering logic
+  function renderTabContent() {
+    switch (activeTab) {
+      case 'overview-performance':
+        return (
+          <div>
+            {/* Overview content */}
+            <div className='mb-8'>
+              <h2 className='text-lg font-medium mb-4'>Overview</h2>
+              {/* Include all overview components here */}
+              <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
+                {/* Overview metrics and charts */}
+                {/* ... existing overview components ... */}
+              </div>
+            </div>
+
+            {/* Performance content */}
+            <div>
+              <h2 className='text-lg font-medium mb-4'>Performance</h2>
+              {/* Include all performance components here */}
+              <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
+                {/* Performance metrics and charts */}
+                {/* ... existing performance components ... */}
+              </div>
+            </div>
+          </div>
+        );
+      // ... other case statements for other tabs ...
+      default:
+        return null;
+    }
+  }
+
+  // Update the initial state or useEffect to set the default active tab
+  useEffect(() => {
+    setActiveTab('overview-performance');
+  }, []);
+
   return (
     <Table>
       <TableHeader>
@@ -215,7 +264,7 @@ export function ReportsTable({
         ) : (
           reports.map((report, reportIndex) => {
             const isExpanded = expandedReports.has(report.id);
-            const formattedDate = format(new Date(report.date), 'yyyy-MM-dd');
+            const formattedDate = format(parseISO(report.date), 'MM/dd/yyyy');
 
             return (
               <React.Fragment key={report.id}>
@@ -268,12 +317,12 @@ export function ReportsTable({
                       </Button>
                     </div>
                   </TableCell>
-                  
+
                   {/* Modified Reviewed column */}
                   <TableCell className='text-center'>
-                    <Button 
-                      variant='ghost' 
-                      size='sm' 
+                    <Button
+                      variant='ghost'
+                      size='sm'
                       className='h-8 w-8 p-0 rounded-full'
                       onClick={() => {
                         if (report.reviewed) {
@@ -283,7 +332,7 @@ export function ReportsTable({
                           // If not reviewed, open the review modal
                           onReviewReport(report);
                         }
-                      }} 
+                      }}
                     >
                       <input
                         type='checkbox'
@@ -293,7 +342,7 @@ export function ReportsTable({
                       />
                     </Button>
                   </TableCell>
-                  
+
                   {/* Quantity Column */}
                   <TableCell className='text-center'>
                     {report.quantity_rating !== undefined ? (
