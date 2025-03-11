@@ -17,7 +17,7 @@ import {
   FileText,
   Star,
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 
 export function ReportsTable({
   reports,
@@ -264,7 +264,7 @@ export function ReportsTable({
         ) : (
           reports.map((report, reportIndex) => {
             const isExpanded = expandedReports.has(report.id);
-            const formattedDate = format(new Date(report.date), 'yyyy-MM-dd');
+            const formattedDate = format(parseISO(report.date), 'MM/dd/yyyy');
 
             return (
               <React.Fragment key={report.id}>

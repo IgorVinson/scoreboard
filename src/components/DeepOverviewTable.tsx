@@ -733,22 +733,23 @@ export function DeepOverviewTable({
     return metric.plan;
   };
 
-  // Update the getAccumulatedActualValue function to fix report data accumulation
+  // Update the getAccumulatedActualValue function to properly handle date comparisons
   const getAccumulatedActualValue = (metricId: string, viewPeriod: 'day' | 'week' | 'month') => {
     if (!reports || reports.length === 0) return null;
     
     const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time part for proper date comparison
     let startDate: Date;
     
     // Determine the start date based on view period
     if (viewPeriod === 'day') {
       // For day view, use today's date
-      startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      startDate = today;
     } else if (viewPeriod === 'week') {
-      // For week view, use the start of the current week
+      // For week view, get Monday of current week
       const dayOfWeek = today.getDay();
-      const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Adjust for Sunday
-      startDate = new Date(today.getFullYear(), today.getMonth(), diff);
+      startDate = new Date(today);
+      startDate.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
     } else {
       // For month view, use the start of the current month
       startDate = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -757,8 +758,21 @@ export function DeepOverviewTable({
     // Filter and accumulate reports
     const relevantReports = reports.filter(report => {
       const reportDate = new Date(report.date);
+      reportDate.setHours(0, 0, 0, 0); // Reset time part for proper comparison
+      
+      // Debug logging
+      console.log({
+        reportDate: reportDate.toISOString(),
+        startDate: startDate.toISOString(),
+        today: today.toISOString(),
+        isWithinRange: reportDate >= startDate && reportDate <= today
+      });
+      
       return reportDate >= startDate && reportDate <= today;
     });
+
+    // Debug logging
+    console.log('Relevant reports:', relevantReports);
 
     if (relevantReports.length === 0) return null;
 
@@ -960,8 +974,10 @@ export function DeepOverviewTable({
                           )}
                         </TableCell>
                         <TableCell className='text-right'>
-                          {getAccumulatedActualValue(metric.id, dateRange) ?? 
-                            (metric.actual !== undefined ? metric.actual : '-')}
+                          {(() => {
+                            const accumulatedValue = getAccumulatedActualValue(metric.id, dateRange);
+                            return accumulatedValue !== null ? accumulatedValue : '-';
+                          })()}
                         </TableCell>
                         <TableCell className='text-center'>
                           {deviation !== null ? (
