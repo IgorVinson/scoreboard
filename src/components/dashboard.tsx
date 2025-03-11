@@ -1046,6 +1046,100 @@ export function Dashboard() {
     setReportQualityRating(0);
   };
 
+  // Add new state variable for strict mode
+  const [strictModeEnabled, setStrictModeEnabled] = useState(false);
+  const [missingSurveyOpen, setMissingSurveyOpen] = useState(false);
+  const [missingDates, setMissingDates] = useState([]);
+  const [currentMissingIndex, setCurrentMissingIndex] = useState(0);
+
+  // Add these functions to handle strict mode
+  const toggleStrictMode = () => {
+    const newState = !strictModeEnabled;
+    setStrictModeEnabled(newState);
+    
+    if (newState) {
+      checkMissingReports();
+    } else {
+      // When turning off strict mode, close any open surveys
+      setMissingSurveyOpen(false);
+    }
+  };
+
+  const checkMissingReports = () => {
+    // Get the current week's date range (Monday to Sunday)
+    const today = new Date();
+    const currentDay = today.getDay(); // 0 is Sunday, 1 is Monday, etc.
+    
+    // Calculate the date of Monday this week
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - (currentDay === 0 ? 6 : currentDay - 1));
+    monday.setHours(0, 0, 0, 0);
+    
+    // Calculate dates for the week (Monday to Friday, assuming 5-day work week)
+    const weekDates = [];
+    for (let i = 0; i < 5; i++) {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + i);
+      weekDates.push(date);
+    }
+    
+    // Format the dates as YYYY-MM-DD strings
+    const formattedWeekDates = weekDates.map(date => 
+      format(date, 'yyyy-MM-dd')
+    );
+    
+    // Find which dates don't have reports
+    const reportDates = reports.map(report => report.date);
+    const missing = formattedWeekDates.filter(
+      date => !reportDates.includes(date) && date <= format(today, 'yyyy-MM-dd')
+    );
+    
+    setMissingDates(missing);
+    
+    if (missing.length > 0) {
+      setCurrentMissingIndex(0);
+      setMissingSurveyOpen(true);
+      
+      // Pre-fill the report date field with the missing date
+      setReportDate(missing[0]);
+      
+      // Reset other report fields
+      setMetricValues({});
+      setReportTodayNotes('');
+      setReportTomorrowNotes('');
+      setReportGeneralComments('');
+    }
+  };
+
+  // Add function to handle moving to the next missing report
+  const handleNextMissingReport = async () => {
+    // Save the current report
+    await handleCreateReport();
+    
+    // Move to the next missing date or close the survey if done
+    if (currentMissingIndex < missingDates.length - 1) {
+      const nextIndex = currentMissingIndex + 1;
+      setCurrentMissingIndex(nextIndex);
+      setReportDate(missingDates[nextIndex]);
+      
+      // Reset other report fields
+      setMetricValues({});
+      setReportTodayNotes('');
+      setReportTomorrowNotes('');
+      setReportGeneralComments('');
+    } else {
+      // We've completed all missing reports
+      setMissingSurveyOpen(false);
+    }
+  };
+
+  // Add this effect to check for missing reports whenever relevant data changes
+  useEffect(() => {
+    if (strictModeEnabled) {
+      checkMissingReports();
+    }
+  }, [strictModeEnabled, reports]);
+
   return (
     <div className='min-h-screen bg-background'>
       {/* Header */}
@@ -1057,6 +1151,17 @@ export function Dashboard() {
             {isSoloMode && <VirtualManagerToggle />}
           </div>
           <div className='flex items-center gap-4'>
+            <div className='flex items-center space-x-2'>
+              <span className='text-sm font-medium'>Strict Mode</span>
+              <Button 
+                variant={strictModeEnabled ? 'default' : 'outline'} 
+                size='sm'
+                className='h-8'
+                onClick={toggleStrictMode}
+              >
+                {strictModeEnabled ? 'On' : 'Off'}
+              </Button>
+            </div>
             <ModeToggle />
             <Button
               variant='ghost'
@@ -1325,73 +1430,42 @@ export function Dashboard() {
                 <TableBody>
                   {reportObjectives.map(objective => (
                     <React.Fragment key={objective.id}>
-                      {/* Objective Row */}
                       <TableRow className='bg-muted/50'>
-                        <TableCell>
-                          <div className='flex items-center gap-2'>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              className='h-6 w-6 p-0'
-                              onClick={() =>
-                                toggleReportObjectiveExpansion(objective.id)
-                              }
-                            >
-                              {objective.isExpanded ? (
-                                <ChevronDown className='h-4 w-4' />
-                              ) : (
-                                <ChevronRight className='h-4 w-4' />
-                              )}
-                            </Button>
-                            <span className='font-medium'>
-                              {objective.name}
-                            </span>
-                          </div>
+                        <TableCell colSpan={3} className='py-2'>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            className='p-0'
+                            onClick={() => toggleReportObjectiveExpansion(objective.id)}
+                          >
+                            {objective.isExpanded ? (
+                              <ChevronDown className='h-4 w-4 mr-2' />
+                            ) : (
+                              <ChevronRight className='h-4 w-4 mr-2' />
+                            )}
+                            <span>{objective.name}</span>
+                          </Button>
                         </TableCell>
-                        <TableCell></TableCell>
-                        <TableCell></TableCell>
                       </TableRow>
-
-                      {/* Metrics Rows */}
                       {objective.isExpanded &&
                         objective.metrics.map(metric => (
                           <TableRow key={metric.id}>
-                            <TableCell className='pl-8'>
-                              {metric.name}
-                            </TableCell>
-                            <TableCell>
-                              {metric.plan !== undefined ? (
-                                <div className='flex flex-col'>
-                                  <span>
-                                    {metric.plan}{' '}
-                                    {metric.planPeriod &&
-                                      `(${getPlanPeriodDisplayName(
-                                        metric.planPeriod
-                                      )})`}
-                                  </span>
-                                  <span className='text-xs text-muted-foreground'>
-                                    {calculateDailyPlanValue(metric)} daily
-                                  </span>
-                                </div>
-                              ) : (
-                                '-'
-                              )}
-                            </TableCell>
+                            <TableCell className='pl-8'>{metric.name}</TableCell>
+                            <TableCell>{calculateDailyPlanValue(metric)}</TableCell>
                             <TableCell>
                               <Input
                                 type='number'
-                                placeholder='Enter value'
-                                value={
-                                  metricValues[metric.id] !== undefined
-                                    ? metricValues[metric.id]
-                                    : ''
-                                }
-                                onChange={e =>
-                                  handleMetricValueChange(
-                                    metric.id,
-                                    e.target.value
-                                  )
-                                }
+                                value={metricValues[metric.id] || ''}
+                                onChange={e => {
+                                  const newValue = e.target.value
+                                    ? parseFloat(e.target.value)
+                                    : '';
+                                  setMetricValues({
+                                    ...metricValues,
+                                    [metric.id]: newValue,
+                                  });
+                                }}
+                                className='w-20'
                               />
                             </TableCell>
                           </TableRow>
@@ -1659,6 +1733,143 @@ export function Dashboard() {
                 {editingResultReport ? 'Update Report' : 'Generate Report'}
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add this dialog for the strict mode missing reports */}
+      <Dialog open={missingSurveyOpen} onOpenChange={(open) => {
+        // Only allow closing if strict mode is off or all reports are completed
+        if (!strictModeEnabled || currentMissingIndex >= missingDates.length) {
+          setMissingSurveyOpen(open);
+        }
+      }}>
+        <DialogContent className='sm:max-w-[800px] max-h-[90vh]'>
+          <DialogHeader>
+            <DialogTitle>Missing Daily Report</DialogTitle>
+            <DialogDescription>
+              Strict Mode detected missing reports. Please complete the report for {format(parseISO(missingDates[currentMissingIndex] || new Date().toISOString().split('T')[0]), 'MMMM d, yyyy')}. 
+              ({currentMissingIndex + 1}/{missingDates.length})
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className='grid gap-6 py-4 overflow-y-auto max-h-[calc(90vh-180px)]'>
+            {/* Date Selection - Locked to the missing date */}
+            <div className='grid gap-2'>
+              <label className='text-sm font-medium'>Report Date</label>
+              <Input
+                type='date'
+                value={reportDate}
+                disabled={true}
+                className='w-[200px]'
+              />
+            </div>
+
+            {/* Reuse the metrics update section from the normal report dialog */}
+            <div className='grid gap-2'>
+              <label className='text-sm font-medium'>Metrics Update</label>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Plan</TableHead>
+                    <TableHead>Actual</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {reportObjectives.map(objective => (
+                    <React.Fragment key={objective.id}>
+                      <TableRow className='bg-muted/50'>
+                        <TableCell colSpan={3} className='py-2'>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            className='p-0'
+                            onClick={() => toggleReportObjectiveExpansion(objective.id)}
+                          >
+                            {objective.isExpanded ? (
+                              <ChevronDown className='h-4 w-4 mr-2' />
+                            ) : (
+                              <ChevronRight className='h-4 w-4 mr-2' />
+                            )}
+                            <span>{objective.name}</span>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                      {objective.isExpanded &&
+                        objective.metrics.map(metric => (
+                          <TableRow key={metric.id}>
+                            <TableCell className='pl-8'>{metric.name}</TableCell>
+                            <TableCell>{calculateDailyPlanValue(metric)}</TableCell>
+                            <TableCell>
+                              <Input
+                                type='number'
+                                value={metricValues[metric.id] || ''}
+                                onChange={e => {
+                                  const newValue = e.target.value
+                                    ? parseFloat(e.target.value)
+                                    : '';
+                                  setMetricValues({
+                                    ...metricValues,
+                                    [metric.id]: newValue,
+                                  });
+                                }}
+                                className='w-20'
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </React.Fragment>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Notes section */}
+            <div className='grid gap-6'>
+              <label className='text-sm font-medium'>Notes</label>
+              <div className='grid gap-4'>
+                <div>
+                  <h4 className='text-sm font-medium text-muted-foreground'>
+                    This day's notes
+                  </h4>
+                  <NotesEditor
+                    id='missing-report-today-notes'
+                    content={reportTodayNotes}
+                    onChange={setReportTodayNotes}
+                    placeholder='What did you accomplish on this day?'
+                  />
+                </div>
+                <div>
+                  <h4 className='text-sm font-medium text-muted-foreground'>
+                    Next day's notes
+                  </h4>
+                  <NotesEditor
+                    id='missing-report-tomorrow-notes'
+                    content={reportTomorrowNotes}
+                    onChange={setReportTomorrowNotes}
+                    placeholder='What did you plan for the next day?'
+                  />
+                </div>
+                <div>
+                  <h4 className='text-sm font-medium text-muted-foreground'>
+                    General Comments
+                  </h4>
+                  <NotesEditor
+                    id='missing-report-general-comments'
+                    content={reportGeneralComments}
+                    onChange={setReportGeneralComments}
+                    placeholder='Any other thoughts or comments...'
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={handleNextMissingReport}>
+              {currentMissingIndex < missingDates.length - 1 ? 'Save & Next' : 'Complete'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
