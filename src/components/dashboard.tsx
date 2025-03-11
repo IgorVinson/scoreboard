@@ -395,7 +395,7 @@ export function Dashboard() {
     console.log('Date selected:', inputValue); // Debug log
   };
 
-  // Update the handleCreateReport function to ensure the date is preserved correctly
+  // Update the handleCreateReport function to calculate daily plan values
   const handleCreateReport = async () => {
     try {
       // Create metrics_data object with both plan and fact values
@@ -404,8 +404,24 @@ export function Dashboard() {
       // Iterate through objectives and their metrics
       objectives.forEach(objective => {
         objective.metrics.forEach(metric => {
+          // Calculate daily plan value based on the plan period
+          let dailyPlanValue = 0;
+          
+          if (metric.plan) {
+            if (metric.planPeriod === 'until_week_end') {
+              // If weekly plan, divide by 5 (work days in a week)
+              dailyPlanValue = metric.plan / 5;
+            } else if (metric.planPeriod === 'until_month_end') {
+              // If monthly plan, divide by 22 (work days in a month)
+              dailyPlanValue = metric.plan / 22;
+            } else {
+              // If already daily
+              dailyPlanValue = metric.plan;
+            }
+          }
+
           metrics_data[metric.id] = {
-            plan: metric.plan || 0,
+            plan: dailyPlanValue,
             fact: metricValues[metric.id] || 0,
           };
         });
@@ -439,7 +455,7 @@ export function Dashboard() {
     }
   };
 
-  // Add a separate function for updating existing reports
+  // Also update the handleUpdateReport function to use daily plan values
   const handleUpdateReport = async () => {
     try {
       if (!editingReport) return;
@@ -450,8 +466,24 @@ export function Dashboard() {
       // Iterate through objectives and their metrics to get plan values
       objectives.forEach(objective => {
         objective.metrics.forEach(metric => {
+          // Calculate daily plan value based on the plan period
+          let dailyPlanValue = 0;
+          
+          if (metric.plan) {
+            if (metric.planPeriod === 'until_week_end') {
+              // If weekly plan, divide by 5 (work days in a week)
+              dailyPlanValue = metric.plan / 5;
+            } else if (metric.planPeriod === 'until_month_end') {
+              // If monthly plan, divide by 22 (work days in a month)
+              dailyPlanValue = metric.plan / 22;
+            } else {
+              // If already daily
+              dailyPlanValue = metric.plan;
+            }
+          }
+
           metrics_data[metric.id] = {
-            plan: metric.plan || 0, // Get plan value from the objective's metric
+            plan: dailyPlanValue,
             fact: metricValues[metric.id] || 0, // Get fact value from user input
           };
         });
@@ -1136,7 +1168,7 @@ export function Dashboard() {
               <div className='border-b px-4'>
                 <TabsList className='my-2'>
                   <TabsTrigger value='deep-overview'>Performance</TabsTrigger>
-                  <TabsTrigger value='reports'>Reports</TabsTrigger>
+                  <TabsTrigger value='reports'>Daily Reports</TabsTrigger>
                   <TabsTrigger value='result-reports'>
                     Result Reports
                   </TabsTrigger>
