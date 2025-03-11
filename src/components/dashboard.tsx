@@ -772,7 +772,9 @@ export function Dashboard() {
   });
 
   const [resultReportDialogOpen, setResultReportDialogOpen] = useState(false);
-  const [resultReportType, setResultReportType] = useState<'weekly' | 'monthly'>('weekly');
+  const [resultReportType, setResultReportType] = useState<
+    'weekly' | 'monthly'
+  >('weekly');
   const [resultReportStartDate, setResultReportStartDate] = useState('');
   const [resultReportEndDate, setResultReportEndDate] = useState('');
   const [resultReportSummary, setResultReportSummary] = useState('');
@@ -781,9 +783,11 @@ export function Dashboard() {
   const [editingResultReport, setEditingResultReport] = useState<any>(null);
 
   // Add these handler functions
-  const handleDeleteResultReport = (reportId) => {
+  const handleDeleteResultReport = reportId => {
     try {
-      const updatedReports = resultReports.filter(report => report.id !== reportId);
+      const updatedReports = resultReports.filter(
+        report => report.id !== reportId
+      );
       setResultReports(updatedReports);
       localStorage.setItem('resultReports', JSON.stringify(updatedReports));
     } catch (error) {
@@ -791,7 +795,7 @@ export function Dashboard() {
     }
   };
 
-  const handleEditResultReport = (report) => {
+  const handleEditResultReport = report => {
     setEditingResultReport(report);
     setResultReportType(report.report_type);
     setResultReportStartDate(report.period_start);
@@ -802,12 +806,12 @@ export function Dashboard() {
     setResultReportDialogOpen(true);
   };
 
-  const handleReviewResultReport = (report) => {
+  const handleReviewResultReport = report => {
     setEditingResultReport(report);
     setReviewMode(true);
     setReportQuantityRating(report.quantity_rating || 0);
     setReportQualityRating(report.quality_rating || 0);
-    
+
     // Pre-fill fields
     setResultReportType(report.report_type);
     setResultReportStartDate(report.period_start);
@@ -815,11 +819,11 @@ export function Dashboard() {
     setResultReportSummary(report.period_summary || '');
     setResultReportNextGoals(report.next_period_goals || '');
     setResultReportComments(report.general_comments || '');
-    
+
     setResultReportDialogOpen(true);
   };
 
-  const handleToggleResultReview = (reportId) => {
+  const handleToggleResultReview = reportId => {
     try {
       const updatedReports = resultReports.map(report => {
         if (report.id === reportId) {
@@ -859,13 +863,13 @@ export function Dashboard() {
       // Create date objects
       const startDate = new Date(resultReportStartDate);
       const endDate = new Date(resultReportEndDate);
-      
+
       // Ensure dates are valid
       if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
         console.error('Invalid dates');
         return;
       }
-      
+
       // Ensure end date is after start date
       if (endDate < startDate) {
         console.error('End date must be after start date');
@@ -885,7 +889,7 @@ export function Dashboard() {
 
       // Aggregate metrics data
       const aggregatedMetricsData = {};
-      
+
       // Initialize with all metrics from objectives
       objectives.forEach(objective => {
         objective.metrics.forEach(metric => {
@@ -899,13 +903,15 @@ export function Dashboard() {
 
       // Sum up all values from daily reports
       periodReports.forEach(report => {
-        Object.entries(report.metrics_data || {}).forEach(([metricId, data]) => {
-          if (aggregatedMetricsData[metricId]) {
-            aggregatedMetricsData[metricId].plan += data.plan || 0;
-            aggregatedMetricsData[metricId].fact += data.fact || 0;
-            aggregatedMetricsData[metricId].count += 1;
+        Object.entries(report.metrics_data || {}).forEach(
+          ([metricId, data]) => {
+            if (aggregatedMetricsData[metricId]) {
+              aggregatedMetricsData[metricId].plan += data.plan || 0;
+              aggregatedMetricsData[metricId].fact += data.fact || 0;
+              aggregatedMetricsData[metricId].count += 1;
+            }
           }
-        });
+        );
       });
 
       // Process the aggregated data based on report type
@@ -913,7 +919,7 @@ export function Dashboard() {
       Object.entries(aggregatedMetricsData).forEach(([metricId, data]) => {
         // For metrics with no data, skip
         if (data.count === 0) return;
-        
+
         // For weekly/monthly reports, we may want to sum or average values
         // Let's use sum for now, but you can adjust this logic as needed
         finalMetricsData[metricId] = {
@@ -923,7 +929,9 @@ export function Dashboard() {
       });
 
       const newReport = {
-        id: editingResultReport ? editingResultReport.id : `result-report-${Date.now()}`,
+        id: editingResultReport
+          ? editingResultReport.id
+          : `result-report-${Date.now()}`,
         report_type: resultReportType,
         period_start: resultReportStartDate,
         period_end: resultReportEndDate,
@@ -933,7 +941,9 @@ export function Dashboard() {
         next_period_goals: resultReportNextGoals,
         general_comments: resultReportComments,
         user_id: user.id,
-        created_at: editingResultReport ? editingResultReport.created_at : new Date().toISOString(),
+        created_at: editingResultReport
+          ? editingResultReport.created_at
+          : new Date().toISOString(),
         updated_at: new Date().toISOString(),
         reviewed: editingResultReport?.reviewed || false,
         quality_rating: editingResultReport?.quality_rating,
@@ -1127,7 +1137,9 @@ export function Dashboard() {
                 <TabsList className='my-2'>
                   <TabsTrigger value='deep-overview'>Performance</TabsTrigger>
                   <TabsTrigger value='reports'>Reports</TabsTrigger>
-                  <TabsTrigger value='result-reports'>Result Reports</TabsTrigger>
+                  <TabsTrigger value='result-reports'>
+                    Result Reports
+                  </TabsTrigger>
                 </TabsList>
               </div>
 
@@ -1165,8 +1177,8 @@ export function Dashboard() {
                 <div className='space-y-4'>
                   <div className='flex justify-between items-center'>
                     <h2 className='text-2xl font-bold'>Result Reports</h2>
-                    <Button 
-                      variant='outline' 
+                    <Button
+                      variant='outline'
                       onClick={() => setResultReportDialogOpen(true)}
                       className='flex items-center gap-2'
                     >
@@ -1452,7 +1464,10 @@ export function Dashboard() {
       </Dialog>
 
       {/* Add the Result Report Dialog */}
-      <Dialog open={resultReportDialogOpen} onOpenChange={setResultReportDialogOpen}>
+      <Dialog
+        open={resultReportDialogOpen}
+        onOpenChange={setResultReportDialogOpen}
+      >
         <DialogContent className='sm:max-w-[800px] max-h-[90vh]'>
           <DialogHeader>
             <DialogTitle>
@@ -1477,7 +1492,9 @@ export function Dashboard() {
               <label className='text-sm font-medium'>Report Type</label>
               <div className='flex gap-2'>
                 <Button
-                  variant={resultReportType === 'weekly' ? 'default' : 'outline'}
+                  variant={
+                    resultReportType === 'weekly' ? 'default' : 'outline'
+                  }
                   size='sm'
                   onClick={() => setResultReportType('weekly')}
                   disabled={!!editingResultReport}
@@ -1485,7 +1502,9 @@ export function Dashboard() {
                   Weekly Report
                 </Button>
                 <Button
-                  variant={resultReportType === 'monthly' ? 'default' : 'outline'}
+                  variant={
+                    resultReportType === 'monthly' ? 'default' : 'outline'
+                  }
                   size='sm'
                   onClick={() => setResultReportType('monthly')}
                   disabled={!!editingResultReport}
@@ -1502,7 +1521,7 @@ export function Dashboard() {
                 <Input
                   type='date'
                   value={resultReportStartDate}
-                  onChange={(e) => setResultReportStartDate(e.target.value)}
+                  onChange={e => setResultReportStartDate(e.target.value)}
                   disabled={!!editingResultReport}
                 />
               </div>
@@ -1511,7 +1530,7 @@ export function Dashboard() {
                 <Input
                   type='date'
                   value={resultReportEndDate}
-                  onChange={(e) => setResultReportEndDate(e.target.value)}
+                  onChange={e => setResultReportEndDate(e.target.value)}
                   disabled={!!editingResultReport}
                 />
               </div>
@@ -1600,11 +1619,9 @@ export function Dashboard() {
             >
               Cancel
             </Button>
-            
+
             {reviewMode ? (
-              <Button onClick={submitResultReportReview}>
-                Submit Review
-              </Button>
+              <Button onClick={submitResultReportReview}>Submit Review</Button>
             ) : (
               <Button onClick={generateResultReport}>
                 {editingResultReport ? 'Update Report' : 'Generate Report'}
