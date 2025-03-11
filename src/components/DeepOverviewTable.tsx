@@ -119,8 +119,6 @@ export function DeepOverviewTable({
   // Open dialog to edit a metric's plan and actual values
   const openEditMetricDialog = (metric: Metric, objectiveId: string) => {
     setMetricName(metric.name);
-    setMetricPlan(metric.plan);
-    setMetricActual(metric.actual);
     setMetricDescription(metric.description || '');
     setCurrentMetricId(metric.id);
     setCurrentObjectiveId(objectiveId);
@@ -130,30 +128,52 @@ export function DeepOverviewTable({
 
   // Handle metric save
   const handleMetricSave = () => {
-    if (!currentObjectiveId || !currentMetricId) return;
-
-    // Update existing metric
-    const updatedObjectives = objectives.map(obj => {
-      if (obj.id === currentObjectiveId) {
-        return {
-          ...obj,
-          metrics: obj.metrics.map(m =>
-            m.id === currentMetricId
-              ? {
-                  ...m,
-                  name: metricName,
-                  description: metricDescription,
-                  plan: metricPlan,
-                  actual: metricActual,
-                }
-              : m
-          ),
-        };
-      }
-      return obj;
-    });
-
-    onObjectivesChange(updatedObjectives);
+    if (!currentObjectiveId) return;
+    
+    if (isEditing && currentMetricId) {
+      // Update existing metric
+      const updatedObjectives = objectives.map(obj => {
+        if (obj.id === currentObjectiveId) {
+          return {
+            ...obj,
+            metrics: obj.metrics.map(m =>
+              m.id === currentMetricId
+                ? {
+                    ...m,
+                    name: metricName,
+                    description: metricDescription,
+                  }
+                : m
+            ),
+          };
+        }
+        return obj;
+      });
+      
+      onObjectivesChange(updatedObjectives);
+    } else {
+      // Add new metric
+      const newMetric = {
+        id: `metric-${Date.now()}`,
+        name: metricName,
+        description: metricDescription,
+        plan: undefined,
+        actual: undefined,
+      };
+      
+      const updatedObjectives = objectives.map(obj => {
+        if (obj.id === currentObjectiveId) {
+          return {
+            ...obj,
+            metrics: [...obj.metrics, newMetric],
+          };
+        }
+        return obj;
+      });
+      
+      onObjectivesChange(updatedObjectives);
+    }
+    
     setMetricDialogOpen(false);
   };
 
@@ -241,11 +261,68 @@ export function DeepOverviewTable({
   };
 
   // Calculate deviation
-  const calculateDeviation = (plan?: number, actual?: number) => {
-    if (plan === undefined || actual === undefined) return null;
-    if (plan === 0) return actual === 0 ? 0 : 100; // Avoid division by zero
+  const calculateDeviation = (metric: Metric, viewPeriod: 'day' | 'week' | 'month') => {
+    if (metric.plan === undefined || metric.actual === undefined || !metric.planPeriod) return null;
+    if (metric.plan === 0) return metric.actual === 0 ? 0 : 100; // Avoid division by zero
 
-    const deviation = ((actual - plan) / plan) * 100;
+    // Get current date info for projection calculations
+    const today = new Date();
+    const currentDayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
+    
+    // Calculate days passed and days remaining based on plan period
+    let daysPassed = 0;
+    let totalDays = 0;
+    
+    if (metric.planPeriod === 'until_week_end') {
+      // For week: consider only workdays (Mon-Fri)
+      if (currentDayOfWeek >= 1 && currentDayOfWeek <= 5) {
+        daysPassed = currentDayOfWeek;
+        totalDays = 5; // 5 workdays in a week
+      } else if (currentDayOfWeek === 0) { // Sunday
+        daysPassed = 0;
+        totalDays = 5;
+      } else { // Saturday
+        daysPassed = 5;
+        totalDays = 5;
+      }
+    } else if (metric.planPeriod === 'until_month_end') {
+      // For month: calculate workdays passed and total workdays
+      const currentDate = today.getDate();
+      const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+      
+      // Count workdays passed
+      for (let i = 1; i <= currentDate; i++) {
+        const tempDate = new Date(today.getFullYear(), today.getMonth(), i);
+        const dayOfWeek = tempDate.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Not Sunday (0) or Saturday (6)
+          daysPassed++;
+        }
+      }
+      
+      // Count total workdays in month
+      for (let i = 1; i <= lastDayOfMonth; i++) {
+        const tempDate = new Date(today.getFullYear(), today.getMonth(), i);
+        const dayOfWeek = tempDate.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Not Sunday (0) or Saturday (6)
+          totalDays++;
+        }
+      }
+    }
+    
+    // If no days passed or no days in total, return simple deviation
+    if (daysPassed === 0 || totalDays === 0) {
+      return ((metric.actual - metric.plan) / metric.plan) * 100;
+    }
+    
+    // Calculate daily average of actual progress
+    const dailyAverage = metric.actual / daysPassed;
+    
+    // Project final value based on daily average
+    const daysRemaining = totalDays - daysPassed;
+    const projectedFinalValue = (dailyAverage * daysRemaining) + metric.actual;
+    
+    // Calculate deviation based on projected final value
+    const deviation = ((projectedFinalValue - metric.plan) / metric.plan) * 100;
     return Math.round(deviation * 10) / 10; // Round to 1 decimal place
   };
 
@@ -623,6 +700,15 @@ export function DeepOverviewTable({
     }
   };
 
+  // Add function to edit objective name
+  const openEditObjectiveDialog = (objective: Objective) => {
+    setObjectiveName(objective.name);
+    setObjectiveDescription(objective.description || '');
+    setCurrentObjectiveId(objective.id);
+    setIsEditing(true);
+    setObjectiveDialogOpen(true);
+  };
+
   return (
     <div>
       <div className='flex justify-between items-center mb-4'>
@@ -683,15 +769,15 @@ export function DeepOverviewTable({
             <TableHead className='w-[20%]'>Description</TableHead>
             <TableHead className='text-right'>Plan</TableHead>
             <TableHead className='text-right'>Actual</TableHead>
-            <TableHead className='text-right'>Deviation</TableHead>
-            <TableHead className='w-[150px]'>Actions</TableHead>
+            <TableHead className='text-center'>Deviation</TableHead>
+            <TableHead className='text-center w-[150px]'>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {objectives.length === 0 ? (
             <TableRow>
               <TableCell
-                colSpan={5}
+                colSpan={6}
                 className='text-center py-4 text-muted-foreground'
               >
                 No objectives added yet. Add objectives in the Overview tab.
@@ -718,15 +804,25 @@ export function DeepOverviewTable({
                           <ChevronRight className='h-4 w-4' />
                         )}
                       </Button>
-                      <div className='flex-1'>{objective.name}</div>
+                      <div className='flex-1 flex items-center'>
+                        {objective.name}
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          className='h-6 w-6 p-0 ml-2'
+                          onClick={() => openEditObjectiveDialog(objective)}
+                        >
+                          <Edit className='h-3.5 w-3.5' />
+                        </Button>
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell>{objective.description || '-'}</TableCell>
                   <TableCell className='text-right'>-</TableCell>
                   <TableCell className='text-right'>-</TableCell>
-                  <TableCell className='text-right'>-</TableCell>
+                  <TableCell className='text-center'>-</TableCell>
                   <TableCell>
-                    <div className='flex gap-1 justify-end'>
+                    <div className='flex gap-1 justify-center'>
                       <Button
                         variant='ghost'
                         size='sm'
@@ -761,18 +857,27 @@ export function DeepOverviewTable({
 
                 {objective.isExpanded &&
                   objective.metrics.map((metric, metricIndex) => {
-                    const deviation = calculateDeviation(
-                      metric.plan,
-                      metric.actual
-                    );
+                    const deviation = calculateDeviation(metric, dateRange);
 
                     return (
                       <TableRow key={metric.id}>
                         <TableCell>
-                          <div className='pl-8'>
-                            <div className='flex items-center gap-2'>
-                              <ArrowRight className='h-3 w-3 text-muted-foreground' />
-                              <span>{metric.name}</span>
+                          <div className="pl-8">
+                            <div className="flex items-center gap-2">
+                              <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                              <span className="flex items-center">
+                                {metric.name}
+                                <Button
+                                  variant='ghost'
+                                  size='sm'
+                                  className='h-6 w-6 p-0 ml-1'
+                                  onClick={() =>
+                                    openEditMetricDialog(metric, objective.id)
+                                  }
+                                >
+                                  <Edit className='h-3 w-3' />
+                                </Button>
+                              </span>
                             </div>
                           </div>
                         </TableCell>
@@ -790,7 +895,7 @@ export function DeepOverviewTable({
                         <TableCell className='text-right'>
                           {metric.actual !== undefined ? metric.actual : '-'}
                         </TableCell>
-                        <TableCell className='text-right'>
+                        <TableCell className='text-center'>
                           {deviation !== null ? (
                             <Badge
                               variant={getDeviationBadgeVariant(deviation)}
@@ -803,17 +908,7 @@ export function DeepOverviewTable({
                           )}
                         </TableCell>
                         <TableCell>
-                          <div className='flex gap-1 justify-end'>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              className='h-6 w-6 p-0'
-                              onClick={() =>
-                                openEditMetricDialog(metric, objective.id)
-                              }
-                            >
-                              <Edit className='h-3.5 w-3.5' />
-                            </Button>
+                          <div className='flex gap-1 justify-center'>
                             <Button
                               variant='ghost'
                               size='sm'
@@ -915,44 +1010,6 @@ export function DeepOverviewTable({
                 onChange={e => setMetricDescription(e.target.value)}
                 className='col-span-3'
                 rows={3}
-              />
-            </div>
-            <div className='grid grid-cols-4 items-center gap-4'>
-              <label
-                htmlFor='metric-plan'
-                className='text-right text-sm font-medium'
-              >
-                Plan
-              </label>
-              <Input
-                id='metric-plan'
-                type='number'
-                value={metricPlan !== undefined ? metricPlan : ''}
-                onChange={e =>
-                  setMetricPlan(
-                    e.target.value ? Number(e.target.value) : undefined
-                  )
-                }
-                className='col-span-3'
-              />
-            </div>
-            <div className='grid grid-cols-4 items-center gap-4'>
-              <label
-                htmlFor='metric-actual'
-                className='text-right text-sm font-medium'
-              >
-                Actual
-              </label>
-              <Input
-                id='metric-actual'
-                type='number'
-                value={metricActual !== undefined ? metricActual : ''}
-                onChange={e =>
-                  setMetricActual(
-                    e.target.value ? Number(e.target.value) : undefined
-                  )
-                }
-                className='col-span-3'
               />
             </div>
           </div>
