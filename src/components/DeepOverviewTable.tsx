@@ -131,7 +131,7 @@ export function DeepOverviewTable({
   // Handle metric save
   const handleMetricSave = () => {
     if (!currentObjectiveId) return;
-    
+
     if (isEditing && currentMetricId) {
       // Update existing metric
       const updatedObjectives = objectives.map(obj => {
@@ -151,7 +151,7 @@ export function DeepOverviewTable({
         }
         return obj;
       });
-      
+
       onObjectivesChange(updatedObjectives);
     } else {
       // Add new metric
@@ -162,7 +162,7 @@ export function DeepOverviewTable({
         plan: undefined,
         actual: undefined,
       };
-      
+
       const updatedObjectives = objectives.map(obj => {
         if (obj.id === currentObjectiveId) {
           return {
@@ -172,10 +172,10 @@ export function DeepOverviewTable({
         }
         return obj;
       });
-      
+
       onObjectivesChange(updatedObjectives);
     }
-    
+
     setMetricDialogOpen(false);
   };
 
@@ -263,69 +263,86 @@ export function DeepOverviewTable({
   };
 
   // Calculate deviation
-  const calculateDeviation = (metric: Metric, viewPeriod: 'day' | 'week' | 'month') => {
+  const calculateDeviation = (
+    metric: Metric,
+    viewPeriod: 'day' | 'week' | 'month'
+  ) => {
     const accumulatedActual = getAccumulatedActualValue(metric.id, viewPeriod);
-    const actualValue = accumulatedActual !== null ? accumulatedActual : metric.actual;
-    
-    if (metric.plan === undefined || actualValue === undefined || !metric.planPeriod) return null;
+    const actualValue =
+      accumulatedActual !== null ? accumulatedActual : metric.actual;
+
+    if (
+      metric.plan === undefined ||
+      actualValue === undefined ||
+      !metric.planPeriod
+    )
+      return null;
     if (metric.plan === 0) return actualValue === 0 ? 0 : 100; // Avoid division by zero
 
     // Get current date info for projection calculations
     const today = new Date();
     const currentDayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
-    
+
     // Calculate days passed and days remaining based on plan period
     let daysPassed = 0;
     let totalDays = 0;
-    
+
     if (metric.planPeriod === 'until_week_end') {
       // For week: consider only workdays (Mon-Fri)
       if (currentDayOfWeek >= 1 && currentDayOfWeek <= 5) {
         daysPassed = currentDayOfWeek;
         totalDays = 5; // 5 workdays in a week
-      } else if (currentDayOfWeek === 0) { // Sunday
+      } else if (currentDayOfWeek === 0) {
+        // Sunday
         daysPassed = 0;
         totalDays = 5;
-      } else { // Saturday
+      } else {
+        // Saturday
         daysPassed = 5;
         totalDays = 5;
       }
     } else if (metric.planPeriod === 'until_month_end') {
       // For month: calculate workdays passed and total workdays
       const currentDate = today.getDate();
-      const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-      
+      const lastDayOfMonth = new Date(
+        today.getFullYear(),
+        today.getMonth() + 1,
+        0
+      ).getDate();
+
       // Count workdays passed
       for (let i = 1; i <= currentDate; i++) {
         const tempDate = new Date(today.getFullYear(), today.getMonth(), i);
         const dayOfWeek = tempDate.getDay();
-        if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Not Sunday (0) or Saturday (6)
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+          // Not Sunday (0) or Saturday (6)
           daysPassed++;
         }
       }
-      
+
       // Count total workdays in month
       for (let i = 1; i <= lastDayOfMonth; i++) {
         const tempDate = new Date(today.getFullYear(), today.getMonth(), i);
         const dayOfWeek = tempDate.getDay();
-        if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Not Sunday (0) or Saturday (6)
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+          // Not Sunday (0) or Saturday (6)
           totalDays++;
         }
       }
     }
-    
+
     // If no days passed or no days in total, return simple deviation
     if (daysPassed === 0 || totalDays === 0) {
       return ((actualValue - metric.plan) / metric.plan) * 100;
     }
-    
+
     // Calculate daily average of actual progress
     const dailyAverage = actualValue / daysPassed;
-    
+
     // Project final value based on daily average
     const daysRemaining = totalDays - daysPassed;
-    const projectedFinalValue = (dailyAverage * daysRemaining) + actualValue;
-    
+    const projectedFinalValue = dailyAverage * daysRemaining + actualValue;
+
     // Calculate deviation based on projected final value
     const deviation = ((projectedFinalValue - metric.plan) / metric.plan) * 100;
     return Math.round(deviation * 10) / 10; // Round to 1 decimal place
@@ -563,18 +580,23 @@ export function DeepOverviewTable({
   };
 
   // Add a function to calculate plan value for different periods
-  const calculatePlanValueForPeriod = (metric: Metric, viewPeriod: 'day' | 'week' | 'month') => {
+  const calculatePlanValueForPeriod = (
+    metric: Metric,
+    viewPeriod: 'day' | 'week' | 'month'
+  ) => {
     if (!metric.plan || !metric.planPeriod) return metric.plan;
-    
+
     const workDaysInMonth = 22; // Assumption for work days in a month
-    const workDaysInWeek = 5;   // Assumption for work days in a week
-    
+    const workDaysInWeek = 5; // Assumption for work days in a week
+
     // If the metric is already in the right period, return as is
-    if ((metric.planPeriod === 'until_week_end' && viewPeriod === 'week') ||
-        (metric.planPeriod === 'until_month_end' && viewPeriod === 'month')) {
+    if (
+      (metric.planPeriod === 'until_week_end' && viewPeriod === 'week') ||
+      (metric.planPeriod === 'until_month_end' && viewPeriod === 'month')
+    ) {
       return metric.plan;
     }
-    
+
     // Convert to daily value first
     let dailyValue: number;
     if (metric.planPeriod === 'until_week_end') {
@@ -584,7 +606,7 @@ export function DeepOverviewTable({
     } else {
       dailyValue = metric.plan; // Already daily
     }
-    
+
     // Then convert to the requested period
     if (viewPeriod === 'day') {
       return dailyValue;
@@ -593,7 +615,7 @@ export function DeepOverviewTable({
     } else if (viewPeriod === 'month') {
       return dailyValue * workDaysInMonth;
     }
-    
+
     return metric.plan; // Fallback
   };
 
@@ -649,9 +671,12 @@ export function DeepOverviewTable({
   };
 
   // Update the getPlanPeriodDisplayName function to consider the current view
-  const getPlanPeriodDisplayName = (period: string | undefined, viewPeriod: 'day' | 'week' | 'month') => {
+  const getPlanPeriodDisplayName = (
+    period: string | undefined,
+    viewPeriod: 'day' | 'week' | 'month'
+  ) => {
     if (!period) return '';
-    
+
     // Return the display name based on the current view, not the plan period
     switch (viewPeriod) {
       case 'day':
@@ -677,33 +702,36 @@ export function DeepOverviewTable({
   // Add function to calculate daily plan value
   const calculateDailyPlanValue = (metric: Metric) => {
     if (!metric.plan || !metric.planPeriod) return '-';
-    
+
     const workDaysInMonth = 22; // Assumption for work days in a month
-    const workDaysInWeek = 5;   // Assumption for work days in a week
-    
+    const workDaysInWeek = 5; // Assumption for work days in a week
+
     if (metric.planPeriod === 'until_week_end') {
       return (metric.plan / workDaysInWeek).toFixed(2);
     } else if (metric.planPeriod === 'until_month_end') {
       return (metric.plan / workDaysInMonth).toFixed(2);
     }
-    
+
     return metric.plan;
   };
 
   // Fix the getAccumulatedActualValue function to properly handle date comparisons
-  const getAccumulatedActualValue = (metricId: string, viewPeriod: 'day' | 'week' | 'month') => {
+  const getAccumulatedActualValue = (
+    metricId: string,
+    viewPeriod: 'day' | 'week' | 'month'
+  ) => {
     if (!reports || reports.length === 0) return null;
-    
+
     // Debug the reports data
     console.log('All reports:', reports);
-    
+
     // Get today's date without time component
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     let startDate = new Date();
     startDate.setHours(0, 0, 0, 0);
-    
+
     // Determine the start date based on view period
     if (viewPeriod === 'day') {
       // For day view, just use today
@@ -717,27 +745,31 @@ export function DeepOverviewTable({
       // For month view, use the start of the current month
       startDate = new Date(today.getFullYear(), today.getMonth(), 1);
     }
-    
+
     console.log(`View period: ${viewPeriod}`);
     console.log(`Start date: ${startDate.toISOString()}`);
     console.log(`Today: ${today.toISOString()}`);
-    
+
     // Filter reports within the date range
     const relevantReports = reports.filter(report => {
       // Parse the report date string to a Date object
       const reportDate = new Date(report.date + 'T00:00:00'); // Add time component to ensure proper parsing
       reportDate.setHours(0, 0, 0, 0);
-      
-      console.log(`Report date: ${report.date}, parsed: ${reportDate.toISOString()}`);
-      console.log(`Is within range: ${reportDate >= startDate && reportDate <= today}`);
-      
+
+      console.log(
+        `Report date: ${report.date}, parsed: ${reportDate.toISOString()}`
+      );
+      console.log(
+        `Is within range: ${reportDate >= startDate && reportDate <= today}`
+      );
+
       return reportDate >= startDate && reportDate <= today;
     });
-    
+
     console.log(`Relevant reports for ${viewPeriod} view:`, relevantReports);
-    
+
     if (relevantReports.length === 0) return null;
-    
+
     // Accumulate actual values from relevant reports
     let accumulatedValue = 0;
     relevantReports.forEach(report => {
@@ -745,11 +777,13 @@ export function DeepOverviewTable({
         const factValue = report.metrics_data[metricId].fact;
         if (typeof factValue === 'number') {
           accumulatedValue += factValue;
-          console.log(`Adding ${factValue} for metric ${metricId}, total now: ${accumulatedValue}`);
+          console.log(
+            `Adding ${factValue} for metric ${metricId}, total now: ${accumulatedValue}`
+          );
         }
       }
     });
-    
+
     return accumulatedValue > 0 ? accumulatedValue : null;
   };
 
@@ -906,10 +940,10 @@ export function DeepOverviewTable({
                     return (
                       <TableRow key={metric.id}>
                         <TableCell>
-                          <div className="pl-8">
-                            <div className="flex items-center gap-2">
-                              <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                              <span className="flex items-center">
+                          <div className='pl-8'>
+                            <div className='flex items-center gap-2'>
+                              <ArrowRight className='h-3 w-3 text-muted-foreground' />
+                              <span className='flex items-center'>
                                 {metric.name}
                                 <Button
                                   variant='ghost'
@@ -927,14 +961,16 @@ export function DeepOverviewTable({
                         </TableCell>
                         <TableCell>{metric.description || '-'}</TableCell>
                         <TableCell className='text-right'>
-                          {metric.plan !== undefined 
+                          {metric.plan !== undefined
                             ? (() => {
                                 // Calculate the appropriate value based on the view period
                                 if (dateRange === 'day') {
                                   // For daily view, show daily value
                                   if (metric.planPeriod === 'until_week_end') {
                                     return (metric.plan / 5).toFixed(2);
-                                  } else if (metric.planPeriod === 'until_month_end') {
+                                  } else if (
+                                    metric.planPeriod === 'until_month_end'
+                                  ) {
                                     return (metric.plan / 22).toFixed(2);
                                   }
                                 } else if (dateRange === 'week') {
@@ -942,7 +978,9 @@ export function DeepOverviewTable({
                                   if (metric.planPeriod === 'until_month_end') {
                                     // Convert monthly to weekly: (monthly / 22) * 5
                                     return ((metric.plan / 22) * 5).toFixed(2);
-                                  } else if (metric.planPeriod === 'until_week_end') {
+                                  } else if (
+                                    metric.planPeriod === 'until_week_end'
+                                  ) {
                                     // Already weekly
                                     return metric.plan;
                                   }
@@ -952,15 +990,25 @@ export function DeepOverviewTable({
                               })()
                             : '-'}
                           {metric.planPeriod && (
-                            <span className="text-xs text-muted-foreground ml-1">
-                              ({getPlanPeriodDisplayName(metric.planPeriod, dateRange)})
+                            <span className='text-xs text-muted-foreground ml-1'>
+                              (
+                              {getPlanPeriodDisplayName(
+                                metric.planPeriod,
+                                dateRange
+                              )}
+                              )
                             </span>
                           )}
                         </TableCell>
                         <TableCell className='text-right'>
                           {(() => {
-                            const accumulatedValue = getAccumulatedActualValue(metric.id, dateRange);
-                            return accumulatedValue !== null ? accumulatedValue : '-';
+                            const accumulatedValue = getAccumulatedActualValue(
+                              metric.id,
+                              dateRange
+                            );
+                            return accumulatedValue !== null
+                              ? accumulatedValue
+                              : '-';
                           })()}
                         </TableCell>
                         <TableCell className='text-center'>

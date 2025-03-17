@@ -34,6 +34,7 @@ import {
   ChevronRight,
   ArrowRight,
   Star,
+  PlusCircle,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -68,6 +69,7 @@ import { Input } from '@/components/ui/input';
 import { ReportsTable } from '@/components/ReportsTable';
 import { SimpleOverview } from '@/components/SimpleOverview';
 import { format, parseISO } from 'date-fns';
+import { ResultReportsTable } from '@/components/ResultReportsTable';
 
 // Add a StarRating component to replace numeric inputs
 function StarRating({ rating, maxRating = 5, onRatingChange }) {
@@ -175,7 +177,9 @@ export function Dashboard() {
     return [];
   });
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
-  const [reportDate, setReportDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [reportDate, setReportDate] = useState(
+    format(new Date(), 'yyyy-MM-dd')
+  );
   const [metricValues, setMetricValues] = useState<Record<string, number>>({});
   const [expandedObjectives, setExpandedObjectives] = useState<Set<string>>(
     new Set()
@@ -380,28 +384,44 @@ export function Dashboard() {
   const [editingReport, setEditingReport] = useState<any>(null);
 
   // Update the date handling in the report dialog
-  const handleDateChange = (e) => {
+  const handleDateChange = e => {
     // Get the raw value from the input
     const inputValue = e.target.value;
-    
+
     // Create a date object without timezone conversion
     // This ensures we get exactly what the user selected
     setReportDate(inputValue);
-    
+
     console.log('Date selected:', inputValue); // Debug log
   };
 
-  // Update the handleCreateReport function to ensure the date is preserved correctly
+  // Update the handleCreateReport function to calculate daily plan values
   const handleCreateReport = async () => {
     try {
       // Create metrics_data object with both plan and fact values
       const metrics_data = {};
-      
+
       // Iterate through objectives and their metrics
       objectives.forEach(objective => {
         objective.metrics.forEach(metric => {
+          // Calculate daily plan value based on the plan period
+          let dailyPlanValue = 0;
+
+          if (metric.plan) {
+            if (metric.planPeriod === 'until_week_end') {
+              // If weekly plan, divide by 5 (work days in a week)
+              dailyPlanValue = metric.plan / 5;
+            } else if (metric.planPeriod === 'until_month_end') {
+              // If monthly plan, divide by 22 (work days in a month)
+              dailyPlanValue = metric.plan / 22;
+            } else {
+              // If already daily
+              dailyPlanValue = metric.plan;
+            }
+          }
+
           metrics_data[metric.id] = {
-            plan: metric.plan || 0,
+            plan: dailyPlanValue,
             fact: metricValues[metric.id] || 0,
           };
         });
@@ -435,7 +455,7 @@ export function Dashboard() {
     }
   };
 
-  // Add a separate function for updating existing reports
+  // Also update the handleUpdateReport function to use daily plan values
   const handleUpdateReport = async () => {
     try {
       if (!editingReport) return;
@@ -446,8 +466,24 @@ export function Dashboard() {
       // Iterate through objectives and their metrics to get plan values
       objectives.forEach(objective => {
         objective.metrics.forEach(metric => {
+          // Calculate daily plan value based on the plan period
+          let dailyPlanValue = 0;
+
+          if (metric.plan) {
+            if (metric.planPeriod === 'until_week_end') {
+              // If weekly plan, divide by 5 (work days in a week)
+              dailyPlanValue = metric.plan / 5;
+            } else if (metric.planPeriod === 'until_month_end') {
+              // If monthly plan, divide by 22 (work days in a month)
+              dailyPlanValue = metric.plan / 22;
+            } else {
+              // If already daily
+              dailyPlanValue = metric.plan;
+            }
+          }
+
           metrics_data[metric.id] = {
-            plan: metric.plan || 0, // Get plan value from the objective's metric
+            plan: dailyPlanValue,
             fact: metricValues[metric.id] || 0, // Get fact value from user input
           };
         });
@@ -720,12 +756,12 @@ export function Dashboard() {
   };
 
   // Update the calculateDailyPlanValue function
-  const calculateDailyPlanValue = (metric) => {
+  const calculateDailyPlanValue = metric => {
     if (!metric.plan || !metric.planPeriod) return '-';
-    
+
     const workDaysInMonth = 22; // Assumption for work days in a month
-    const workDaysInWeek = 5;   // Assumption for work days in a week
-    
+    const workDaysInWeek = 5; // Assumption for work days in a week
+
     let dailyValue;
     if (metric.planPeriod === 'until_week_end') {
       dailyValue = metric.plan / workDaysInWeek;
@@ -734,14 +770,14 @@ export function Dashboard() {
     } else {
       dailyValue = metric.plan; // Already daily
     }
-    
+
     return dailyValue.toFixed(2);
   };
 
   // Add function to get user-friendly display name for plan periods
-  const getPlanPeriodDisplayName = (period) => {
+  const getPlanPeriodDisplayName = period => {
     if (!period) return '';
-    
+
     switch (period) {
       case 'until_week_end':
         return 'weekly';
@@ -751,6 +787,392 @@ export function Dashboard() {
         return period;
     }
   };
+
+  // Add new state variables for result reports
+  const [resultReports, setResultReports] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedReports = localStorage.getItem('resultReports');
+        if (savedReports) {
+          return JSON.parse(savedReports);
+        }
+      } catch (error) {
+        console.error('Error loading result reports:', error);
+      }
+    }
+    return [];
+  });
+
+  const [resultReportDialogOpen, setResultReportDialogOpen] = useState(false);
+  const [resultReportType, setResultReportType] = useState<
+    'weekly' | 'monthly'
+  >('weekly');
+  const [resultReportStartDate, setResultReportStartDate] = useState('');
+  const [resultReportEndDate, setResultReportEndDate] = useState('');
+  const [resultReportSummary, setResultReportSummary] = useState('');
+  const [resultReportNextGoals, setResultReportNextGoals] = useState('');
+  const [resultReportComments, setResultReportComments] = useState('');
+  const [editingResultReport, setEditingResultReport] = useState<any>(null);
+
+  // Add these handler functions
+  const handleDeleteResultReport = reportId => {
+    try {
+      const updatedReports = resultReports.filter(
+        report => report.id !== reportId
+      );
+      setResultReports(updatedReports);
+      localStorage.setItem('resultReports', JSON.stringify(updatedReports));
+    } catch (error) {
+      console.error('Error deleting result report:', error);
+    }
+  };
+
+  const handleEditResultReport = report => {
+    setEditingResultReport(report);
+    setResultReportType(report.report_type);
+    setResultReportStartDate(report.period_start);
+    setResultReportEndDate(report.period_end);
+    setResultReportSummary(report.period_summary || '');
+    setResultReportNextGoals(report.next_period_goals || '');
+    setResultReportComments(report.general_comments || '');
+    setResultReportDialogOpen(true);
+  };
+
+  const handleReviewResultReport = report => {
+    setEditingResultReport(report);
+    setReviewMode(true);
+    setReportQuantityRating(report.quantity_rating || 0);
+    setReportQualityRating(report.quality_rating || 0);
+
+    // Pre-fill fields
+    setResultReportType(report.report_type);
+    setResultReportStartDate(report.period_start);
+    setResultReportEndDate(report.period_end);
+    setResultReportSummary(report.period_summary || '');
+    setResultReportNextGoals(report.next_period_goals || '');
+    setResultReportComments(report.general_comments || '');
+
+    setResultReportDialogOpen(true);
+  };
+
+  const handleToggleResultReview = reportId => {
+    try {
+      const updatedReports = resultReports.map(report => {
+        if (report.id === reportId) {
+          if (report.reviewed) {
+            return {
+              ...report,
+              reviewed: false,
+              reviewed_at: null,
+              quality_rating: undefined,
+              quantity_rating: undefined,
+            };
+          } else {
+            return {
+              ...report,
+              reviewed: true,
+            };
+          }
+        }
+        return report;
+      });
+
+      setResultReports(updatedReports);
+      localStorage.setItem('resultReports', JSON.stringify(updatedReports));
+    } catch (error) {
+      console.error('Error toggling result report review status:', error);
+    }
+  };
+
+  const generateResultReport = () => {
+    try {
+      // Validate dates
+      if (!resultReportStartDate || !resultReportEndDate) {
+        console.error('Both start and end dates are required');
+        return;
+      }
+
+      // Create date objects
+      const startDate = new Date(resultReportStartDate);
+      const endDate = new Date(resultReportEndDate);
+
+      // Ensure dates are valid
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        console.error('Invalid dates');
+        return;
+      }
+
+      // Ensure end date is after start date
+      if (endDate < startDate) {
+        console.error('End date must be after start date');
+        return;
+      }
+
+      // Filter daily reports that fall within the selected period
+      const periodReports = reports.filter(report => {
+        const reportDate = new Date(report.date);
+        return reportDate >= startDate && reportDate <= endDate;
+      });
+
+      if (periodReports.length === 0) {
+        console.error('No daily reports found in the selected period');
+        return;
+      }
+
+      // Aggregate metrics data
+      const aggregatedMetricsData = {};
+
+      // Initialize with all metrics from objectives
+      objectives.forEach(objective => {
+        objective.metrics.forEach(metric => {
+          aggregatedMetricsData[metric.id] = {
+            plan: 0,
+            fact: 0,
+            count: 0, // To calculate averages if needed
+          };
+        });
+      });
+
+      // Sum up all values from daily reports
+      periodReports.forEach(report => {
+        Object.entries(report.metrics_data || {}).forEach(
+          ([metricId, data]) => {
+            if (aggregatedMetricsData[metricId]) {
+              aggregatedMetricsData[metricId].plan += data.plan || 0;
+              aggregatedMetricsData[metricId].fact += data.fact || 0;
+              aggregatedMetricsData[metricId].count += 1;
+            }
+          }
+        );
+      });
+
+      // Process the aggregated data based on report type
+      const finalMetricsData = {};
+      Object.entries(aggregatedMetricsData).forEach(([metricId, data]) => {
+        // For metrics with no data, skip
+        if (data.count === 0) return;
+
+        // For weekly/monthly reports, we may want to sum or average values
+        // Let's use sum for now, but you can adjust this logic as needed
+        finalMetricsData[metricId] = {
+          plan: data.plan,
+          fact: data.fact,
+        };
+      });
+
+      const newReport = {
+        id: editingResultReport
+          ? editingResultReport.id
+          : `result-report-${Date.now()}`,
+        report_type: resultReportType,
+        period_start: resultReportStartDate,
+        period_end: resultReportEndDate,
+        date: new Date().toISOString().split('T')[0], // Today's date as creation date
+        metrics_data: finalMetricsData,
+        period_summary: resultReportSummary,
+        next_period_goals: resultReportNextGoals,
+        general_comments: resultReportComments,
+        user_id: user.id,
+        created_at: editingResultReport
+          ? editingResultReport.created_at
+          : new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        reviewed: editingResultReport?.reviewed || false,
+        quality_rating: editingResultReport?.quality_rating,
+        quantity_rating: editingResultReport?.quantity_rating,
+      };
+
+      if (editingResultReport) {
+        // Update existing report
+        const updatedReports = resultReports.map(report =>
+          report.id === editingResultReport.id ? newReport : report
+        );
+        setResultReports(updatedReports);
+        localStorage.setItem('resultReports', JSON.stringify(updatedReports));
+      } else {
+        // Create new report
+        const updatedReports = [...resultReports, newReport];
+        setResultReports(updatedReports);
+        localStorage.setItem('resultReports', JSON.stringify(updatedReports));
+      }
+
+      // Reset state and close dialog
+      resetResultReportState();
+      setResultReportDialogOpen(false);
+    } catch (error) {
+      console.error('Error generating result report:', error);
+    }
+  };
+
+  const submitResultReportReview = () => {
+    try {
+      if (!editingResultReport) return;
+
+      // Update existing report with review data
+      const updatedReport = {
+        ...editingResultReport,
+        quantity_rating: reportQuantityRating,
+        quality_rating: reportQualityRating,
+        reviewed: true,
+        reviewed_at: new Date().toISOString(),
+      };
+
+      // Update the report in localStorage
+      const updatedReports = resultReports.map(report =>
+        report.id === editingResultReport.id ? updatedReport : report
+      );
+
+      localStorage.setItem('resultReports', JSON.stringify(updatedReports));
+      setResultReports(updatedReports);
+
+      // Reset state and close dialog
+      resetResultReportState();
+      setReviewMode(false);
+      setResultReportDialogOpen(false);
+    } catch (error) {
+      console.error('Error submitting result report review:', error);
+    }
+  };
+
+  const resetResultReportState = () => {
+    setEditingResultReport(null);
+    setResultReportType('weekly');
+    setResultReportStartDate('');
+    setResultReportEndDate('');
+    setResultReportSummary('');
+    setResultReportNextGoals('');
+    setResultReportComments('');
+    setReportQuantityRating(0);
+    setReportQualityRating(0);
+  };
+
+  // Add new state variable for strict mode
+  const [strictModeEnabled, setStrictModeEnabled] = useState(false);
+  const [missingSurveyOpen, setMissingSurveyOpen] = useState(false);
+  const [missingDates, setMissingDates] = useState([]);
+  const [currentMissingIndex, setCurrentMissingIndex] = useState(0);
+
+  // Add these functions to handle strict mode
+  const toggleStrictMode = () => {
+    const newState = !strictModeEnabled;
+    setStrictModeEnabled(newState);
+
+    if (newState) {
+      checkMissingReports();
+    } else {
+      // When turning off strict mode, close any open surveys
+      setMissingSurveyOpen(false);
+    }
+  };
+
+  // Add this function to get the previous workday
+  const getPreviousWorkday = (date: Date): Date => {
+    const prevDay = new Date(date);
+    prevDay.setDate(date.getDate() - 1);
+    
+    // If it's Sunday (0), go back to Friday
+    const dayOfWeek = prevDay.getDay();
+    if (dayOfWeek === 0) { // Sunday
+      prevDay.setDate(prevDay.getDate() - 2); // Go back to Friday
+    }
+    
+    return prevDay;
+  };
+
+  // Update the checkMissingReports function to check all previous days in the week
+  const checkMissingReports = () => {
+    if (!strictModeEnabled) return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const currentDay = today.getDay(); // 0 is Sunday, 1 is Monday, etc.
+    
+    // If it's Monday (1) or Sunday (0), no need to check previous days
+    if (currentDay === 1 || currentDay === 0) {
+      setMissingDates([]);
+      setMissingSurveyOpen(false);
+      return;
+    }
+    
+    // Calculate the date of Monday this week
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - (currentDay - 1));
+    monday.setHours(0, 0, 0, 0);
+    
+    // Get all workdays from Monday to yesterday
+    const workdaysToCheck = [];
+    for (let i = 0; i < currentDay - 1; i++) {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + i);
+      workdaysToCheck.push(date);
+    }
+    
+    // Format the dates as YYYY-MM-DD strings
+    const formattedWorkdays = workdaysToCheck.map(date =>
+      format(date, 'yyyy-MM-dd')
+    );
+    
+    // Find which dates don't have reports
+    const reportDates = reports.map(report => report.date);
+    const missing = formattedWorkdays.filter(
+      date => !reportDates.includes(date)
+    );
+    
+    setMissingDates(missing);
+    
+    if (missing.length > 0) {
+      setCurrentMissingIndex(0);
+      setMissingSurveyOpen(true);
+      
+      // Pre-fill the report date field with the first missing date
+      setReportDate(missing[0]);
+      
+      // Initialize report objectives for the missing report
+      const objsWithExpansion = objectives.map(obj => ({
+        ...obj,
+        isExpanded: true,
+      }));
+      setReportObjectives(objsWithExpansion);
+      
+      // Clear metric values for the new report
+      setMetricValues({});
+      
+      // Clear notes for the new report
+      setReportTodayNotes('');
+      setReportTomorrowNotes('');
+      setReportGeneralComments('');
+    }
+  };
+
+  // Add function to handle moving to the next missing report
+  const handleNextMissingReport = async () => {
+    // Save the current report
+    await handleCreateReport();
+
+    // Move to the next missing date or close the survey if done
+    if (currentMissingIndex < missingDates.length - 1) {
+      const nextIndex = currentMissingIndex + 1;
+      setCurrentMissingIndex(nextIndex);
+      setReportDate(missingDates[nextIndex]);
+
+      // Reset other report fields
+      setMetricValues({});
+      setReportTodayNotes('');
+      setReportTomorrowNotes('');
+      setReportGeneralComments('');
+    } else {
+      // We've completed all missing reports
+      setMissingSurveyOpen(false);
+    }
+  };
+
+  // Add this effect to check for missing reports whenever relevant data changes
+  useEffect(() => {
+    if (strictModeEnabled) {
+      checkMissingReports();
+    }
+  }, [strictModeEnabled, reports]);
 
   return (
     <div className='min-h-screen bg-background'>
@@ -763,6 +1185,17 @@ export function Dashboard() {
             {isSoloMode && <VirtualManagerToggle />}
           </div>
           <div className='flex items-center gap-4'>
+            <div className='flex items-center space-x-2'>
+              <span className='text-sm font-medium'>Strict Mode</span>
+              <Button
+                variant={strictModeEnabled ? 'default' : 'outline'}
+                size='sm'
+                className='h-8'
+                onClick={toggleStrictMode}
+              >
+                {strictModeEnabled ? 'On' : 'Off'}
+              </Button>
+            </div>
             <ModeToggle />
             <Button
               variant='ghost'
@@ -874,7 +1307,10 @@ export function Dashboard() {
               <div className='border-b px-4'>
                 <TabsList className='my-2'>
                   <TabsTrigger value='deep-overview'>Performance</TabsTrigger>
-                  <TabsTrigger value='reports'>Reports</TabsTrigger>
+                  <TabsTrigger value='reports'>Daily Reports</TabsTrigger>
+                  <TabsTrigger value='result-reports'>
+                    Result Reports
+                  </TabsTrigger>
                 </TabsList>
               </div>
 
@@ -904,6 +1340,31 @@ export function Dashboard() {
                     onEditReport={handleEditReport}
                     onReviewReport={handleReviewReport}
                     onToggleReview={handleToggleReview}
+                  />
+                </div>
+              </TabsContent>
+
+              <TabsContent value='result-reports' className='p-6'>
+                <div className='space-y-4'>
+                  <div className='flex justify-between items-center'>
+                    <h2 className='text-2xl font-bold'>Result Reports</h2>
+                    <Button
+                      variant='outline'
+                      onClick={() => setResultReportDialogOpen(true)}
+                      className='flex items-center gap-2'
+                    >
+                      <PlusCircle className='h-4 w-4' />
+                      Generate Report
+                    </Button>
+                  </div>
+
+                  <ResultReportsTable
+                    reports={resultReports}
+                    objectives={objectives}
+                    onDeleteReport={handleDeleteResultReport}
+                    onEditReport={handleEditResultReport}
+                    onReviewReport={handleReviewResultReport}
+                    onToggleReview={handleToggleResultReview}
                   />
                 </div>
               </TabsContent>
@@ -1003,62 +1464,48 @@ export function Dashboard() {
                 <TableBody>
                   {reportObjectives.map(objective => (
                     <React.Fragment key={objective.id}>
-                      {/* Objective Row */}
                       <TableRow className='bg-muted/50'>
-                        <TableCell>
-                          <div className='flex items-center gap-2'>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              className='h-6 w-6 p-0'
-                              onClick={() =>
-                                toggleReportObjectiveExpansion(objective.id)
-                              }
-                            >
-                              {objective.isExpanded ? (
-                                <ChevronDown className='h-4 w-4' />
-                              ) : (
-                                <ChevronRight className='h-4 w-4' />
-                              )}
-                            </Button>
-                            <span className='font-medium'>
-                              {objective.name}
-                            </span>
-                          </div>
+                        <TableCell colSpan={3} className='py-2'>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            className='p-0'
+                            onClick={() =>
+                              toggleReportObjectiveExpansion(objective.id)
+                            }
+                          >
+                            {objective.isExpanded ? (
+                              <ChevronDown className='h-4 w-4 mr-2' />
+                            ) : (
+                              <ChevronRight className='h-4 w-4 mr-2' />
+                            )}
+                            <span>{objective.name}</span>
+                          </Button>
                         </TableCell>
-                        <TableCell></TableCell>
-                        <TableCell></TableCell>
                       </TableRow>
-
-                      {/* Metrics Rows */}
                       {objective.isExpanded &&
                         objective.metrics.map(metric => (
                           <TableRow key={metric.id}>
-                            <TableCell className='pl-8'>{metric.name}</TableCell>
+                            <TableCell className='pl-8'>
+                              {metric.name}
+                            </TableCell>
                             <TableCell>
-                              {metric.plan !== undefined ? (
-                                <div className="flex flex-col">
-                                  <span>{metric.plan} {metric.planPeriod && `(${getPlanPeriodDisplayName(metric.planPeriod)})`}</span>
-                                  <span className="text-xs text-muted-foreground">
-                                    {calculateDailyPlanValue(metric)} daily
-                                  </span>
-                                </div>
-                              ) : (
-                                '-'
-                              )}
+                              {calculateDailyPlanValue(metric)}
                             </TableCell>
                             <TableCell>
                               <Input
                                 type='number'
-                                placeholder='Enter value'
-                                value={
-                                  metricValues[metric.id] !== undefined
-                                    ? metricValues[metric.id]
-                                    : ''
-                                }
-                                onChange={e =>
-                                  handleMetricValueChange(metric.id, e.target.value)
-                                }
+                                value={metricValues[metric.id] || ''}
+                                onChange={e => {
+                                  const newValue = e.target.value
+                                    ? parseFloat(e.target.value)
+                                    : '';
+                                  setMetricValues({
+                                    ...metricValues,
+                                    [metric.id]: newValue,
+                                  });
+                                }}
+                                className='w-20'
                               />
                             </TableCell>
                           </TableRow>
@@ -1158,6 +1605,333 @@ export function Dashboard() {
             ) : (
               <Button onClick={handleCreateReport}>Create Report</Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add the Result Report Dialog */}
+      <Dialog
+        open={resultReportDialogOpen}
+        onOpenChange={setResultReportDialogOpen}
+      >
+        <DialogContent className='sm:max-w-[800px] max-h-[90vh]'>
+          <DialogHeader>
+            <DialogTitle>
+              {editingResultReport
+                ? reviewMode
+                  ? 'Review Result Report'
+                  : 'Edit Result Report'
+                : 'Generate Result Report'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingResultReport
+                ? reviewMode
+                  ? 'Review and rate this result report'
+                  : 'Edit the details of this result report'
+                : 'Generate a weekly or monthly result report by aggregating daily reports'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className='grid gap-6 py-4 overflow-y-auto max-h-[calc(90vh-180px)]'>
+            {/* Report Type Selection */}
+            <div className='grid gap-2'>
+              <label className='text-sm font-medium'>Report Type</label>
+              <div className='flex gap-2'>
+                <Button
+                  variant={
+                    resultReportType === 'weekly' ? 'default' : 'outline'
+                  }
+                  size='sm'
+                  onClick={() => setResultReportType('weekly')}
+                  disabled={!!editingResultReport}
+                >
+                  Weekly Report
+                </Button>
+                <Button
+                  variant={
+                    resultReportType === 'monthly' ? 'default' : 'outline'
+                  }
+                  size='sm'
+                  onClick={() => setResultReportType('monthly')}
+                  disabled={!!editingResultReport}
+                >
+                  Monthly Report
+                </Button>
+              </div>
+            </div>
+
+            {/* Date Range Selection */}
+            <div className='grid md:grid-cols-2 gap-4'>
+              <div className='grid gap-2'>
+                <label className='text-sm font-medium'>Start Date</label>
+                <Input
+                  type='date'
+                  value={resultReportStartDate}
+                  onChange={e => setResultReportStartDate(e.target.value)}
+                  disabled={!!editingResultReport}
+                />
+              </div>
+              <div className='grid gap-2'>
+                <label className='text-sm font-medium'>End Date</label>
+                <Input
+                  type='date'
+                  value={resultReportEndDate}
+                  onChange={e => setResultReportEndDate(e.target.value)}
+                  disabled={!!editingResultReport}
+                />
+              </div>
+            </div>
+
+            {/* Report Notes */}
+            <div className='space-y-4'>
+              <div>
+                <h4 className='text-sm font-medium text-muted-foreground'>
+                  Period Summary
+                </h4>
+                <NotesEditor
+                  id='result-report-summary'
+                  content={resultReportSummary}
+                  onChange={setResultReportSummary}
+                  placeholder='Summarize the achievements and results for this period...'
+                  disabled={reviewMode}
+                />
+              </div>
+              <div>
+                <h4 className='text-sm font-medium text-muted-foreground'>
+                  Next Period Goals
+                </h4>
+                <NotesEditor
+                  id='result-report-next-goals'
+                  content={resultReportNextGoals}
+                  onChange={setResultReportNextGoals}
+                  placeholder='What are the goals for the next period...'
+                  disabled={reviewMode}
+                />
+              </div>
+              <div>
+                <h4 className='text-sm font-medium text-muted-foreground'>
+                  General Comments
+                </h4>
+                <NotesEditor
+                  id='result-report-comments'
+                  content={resultReportComments}
+                  onChange={setResultReportComments}
+                  placeholder='Any other thoughts or comments...'
+                  disabled={reviewMode}
+                />
+              </div>
+            </div>
+
+            {/* Review section (only shown in review mode) */}
+            {reviewMode && (
+              <div className='grid gap-6'>
+                <label className='text-sm font-medium'>
+                  Performance Review
+                </label>
+                <div className='rounded-md border p-4 space-y-4'>
+                  <div className='grid grid-cols-2 gap-4'>
+                    <div>
+                      <h4 className='text-sm font-medium text-muted-foreground mb-2'>
+                        Quantity Rating
+                      </h4>
+                      <StarRating
+                        rating={reportQuantityRating}
+                        onRatingChange={setReportQuantityRating}
+                      />
+                    </div>
+                    <div>
+                      <h4 className='text-sm font-medium text-muted-foreground mb-2'>
+                        Quality Rating
+                      </h4>
+                      <StarRating
+                        rating={reportQualityRating}
+                        onRatingChange={setReportQualityRating}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={() => {
+                setResultReportDialogOpen(false);
+                resetResultReportState();
+                setReviewMode(false);
+              }}
+            >
+              Cancel
+            </Button>
+
+            {reviewMode ? (
+              <Button onClick={submitResultReportReview}>Submit Review</Button>
+            ) : (
+              <Button onClick={generateResultReport}>
+                {editingResultReport ? 'Update Report' : 'Generate Report'}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add this dialog for the strict mode missing reports */}
+      <Dialog
+        open={missingSurveyOpen}
+        onOpenChange={open => {
+          // Only allow closing if strict mode is off or all reports are completed
+          if (
+            !strictModeEnabled ||
+            currentMissingIndex >= missingDates.length
+          ) {
+            setMissingSurveyOpen(open);
+          }
+        }}
+      >
+        <DialogContent className='sm:max-w-[800px] max-h-[90vh]'>
+          <DialogHeader>
+            <DialogTitle>Missing Daily Report</DialogTitle>
+            <DialogDescription>
+              Strict Mode detected missing reports. Please complete the report
+              for{' '}
+              {format(
+                parseISO(
+                  missingDates[currentMissingIndex] ||
+                    new Date().toISOString().split('T')[0]
+                ),
+                'MMMM d, yyyy'
+              )}
+              . ({currentMissingIndex + 1}/{missingDates.length})
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className='grid gap-6 py-4 overflow-y-auto max-h-[calc(90vh-180px)]'>
+            {/* Date Selection - Locked to the missing date */}
+            <div className='grid gap-2'>
+              <label className='text-sm font-medium'>Report Date</label>
+              <Input
+                type='date'
+                value={reportDate}
+                disabled={true}
+                className='w-[200px]'
+              />
+            </div>
+
+            {/* Reuse the metrics update section from the normal report dialog */}
+            <div className='grid gap-2'>
+              <label className='text-sm font-medium'>Metrics Update</label>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Plan</TableHead>
+                    <TableHead>Actual</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {reportObjectives.map(objective => (
+                    <React.Fragment key={objective.id}>
+                      <TableRow className='bg-muted/50'>
+                        <TableCell colSpan={3} className='py-2'>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            className='p-0'
+                            onClick={() =>
+                              toggleReportObjectiveExpansion(objective.id)
+                            }
+                          >
+                            {objective.isExpanded ? (
+                              <ChevronDown className='h-4 w-4 mr-2' />
+                            ) : (
+                              <ChevronRight className='h-4 w-4 mr-2' />
+                            )}
+                            <span>{objective.name}</span>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                      {objective.isExpanded &&
+                        objective.metrics.map(metric => (
+                          <TableRow key={metric.id}>
+                            <TableCell className='pl-8'>
+                              {metric.name}
+                            </TableCell>
+                            <TableCell>
+                              {calculateDailyPlanValue(metric)}
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type='number'
+                                value={metricValues[metric.id] || ''}
+                                onChange={e => {
+                                  const newValue = e.target.value
+                                    ? parseFloat(e.target.value)
+                                    : '';
+                                  setMetricValues({
+                                    ...metricValues,
+                                    [metric.id]: newValue,
+                                  });
+                                }}
+                                className='w-20'
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </React.Fragment>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Notes section */}
+            <div className='grid gap-6'>
+              <label className='text-sm font-medium'>Notes</label>
+              <div className='grid gap-4'>
+                <div>
+                  <h4 className='text-sm font-medium text-muted-foreground'>
+                    This day's notes
+                  </h4>
+                  <NotesEditor
+                    id='missing-report-today-notes'
+                    content={reportTodayNotes}
+                    onChange={setReportTodayNotes}
+                    placeholder='What did you accomplish on this day?'
+                  />
+                </div>
+                <div>
+                  <h4 className='text-sm font-medium text-muted-foreground'>
+                    Next day's notes
+                  </h4>
+                  <NotesEditor
+                    id='missing-report-tomorrow-notes'
+                    content={reportTomorrowNotes}
+                    onChange={setReportTomorrowNotes}
+                    placeholder='What did you plan for the next day?'
+                  />
+                </div>
+                <div>
+                  <h4 className='text-sm font-medium text-muted-foreground'>
+                    General Comments
+                  </h4>
+                  <NotesEditor
+                    id='missing-report-general-comments'
+                    content={reportGeneralComments}
+                    onChange={setReportGeneralComments}
+                    placeholder='Any other thoughts or comments...'
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={handleNextMissingReport}>
+              {currentMissingIndex < missingDates.length - 1
+                ? 'Save & Next'
+                : 'Complete'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
