@@ -406,7 +406,7 @@ export function Dashboard() {
         objective.metrics.forEach(metric => {
           // Calculate daily plan value based on the plan period
           let dailyPlanValue = 0;
-          
+
           if (metric.plan) {
             if (metric.planPeriod === 'until_week_end') {
               // If weekly plan, divide by 5 (work days in a week)
@@ -468,7 +468,7 @@ export function Dashboard() {
         objective.metrics.forEach(metric => {
           // Calculate daily plan value based on the plan period
           let dailyPlanValue = 0;
-          
+
           if (metric.plan) {
             if (metric.planPeriod === 'until_week_end') {
               // If weekly plan, divide by 5 (work days in a week)
@@ -1056,7 +1056,7 @@ export function Dashboard() {
   const toggleStrictMode = () => {
     const newState = !strictModeEnabled;
     setStrictModeEnabled(newState);
-    
+
     if (newState) {
       checkMissingReports();
     } else {
@@ -1065,33 +1065,58 @@ export function Dashboard() {
     }
   };
 
+  // Add this function to get the previous workday
+  const getPreviousWorkday = (date: Date): Date => {
+    const prevDay = new Date(date);
+    prevDay.setDate(date.getDate() - 1);
+    
+    // If it's Sunday (0), go back to Friday
+    const dayOfWeek = prevDay.getDay();
+    if (dayOfWeek === 0) { // Sunday
+      prevDay.setDate(prevDay.getDate() - 2); // Go back to Friday
+    }
+    
+    return prevDay;
+  };
+
+  // Update the checkMissingReports function to check all previous days in the week
   const checkMissingReports = () => {
-    // Get the current week's date range (Monday to Sunday)
+    if (!strictModeEnabled) return;
+
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
     const currentDay = today.getDay(); // 0 is Sunday, 1 is Monday, etc.
+    
+    // If it's Monday (1) or Sunday (0), no need to check previous days
+    if (currentDay === 1 || currentDay === 0) {
+      setMissingDates([]);
+      setMissingSurveyOpen(false);
+      return;
+    }
     
     // Calculate the date of Monday this week
     const monday = new Date(today);
-    monday.setDate(today.getDate() - (currentDay === 0 ? 6 : currentDay - 1));
+    monday.setDate(today.getDate() - (currentDay - 1));
     monday.setHours(0, 0, 0, 0);
     
-    // Calculate dates for the week (Monday to Friday, assuming 5-day work week)
-    const weekDates = [];
-    for (let i = 0; i < 5; i++) {
+    // Get all workdays from Monday to yesterday
+    const workdaysToCheck = [];
+    for (let i = 0; i < currentDay - 1; i++) {
       const date = new Date(monday);
       date.setDate(monday.getDate() + i);
-      weekDates.push(date);
+      workdaysToCheck.push(date);
     }
     
     // Format the dates as YYYY-MM-DD strings
-    const formattedWeekDates = weekDates.map(date => 
+    const formattedWorkdays = workdaysToCheck.map(date =>
       format(date, 'yyyy-MM-dd')
     );
     
     // Find which dates don't have reports
     const reportDates = reports.map(report => report.date);
-    const missing = formattedWeekDates.filter(
-      date => !reportDates.includes(date) && date <= format(today, 'yyyy-MM-dd')
+    const missing = formattedWorkdays.filter(
+      date => !reportDates.includes(date)
     );
     
     setMissingDates(missing);
@@ -1100,11 +1125,20 @@ export function Dashboard() {
       setCurrentMissingIndex(0);
       setMissingSurveyOpen(true);
       
-      // Pre-fill the report date field with the missing date
+      // Pre-fill the report date field with the first missing date
       setReportDate(missing[0]);
       
-      // Reset other report fields
+      // Initialize report objectives for the missing report
+      const objsWithExpansion = objectives.map(obj => ({
+        ...obj,
+        isExpanded: true,
+      }));
+      setReportObjectives(objsWithExpansion);
+      
+      // Clear metric values for the new report
       setMetricValues({});
+      
+      // Clear notes for the new report
       setReportTodayNotes('');
       setReportTomorrowNotes('');
       setReportGeneralComments('');
@@ -1115,13 +1149,13 @@ export function Dashboard() {
   const handleNextMissingReport = async () => {
     // Save the current report
     await handleCreateReport();
-    
+
     // Move to the next missing date or close the survey if done
     if (currentMissingIndex < missingDates.length - 1) {
       const nextIndex = currentMissingIndex + 1;
       setCurrentMissingIndex(nextIndex);
       setReportDate(missingDates[nextIndex]);
-      
+
       // Reset other report fields
       setMetricValues({});
       setReportTodayNotes('');
@@ -1153,8 +1187,8 @@ export function Dashboard() {
           <div className='flex items-center gap-4'>
             <div className='flex items-center space-x-2'>
               <span className='text-sm font-medium'>Strict Mode</span>
-              <Button 
-                variant={strictModeEnabled ? 'default' : 'outline'} 
+              <Button
+                variant={strictModeEnabled ? 'default' : 'outline'}
                 size='sm'
                 className='h-8'
                 onClick={toggleStrictMode}
@@ -1436,7 +1470,9 @@ export function Dashboard() {
                             variant='ghost'
                             size='sm'
                             className='p-0'
-                            onClick={() => toggleReportObjectiveExpansion(objective.id)}
+                            onClick={() =>
+                              toggleReportObjectiveExpansion(objective.id)
+                            }
                           >
                             {objective.isExpanded ? (
                               <ChevronDown className='h-4 w-4 mr-2' />
@@ -1450,8 +1486,12 @@ export function Dashboard() {
                       {objective.isExpanded &&
                         objective.metrics.map(metric => (
                           <TableRow key={metric.id}>
-                            <TableCell className='pl-8'>{metric.name}</TableCell>
-                            <TableCell>{calculateDailyPlanValue(metric)}</TableCell>
+                            <TableCell className='pl-8'>
+                              {metric.name}
+                            </TableCell>
+                            <TableCell>
+                              {calculateDailyPlanValue(metric)}
+                            </TableCell>
                             <TableCell>
                               <Input
                                 type='number'
@@ -1738,18 +1778,32 @@ export function Dashboard() {
       </Dialog>
 
       {/* Add this dialog for the strict mode missing reports */}
-      <Dialog open={missingSurveyOpen} onOpenChange={(open) => {
-        // Only allow closing if strict mode is off or all reports are completed
-        if (!strictModeEnabled || currentMissingIndex >= missingDates.length) {
-          setMissingSurveyOpen(open);
-        }
-      }}>
+      <Dialog
+        open={missingSurveyOpen}
+        onOpenChange={open => {
+          // Only allow closing if strict mode is off or all reports are completed
+          if (
+            !strictModeEnabled ||
+            currentMissingIndex >= missingDates.length
+          ) {
+            setMissingSurveyOpen(open);
+          }
+        }}
+      >
         <DialogContent className='sm:max-w-[800px] max-h-[90vh]'>
           <DialogHeader>
             <DialogTitle>Missing Daily Report</DialogTitle>
             <DialogDescription>
-              Strict Mode detected missing reports. Please complete the report for {format(parseISO(missingDates[currentMissingIndex] || new Date().toISOString().split('T')[0]), 'MMMM d, yyyy')}. 
-              ({currentMissingIndex + 1}/{missingDates.length})
+              Strict Mode detected missing reports. Please complete the report
+              for{' '}
+              {format(
+                parseISO(
+                  missingDates[currentMissingIndex] ||
+                    new Date().toISOString().split('T')[0]
+                ),
+                'MMMM d, yyyy'
+              )}
+              . ({currentMissingIndex + 1}/{missingDates.length})
             </DialogDescription>
           </DialogHeader>
 
@@ -1785,7 +1839,9 @@ export function Dashboard() {
                             variant='ghost'
                             size='sm'
                             className='p-0'
-                            onClick={() => toggleReportObjectiveExpansion(objective.id)}
+                            onClick={() =>
+                              toggleReportObjectiveExpansion(objective.id)
+                            }
                           >
                             {objective.isExpanded ? (
                               <ChevronDown className='h-4 w-4 mr-2' />
@@ -1799,8 +1855,12 @@ export function Dashboard() {
                       {objective.isExpanded &&
                         objective.metrics.map(metric => (
                           <TableRow key={metric.id}>
-                            <TableCell className='pl-8'>{metric.name}</TableCell>
-                            <TableCell>{calculateDailyPlanValue(metric)}</TableCell>
+                            <TableCell className='pl-8'>
+                              {metric.name}
+                            </TableCell>
+                            <TableCell>
+                              {calculateDailyPlanValue(metric)}
+                            </TableCell>
                             <TableCell>
                               <Input
                                 type='number'
@@ -1868,7 +1928,9 @@ export function Dashboard() {
 
           <DialogFooter>
             <Button onClick={handleNextMissingReport}>
-              {currentMissingIndex < missingDates.length - 1 ? 'Save & Next' : 'Complete'}
+              {currentMissingIndex < missingDates.length - 1
+                ? 'Save & Next'
+                : 'Complete'}
             </Button>
           </DialogFooter>
         </DialogContent>
