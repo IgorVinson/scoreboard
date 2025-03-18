@@ -1069,13 +1069,14 @@ export function Dashboard() {
   const getPreviousWorkday = (date: Date): Date => {
     const prevDay = new Date(date);
     prevDay.setDate(date.getDate() - 1);
-    
+
     // If it's Sunday (0), go back to Friday
     const dayOfWeek = prevDay.getDay();
-    if (dayOfWeek === 0) { // Sunday
+    if (dayOfWeek === 0) {
+      // Sunday
       prevDay.setDate(prevDay.getDate() - 2); // Go back to Friday
     }
-    
+
     return prevDay;
   };
 
@@ -1085,21 +1086,21 @@ export function Dashboard() {
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     const currentDay = today.getDay(); // 0 is Sunday, 1 is Monday, etc.
-    
+
     // If it's Monday (1) or Sunday (0), no need to check previous days
     if (currentDay === 1 || currentDay === 0) {
       setMissingDates([]);
       setMissingSurveyOpen(false);
       return;
     }
-    
+
     // Calculate the date of Monday this week
     const monday = new Date(today);
     monday.setDate(today.getDate() - (currentDay - 1));
     monday.setHours(0, 0, 0, 0);
-    
+
     // Get all workdays from Monday to yesterday
     const workdaysToCheck = [];
     for (let i = 0; i < currentDay - 1; i++) {
@@ -1107,37 +1108,37 @@ export function Dashboard() {
       date.setDate(monday.getDate() + i);
       workdaysToCheck.push(date);
     }
-    
+
     // Format the dates as YYYY-MM-DD strings
     const formattedWorkdays = workdaysToCheck.map(date =>
       format(date, 'yyyy-MM-dd')
     );
-    
+
     // Find which dates don't have reports
     const reportDates = reports.map(report => report.date);
     const missing = formattedWorkdays.filter(
       date => !reportDates.includes(date)
     );
-    
+
     setMissingDates(missing);
-    
+
     if (missing.length > 0) {
       setCurrentMissingIndex(0);
       setMissingSurveyOpen(true);
-      
+
       // Pre-fill the report date field with the first missing date
       setReportDate(missing[0]);
-      
+
       // Initialize report objectives for the missing report
       const objsWithExpansion = objectives.map(obj => ({
         ...obj,
         isExpanded: true,
       }));
       setReportObjectives(objsWithExpansion);
-      
+
       // Clear metric values for the new report
       setMetricValues({});
-      
+
       // Clear notes for the new report
       setReportTodayNotes('');
       setReportTomorrowNotes('');
@@ -1259,48 +1260,6 @@ export function Dashboard() {
       {/* Main Content */}
       <main className='container px-4 py-8'>
         <div className='grid gap-8'>
-          {/* Overview Cards */}
-          <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
-            <Card className='p-6'>
-              <div className='flex items-center gap-4'>
-                <Users className='h-8 w-8 text-primary' />
-                <div>
-                  <p className='text-sm text-muted-foreground'>Team Members</p>
-                  <h3 className='text-2xl font-semibold'>3</h3>
-                </div>
-              </div>
-            </Card>
-            <Card className='p-6'>
-              <div className='flex items-center gap-4'>
-                <Target className='h-8 w-8 text-primary' />
-                <div>
-                  <p className='text-sm text-muted-foreground'>Active Plans</p>
-                  <h3 className='text-2xl font-semibold'>5</h3>
-                </div>
-              </div>
-            </Card>
-            <Card className='p-6'>
-              <div className='flex items-center gap-4'>
-                <ClipboardList className='h-8 w-8 text-primary' />
-                <div>
-                  <p className='text-sm text-muted-foreground'>Reports Today</p>
-                  <h3 className='text-2xl font-semibold'>2</h3>
-                </div>
-              </div>
-            </Card>
-            <Card className='p-6'>
-              <div className='flex items-center gap-4'>
-                <TrendingUp className='h-8 w-8 text-primary' />
-                <div>
-                  <p className='text-sm text-muted-foreground'>
-                    Average Performance
-                  </p>
-                  <h3 className='text-2xl font-semibold'>89%</h3>
-                </div>
-              </div>
-            </Card>
-          </div>
-
           {/* Tabs */}
           <Card>
             <Tabs defaultValue='deep-overview' className='w-full'>
@@ -1424,6 +1383,48 @@ export function Dashboard() {
               </div>
             </div>
           </Card>
+
+          {/* Overview Cards - Moved to the bottom */}
+          <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
+            <Card className='p-6'>
+              <div className='flex items-center gap-4'>
+                <Users className='h-8 w-8 text-primary' />
+                <div>
+                  <p className='text-sm text-muted-foreground'>Team Members</p>
+                  <h3 className='text-2xl font-semibold'>3</h3>
+                </div>
+              </div>
+            </Card>
+            <Card className='p-6'>
+              <div className='flex items-center gap-4'>
+                <Target className='h-8 w-8 text-primary' />
+                <div>
+                  <p className='text-sm text-muted-foreground'>Active Plans</p>
+                  <h3 className='text-2xl font-semibold'>5</h3>
+                </div>
+              </div>
+            </Card>
+            <Card className='p-6'>
+              <div className='flex items-center gap-4'>
+                <ClipboardList className='h-8 w-8 text-primary' />
+                <div>
+                  <p className='text-sm text-muted-foreground'>Reports Today</p>
+                  <h3 className='text-2xl font-semibold'>2</h3>
+                </div>
+              </div>
+            </Card>
+            <Card className='p-6'>
+              <div className='flex items-center gap-4'>
+                <TrendingUp className='h-8 w-8 text-primary' />
+                <div>
+                  <p className='text-sm text-muted-foreground'>
+                    Average Performance
+                  </p>
+                  <h3 className='text-2xl font-semibold'>89%</h3>
+                </div>
+              </div>
+            </Card>
+          </div>
         </div>
       </main>
 
