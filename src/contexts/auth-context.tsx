@@ -1,168 +1,111 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { User } from '../types/user';
+import { supabase } from '../lib/supabase';
 import { syncAuthUserToLocalStorage } from '@/lib/local-storage';
 import { generateSampleData } from '@/lib/sample-data';
 
-interface AuthContextType {
+type AuthContextType = {
   user: User | null;
-  session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, name: string) => Promise<void>;
   signOut: () => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
-}
+  // Add other auth methods
+};
 
-const AuthContext = createContext<AuthContextType | null>(null);
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      // Sync auth user with local storage if logged in
-      if (session?.user) {
-        const localUser = syncAuthUserToLocalStorage(session.user);
-        // Generate sample data for the user
-        generateSampleData(session.user.id);
-      }
-      
-      setLoading(false);
-    });
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      // Sync auth user with local storage if logged in
-      if (session?.user) {
-        const localUser = syncAuthUserToLocalStorage(session.user);
-        // Generate sample data for the user
-        generateSampleData(session.user.id);
-      }
-      
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // Configure session persistence
-  useEffect(() => {
-    supabase.auth.setSession({
-      access_token: session?.access_token ?? '',
-      refresh_token: session?.refresh_token ?? '',
-    });
-  }, [session]);
-
-  const signIn = async (email: string, password: string) => {
-    try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-        options: {
-          // Configure session duration to 3 days
-          sessionTime: 60 * 60 * 24 * 3, // 3 days in seconds
-        },
-      });
-
-      if (signInError) throw signInError;
-      
-      // Generate sample data for the user after successful sign-in
-      if (data.user) {
-        generateSampleData(data.user.id);
-      }
-    } catch (error) {
-      console.error('Error signing in:', error);
-      throw error;
-    }
-  };
-
-  const signUp = async (email: string, password: string, name: string) => {
-    try {
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name,
-          },
-          // Configure session duration to 3 days
-          sessionTime: 60 * 60 * 24 * 3, // 3 days in seconds
-        },
-      });
-
-      if (signUpError) throw signUpError;
-      
-      // Note: We don't generate sample data here because the user needs to verify their email first
-    } catch (error) {
-      console.error('Error signing up:', error);
-      throw error;
-    }
-  };
-
-  const signInWithGoogle = async () => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-          // Configure session duration to 3 days
-          sessionTime: 60 * 60 * 24 * 3, // 3 days in seconds
-        },
-      });
-
-      if (error) throw error;
-      
-      // Note: Sample data will be generated in the onAuthStateChange handler after redirect
-    } catch (error) {
-      console.error('Error signing in with Google:', error);
-      throw error;
-    }
-  };
-
-  const signOut = async () => {
-    try {
-      const { error: signOutError } = await supabase.auth.signOut();
-
-      if (signOutError) throw signOutError;
-    } catch (error) {
-      console.error('Error signing out:', error);
-      throw error;
-    }
-  };
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        session,
-        loading,
-        signIn,
-        signUp,
-        signOut,
-        signInWithGoogle,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
-}
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
+}
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  
+  // Simplified auth setup
+  useEffect(() => {
+    console.log('Setting up auth state management');
+    
+    // One-time session check
+    const getInitialSession = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        
+        console.log('Initial session check:', data.session ? 'Logged in' : 'Not logged in');
+        
+        if (data.session?.user) {
+          setUser({
+            id: data.session.user.id,
+            email: data.session.user.email || '',
+            name: data.session.user.user_metadata?.name || '',
+          });
+        }
+      } catch (err) {
+        console.error('Session check error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    getInitialSession();
+    
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        console.log('Auth state changed:', event, session ? 'Has session' : 'No session');
+        
+        if (session?.user) {
+          setUser({
+            id: session.user.id,
+            email: session.user.email || '',
+            name: session.user.user_metadata?.name || '',
+          });
+        } else {
+          setUser(null);
+        }
+      }
+    );
+    
+    return () => {
+      console.log('Cleaning up auth subscriptions');
+      subscription?.unsubscribe();
+    };
+  }, []);
+  
+  // Simplified sign in method
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+    
+    if (error) throw error;
+  };
+  
+  // Simplified sign out method
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  };
+  
+  const value = {
+    user,
+    loading,
+    signIn,
+    signOut,
+  };
+  
+  return (
+    <AuthContext.Provider value={value}>
+      {loading ? (
+        <div className="auth-loading">Loading authentication...</div>
+      ) : (
+        children
+      )}
+    </AuthContext.Provider>
+  );
 }
