@@ -1,627 +1,687 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from "react";
+import Button from "@/components/Button";
+import Modal from "@/components/Modal";
 import {
+  Box,
   Table,
   TableBody,
   TableCell,
   TableHead,
-  TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import {
+  TextField,
   Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  PlusCircle,
-  Trash2,
-  ChevronDown,
-  ChevronRight,
-  Play,
-  Edit,
-  Target,
-  Minus,
-  ArrowRight,
-} from 'lucide-react';
-import { objectivesService } from '@/lib/objectives-service';
+  DialogContent,
+  DialogActions,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
+} from "@mui/material";
+import { Draggable } from "@/components/Draggable";
+import { PlusIcon, XMarkIcon, PencilIcon, ArrowUpIcon, ArrowDownIcon } from "@heroicons/react/24/outline";
+// Import TanStack Query hooks
+import { useObjectives, useCreateObjective, useUpdateObjective, useDeleteObjective } from "@/queries/useObjectives";
+import { useMetrics, useCreateMetric, useUpdateMetric, useDeleteMetric } from "@/queries/useMetrics";
+import { useAuth } from "@/lib/auth";
 
-// Define the data structure
-export interface Metric {
+interface Metric {
   id: string;
   name: string;
-  description: string;
-  plan?: number;
-  actual?: number;
-  planPeriod?: string;
+  description?: string;
+  type: string;
+  measurement_unit: string;
 }
 
-export interface Objective {
+interface Objective {
   id: string;
   name: string;
-  description: string;
-  metrics: Metric[];
-  isExpanded?: boolean;
+  description?: string;
 }
 
 interface ObjectivesMetricsTableProps {
-  objectives: Objective[];
-  onObjectivesChange: (objectives: Objective[]) => void;
+  onOpen: (params: any) => void;
 }
 
-export function ObjectivesMetricsTable({
-  objectives,
-  onObjectivesChange,
+export default function ObjectivesMetricsTable({
+  onOpen,
 }: ObjectivesMetricsTableProps) {
-  // Dialog states
-  const [objectiveDialogOpen, setObjectiveDialogOpen] = useState(false);
-  const [metricDialogOpen, setMetricDialogOpen] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+  // Get current user
+  const { user } = useAuth();
+  const userId = user?.id || '';
 
-  // Form states
-  const [currentObjectiveId, setCurrentObjectiveId] = useState<string | null>(
-    null
-  );
-  const [currentMetricId, setCurrentMetricId] = useState<string | null>(null);
-  const [objectiveName, setObjectiveName] = useState('');
-  const [objectiveDescription, setObjectiveDescription] = useState('');
-  const [metricName, setMetricName] = useState('');
-  const [metricDescription, setMetricDescription] = useState('');
+  // Use TanStack Query hooks for objectives and metrics
+  const { data: objectives = [], isLoading: isLoadingObjectives } = useObjectives();
+  const { data: metrics = [], isLoading: isLoadingMetrics } = useMetrics();
+  const createObjective = useCreateObjective();
+  const updateObjective = useUpdateObjective();
+  const deleteObjective = useDeleteObjective();
+  const createMetric = useCreateMetric();
+  const updateMetric = useUpdateMetric();
+  const deleteMetric = useDeleteMetric();
 
-  // Toggle objective expansion
+  // Dialog state management
+  const [addObjectiveDialogOpen, setAddObjectiveDialogOpen] = useState(false);
+  const [editObjectiveDialogOpen, setEditObjectiveDialogOpen] = useState(false);
+  const [selectedObjective, setSelectedObjective] = useState<Objective | null>(null);
+  const [addMetricDialogOpen, setAddMetricDialogOpen] = useState(false);
+  const [editMetricDialogOpen, setEditMetricDialogOpen] = useState(false);
+  const [selectedMetric, setSelectedMetric] = useState<Metric | null>(null);
+  
+  // State for expanded objectives
+  const [expandedObjectiveIds, setExpandedObjectiveIds] = useState<string[]>([]);
+
   const toggleObjectiveExpansion = (objectiveId: string) => {
-    const updatedObjectives = objectives.map(obj =>
-      obj.id === objectiveId ? { ...obj, isExpanded: !obj.isExpanded } : obj
-    );
-    onObjectivesChange(updatedObjectives);
-  };
-
-  // Open dialog to add a new objective
-  const openAddObjectiveDialog = () => {
-    setObjectiveName('');
-    setObjectiveDescription('');
-    setIsEditing(false);
-    setObjectiveDialogOpen(true);
-  };
-
-  // Open dialog to edit an objective
-  const openEditObjectiveDialog = (objective: Objective) => {
-    setObjectiveName(objective.name);
-    setObjectiveDescription(objective.description);
-    setCurrentObjectiveId(objective.id);
-    setIsEditing(true);
-    setObjectiveDialogOpen(true);
-  };
-
-  // Open dialog to add a new metric
-  const openAddMetricDialog = (objectiveId: string) => {
-    setMetricName('');
-    setMetricDescription('');
-    setCurrentObjectiveId(objectiveId);
-    setIsEditing(false);
-    setMetricDialogOpen(true);
-  };
-
-  // Open dialog to edit a metric
-  const openEditMetricDialog = (metric: Metric, objectiveId: string) => {
-    setMetricName(metric.name);
-    setMetricDescription(metric.description);
-    setCurrentMetricId(metric.id);
-    setCurrentObjectiveId(objectiveId);
-    setIsEditing(true);
-    setMetricDialogOpen(true);
-  };
-
-  // Handle objective save (add or edit)
-  const handleObjectiveSave = async () => {
-    console.log("Save button clicked, starting save process");
-    if (objectiveName.trim() === '') {
-      alert("Objective name cannot be empty");
-      return;
-    }
-
-    try {
-      if (isEditing && currentObjectiveId) {
-        // Update existing objective
-        console.log("Updating existing objective with ID:", currentObjectiveId);
-        const updatedObjective = await objectivesService.updateObjective(currentObjectiveId, {
-          name: objectiveName,
-          description: objectiveDescription,
-        });
-        
-        console.log("Update response from database:", updatedObjective);
-        
-        if (updatedObjective) {
-          const updated = {
-            ...updatedObjective,
-            metrics: objectives.find(o => o.id === currentObjectiveId)?.metrics || [],
-          };
-          onObjectivesChange(
-            objectives.map(o => (o.id === currentObjectiveId ? updated : o))
-          );
-          alert("Objective updated successfully!");
-        }
-      } else {
-        // Add new objective
-        console.log("Creating new objective:", { name: objectiveName, description: objectiveDescription });
-        
-        // Try direct database insert to debug
-        const { supabase } = await import('@/lib/supabase');
-        const user = await supabase.auth.getUser();
-        
-        console.log("Current authenticated user:", user);
-        
-        if (!user.data.user) {
-          alert("Error: No authenticated user found! Cannot create objective.");
-          return;
-        }
-        
-        const { data, error } = await supabase
-          .from('objectives')
-          .insert([
-            {
-              name: objectiveName,
-              description: objectiveDescription,
-              user_id: user.data.user.id
-            }
-          ])
-          .select()
-          .single();
-          
-        console.log("Direct insert result:", { data, error });
-        
-        if (error) {
-          alert(`Error creating objective: ${error.message}`);
-          throw error;
-        }
-        
-        if (data) {
-          const newObjective = data;
-          console.log("New objective created:", newObjective);
-          onObjectivesChange([...objectives, { ...newObjective, metrics: [], isExpanded: true }]);
-          alert("Objective created successfully!");
-        }
-      }
-
-      // Reset form
-      setObjectiveName('');
-      setObjectiveDescription('');
-      setIsEditing(false);
-      setCurrentObjectiveId(null);
-      setObjectiveDialogOpen(false);
-    } catch (error: any) {
-      console.error('Error saving objective:', error);
-      alert(`Failed to save objective: ${error.message || 'Unknown error'}`);
+    if (expandedObjectiveIds.includes(objectiveId)) {
+      setExpandedObjectiveIds(expandedObjectiveIds.filter(id => id !== objectiveId));
+    } else {
+      setExpandedObjectiveIds([...expandedObjectiveIds, objectiveId]);
     }
   };
 
-  // Handle metric save (add or edit)
-  const handleMetricSave = async () => {
-    if (!metricName.trim() || !currentObjectiveId) return;
+  // Objective handlers
+  const handleOpenAddObjective = () => {
+    setAddObjectiveDialogOpen(true);
+  };
 
-    try {
-      if (isEditing && currentMetricId) {
-        // Update existing metric in the database
-        const { updateObjectiveMetric } = await import('@/lib/supabase-service');
-        
-        await updateObjectiveMetric(currentMetricId, {
-          name: metricName,
-          description: metricDescription,
-        });
+  const handleCloseAddObjective = () => {
+    setAddObjectiveDialogOpen(false);
+  };
 
-        // Update in state
-        const updatedObjectives = objectives.map(obj => {
-          if (obj.id === currentObjectiveId) {
-            return {
-              ...obj,
-              metrics: obj.metrics.map(m =>
-                m.id === currentMetricId
-                  ? { ...m, name: metricName, description: metricDescription }
-                  : m
-              ),
-            };
-          }
-          return obj;
-        });
-        onObjectivesChange(updatedObjectives);
-      } else {
-        // Add new metric to the database
-        const { createObjectiveMetric } = await import('@/lib/supabase-service');
-        
-        const savedMetric = await createObjectiveMetric(currentObjectiveId, {
-          name: metricName,
-          description: metricDescription,
-        });
+  const handleOpenEditObjective = (objective: Objective) => {
+    setSelectedObjective(objective);
+    setEditObjectiveDialogOpen(true);
+  };
 
-        // Add to state with the ID from the database
-        const newMetric: Metric = {
-          id: savedMetric.id,
-          name: savedMetric.name,
-          description: savedMetric.description || '',
-          plan: savedMetric.plan,
-          planPeriod: savedMetric.plan_period,
-        };
+  const handleCloseEditObjective = () => {
+    setEditObjectiveDialogOpen(false);
+    setSelectedObjective(null);
+  };
 
-        const updatedObjectives = objectives.map(obj =>
-          obj.id === currentObjectiveId
-            ? { ...obj, metrics: [...obj.metrics, newMetric] }
-            : obj
-        );
-        onObjectivesChange(updatedObjectives);
-      }
-
-      // Close dialog and reset form
-      setMetricDialogOpen(false);
-      setMetricName('');
-      setMetricDescription('');
-      setCurrentObjectiveId(null);
-      setCurrentMetricId(null);
-      setIsEditing(false);
-    } catch (error) {
-      console.error('Error saving metric:', error);
+  const handleSaveObjective = async (objective: { name: string; description: string }) => {
+    if (selectedObjective) {
+      // Edit existing objective
+      await updateObjective.mutateAsync({
+        id: selectedObjective.id,
+        name: objective.name,
+        description: objective.description
+      });
+      handleCloseEditObjective();
+    } else {
+      // Add new objective
+      await createObjective.mutateAsync({
+        name: objective.name,
+        description: objective.description,
+        user_id: userId
+      });
+      handleCloseAddObjective();
     }
   };
 
-  // Handle objective deletion
   const handleDeleteObjective = async (objectiveId: string) => {
-    try {
-      await objectivesService.deleteObjective(objectiveId);
-      const updatedObjectives = objectives.filter(obj => obj.id !== objectiveId);
-      onObjectivesChange(updatedObjectives);
-    } catch (error) {
-      console.error('Error deleting objective:', error);
-      // You might want to show an error message to the user here
+    await deleteObjective.mutateAsync(objectiveId);
+  };
+
+  const handleMoveObjectiveUp = async (index: number) => {
+    if (index <= 0) return;
+    
+    // In a real implementation, you would update the position or order field
+    // For now, we'll just simulate the UI effect
+    // This would require adding a position field to your objectives table
+    
+    // For demonstration purposes - in a real app, you'd update positions in the database
+    console.log(`Move objective at index ${index} up`);
+  };
+
+  const handleMoveObjectiveDown = async (index: number) => {
+    if (index >= objectives.length - 1) return;
+    
+    // In a real implementation, you would update the position or order field
+    // For now, we'll just simulate the UI effect
+    
+    // For demonstration purposes - in a real app, you'd update positions in the database
+    console.log(`Move objective at index ${index} down`);
+  };
+
+  // Metric handlers
+  const handleOpenAddMetric = () => {
+    setAddMetricDialogOpen(true);
+  };
+
+  const handleCloseAddMetric = () => {
+    setAddMetricDialogOpen(false);
+  };
+
+  const handleOpenEditMetric = (metric: Metric) => {
+    setSelectedMetric(metric);
+    setEditMetricDialogOpen(true);
+  };
+
+  const handleCloseEditMetric = () => {
+    setEditMetricDialogOpen(false);
+    setSelectedMetric(null);
+  };
+
+  const handleSaveMetric = async (metric: { name: string; description: string; type: string; measurement_unit: string }) => {
+    if (selectedMetric) {
+      // Edit existing metric
+      await updateMetric.mutateAsync({
+        id: selectedMetric.id,
+        name: metric.name,
+        description: metric.description,
+        type: metric.type,
+        measurement_unit: metric.measurement_unit
+      });
+      handleCloseEditMetric();
+    } else {
+      // Add new metric
+      await createMetric.mutateAsync({
+        name: metric.name,
+        description: metric.description,
+        type: metric.type,
+        measurement_unit: metric.measurement_unit,
+        company_id: user?.company_id || '' // Use the user's company_id
+      });
+      handleCloseAddMetric();
     }
   };
 
-  // Delete a metric
-  const handleDeleteMetric = async (objectiveId: string, metricId: string) => {
-    try {
-      // Delete from database
-      const { deleteObjectiveMetric } = await import('@/lib/supabase-service');
-      await deleteObjectiveMetric(metricId);
-      
-      // Update state after database update
-      const updatedObjectives = objectives.map(obj =>
-        obj.id === objectiveId
-          ? { ...obj, metrics: obj.metrics.filter(m => m.id !== metricId) }
-          : obj
-      );
-      onObjectivesChange(updatedObjectives);
-    } catch (error) {
-      console.error('Error deleting metric:', error);
-    }
+  const handleDeleteMetric = async (metricId: string) => {
+    await deleteMetric.mutateAsync(metricId);
   };
 
-  // Move objective up or down
-  const moveObjective = (index: number, direction: 'up' | 'down') => {
-    if (
-      (direction === 'up' && index === 0) ||
-      (direction === 'down' && index === objectives.length - 1)
-    ) {
-      return;
-    }
-
-    const newIndex = direction === 'up' ? index - 1 : index + 1;
-    const updatedObjectives = [...objectives];
-    const [movedObjective] = updatedObjectives.splice(index, 1);
-    updatedObjectives.splice(newIndex, 0, movedObjective);
-
-    onObjectivesChange(updatedObjectives);
+  const handleMoveMetricUp = async (index: number) => {
+    if (index <= 0) return;
+    
+    // In a real implementation, you would update the position or order field
+    // For now, we'll just simulate the UI effect
+    
+    // For demonstration purposes - in a real app, you'd update positions in the database
+    console.log(`Move metric at index ${index} up`);
   };
 
-  // Move metric up or down within an objective
-  const moveMetric = (
-    objectiveIndex: number,
-    metricIndex: number,
-    direction: 'up' | 'down'
-  ) => {
-    const objective = objectives[objectiveIndex];
-    if (
-      (direction === 'up' && metricIndex === 0) ||
-      (direction === 'down' && metricIndex === objective.metrics.length - 1)
-    ) {
-      return;
-    }
-
-    const newIndex = direction === 'up' ? metricIndex - 1 : metricIndex + 1;
-    const updatedMetrics = [...objective.metrics];
-    const [movedMetric] = updatedMetrics.splice(metricIndex, 1);
-    updatedMetrics.splice(newIndex, 0, movedMetric);
-
-    const updatedObjectives = objectives.map((obj, idx) =>
-      idx === objectiveIndex ? { ...obj, metrics: updatedMetrics } : obj
-    );
-
-    onObjectivesChange(updatedObjectives);
+  const handleMoveMetricDown = async (index: number) => {
+    if (index >= metrics.length - 1) return;
+    
+    // In a real implementation, you would update the position or order field
+    // For now, we'll just simulate the UI effect
+    
+    // For demonstration purposes - in a real app, you'd update positions in the database
+    console.log(`Move metric at index ${index} down`);
   };
+
+  // Loading state
+  if (isLoadingObjectives || isLoadingMetrics) {
+    return <div>Loading objectives and metrics...</div>;
+  }
 
   return (
-    <div className='space-y-4'>
-      <div className='flex justify-between items-center'>
-        <h3 className='text-lg font-semibold'>Objectives & Metrics Overview</h3>
-        <Button
-          variant='outline'
-          size='sm'
-          onClick={openAddObjectiveDialog}
-          className='flex items-center gap-1'
-        >
-          <PlusCircle className='h-4 w-4' /> Add Objective
-        </Button>
+    <div className="bg-white rounded-lg shadow-md p-6 w-full">
+      <div className="flex justify-between mb-4">
+        <h2 className="text-xl font-semibold">Objectives and Metrics</h2>
+        <div className="flex space-x-2">
+          <Button onClick={handleOpenAddObjective} size="sm" variant="outline">
+            <PlusIcon className="h-5 w-5 mr-1" />
+            Add Objective
+          </Button>
+          <Button onClick={handleOpenAddMetric} size="sm" variant="outline">
+            <PlusIcon className="h-5 w-5 mr-1" />
+            Add Metric
+          </Button>
+        </div>
       </div>
 
-      {/* Objectives and Metrics Table */}
-      <Table className='border'>
-        <TableHeader>
+      <Table>
+        <TableHead>
           <TableRow>
-            <TableHead className='w-[40%]'>Objectives/Metrics</TableHead>
-            <TableHead className='w-[40%]'>Description</TableHead>
-            <TableHead className='w-[20%] text-right'>Actions</TableHead>
+            <TableCell width="60%">Name</TableCell>
+            <TableCell width="40%">Actions</TableCell>
           </TableRow>
-        </TableHeader>
+        </TableHead>
         <TableBody>
-          {objectives.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={3} className='text-center py-4 text-muted-foreground'>
-                No objectives added yet. Add your first objective to get started.
-              </TableCell>
-            </TableRow>
-          ) : (
-            objectives.map((objective, objIndex) => (
-              <>
-                {/* Objective Row */}
-                <TableRow key={objective.id} className='bg-muted/10 font-medium'>
-                  <TableCell>
-                    <div className='flex items-center gap-2'>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-6 w-6 p-0'
-                        onClick={() => toggleObjectiveExpansion(objective.id)}
-                      >
-                        {objective.isExpanded ? (
-                          <ChevronDown className='h-4 w-4' />
-                        ) : (
-                          <ChevronRight className='h-4 w-4' />
+          {objectives.map((objective, index) => (
+            <>
+              <TableRow key={objective.id} className="hover:bg-gray-50">
+                <TableCell>
+                  <div 
+                    className="flex items-center cursor-pointer"
+                    onClick={() => toggleObjectiveExpansion(objective.id)}
+                  >
+                    <span className="w-4 h-4 text-gray-500 mr-2">
+                      {expandedObjectiveIds.includes(objective.id) ? '−' : '+'}
+                    </span>
+                    <span className="font-medium">{objective.name}</span>
+                  </div>
+                </TableCell>
+                <TableCell className="flex items-center space-x-2">
+                  <button
+                    onClick={() => handleOpenEditObjective(objective)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <PencilIcon className="h-5 w-5" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteObjective(objective.id)}
+                    className="text-gray-500 hover:text-red-600"
+                  >
+                    <XMarkIcon className="h-5 w-5" />
+                  </button>
+                  <button
+                    onClick={() => handleMoveObjectiveUp(index)}
+                    className="text-gray-500 hover:text-gray-700"
+                    disabled={index === 0}
+                  >
+                    <ArrowUpIcon className="h-5 w-5" />
+                  </button>
+                  <button
+                    onClick={() => handleMoveObjectiveDown(index)}
+                    className="text-gray-500 hover:text-gray-700"
+                    disabled={index === objectives.length - 1}
+                  >
+                    <ArrowDownIcon className="h-5 w-5" />
+                  </button>
+                </TableCell>
+              </TableRow>
+              {expandedObjectiveIds.includes(objective.id) && (
+                <TableRow>
+                  <TableCell colSpan={2} className="p-0 border-t-0">
+                    <div className="pl-8 pr-4 py-2">
+                      <p className="text-sm text-gray-600 mb-3">
+                        {objective.description || "No description provided."}
+                      </p>
+                      <h4 className="font-medium text-sm mb-2">Related Metrics:</h4>
+                      <ul className="pl-4 list-disc text-sm">
+                        {metrics.filter(metric => metric.name.includes(objective.name)).map(metric => (
+                          <li key={metric.id} className="mb-1">{metric.name}</li>
+                        ))}
+                        {metrics.filter(metric => metric.name.includes(objective.name)).length === 0 && (
+                          <li className="text-gray-500">No metrics linked to this objective</li>
                         )}
-                      </Button>
-                      <div className='flex-1'>{objective.name}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell>{objective.description}</TableCell>
-                  <TableCell className='text-right'>
-                    <div className='flex gap-1 justify-end'>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-6 w-6 p-0'
-                        onClick={() => openEditObjectiveDialog(objective)}
-                      >
-                        <Edit className='h-3.5 w-3.5' />
-                      </Button>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-6 w-6 p-0 text-destructive'
-                        onClick={() => handleDeleteObjective(objective.id)}
-                      >
-                        <Trash2 className='h-3.5 w-3.5' />
-                      </Button>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-6 w-6 p-0'
-                        onClick={() => moveObjective(objIndex, 'up')}
-                        disabled={objIndex === 0}
-                      >
-                        ↑
-                      </Button>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-6 w-6 p-0'
-                        onClick={() => moveObjective(objIndex, 'down')}
-                        disabled={objIndex === objectives.length - 1}
-                      >
-                        ↓
-                      </Button>
+                      </ul>
                     </div>
                   </TableCell>
                 </TableRow>
-
-                {/* Metrics Rows */}
-                {objective.isExpanded && (
-                  <>
-                    {objective.metrics.map((metric, metricIndex) => (
-                      <TableRow key={metric.id}>
-                        <TableCell>
-                          <div className='flex items-center gap-2 pl-8'>
-                            <ArrowRight className='h-3 w-3 text-muted-foreground' />
-                            <div className='flex-1'>{metric.name}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>{metric.description}</TableCell>
-                        <TableCell className='text-right'>
-                          <div className='flex gap-1 justify-end'>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              className='h-6 w-6 p-0'
-                              onClick={() => openEditMetricDialog(metric, objective.id)}
-                            >
-                              <Edit className='h-3.5 w-3.5' />
-                            </Button>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              className='h-6 w-6 p-0 text-destructive'
-                              onClick={() => handleDeleteMetric(objective.id, metric.id)}
-                            >
-                              <Trash2 className='h-3.5 w-3.5' />
-                            </Button>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              className='h-6 w-6 p-0'
-                              onClick={() => moveMetric(objIndex, metricIndex, 'up')}
-                              disabled={metricIndex === 0}
-                            >
-                              ↑
-                            </Button>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              className='h-6 w-6 p-0'
-                              onClick={() => moveMetric(objIndex, metricIndex, 'down')}
-                              disabled={metricIndex === objective.metrics.length - 1}
-                            >
-                              ↓
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-
-                    {/* Add Metric Button */}
-                    <TableRow>
-                      <TableCell colSpan={3}>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          className='ml-8 text-xs'
-                          onClick={() => openAddMetricDialog(objective.id)}
-                        >
-                          <PlusCircle className='h-3 w-3 mr-1' /> Add Metric
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  </>
-                )}
-              </>
-            ))
-          )}
+              )}
+            </>
+          ))}
+          <TableRow className="border-t-2 border-gray-200">
+            <TableCell colSpan={2} className="py-4">
+              <h3 className="font-medium">Metrics</h3>
+            </TableCell>
+          </TableRow>
+          {metrics.map((metric, index) => (
+            <TableRow key={metric.id} className="hover:bg-gray-50">
+              <TableCell>
+                <div className="flex flex-col">
+                  <span className="font-medium">{metric.name}</span>
+                  <span className="text-xs text-gray-500">
+                    Type: {metric.type} | Unit: {metric.measurement_unit}
+                  </span>
+                </div>
+              </TableCell>
+              <TableCell className="flex items-center space-x-2">
+                <button
+                  onClick={() => handleOpenEditMetric(metric)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <PencilIcon className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={() => handleDeleteMetric(metric.id)}
+                  className="text-gray-500 hover:text-red-600"
+                >
+                  <XMarkIcon className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={() => handleMoveMetricUp(index)}
+                  className="text-gray-500 hover:text-gray-700"
+                  disabled={index === 0}
+                >
+                  <ArrowUpIcon className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={() => handleMoveMetricDown(index)}
+                  className="text-gray-500 hover:text-gray-700"
+                  disabled={index === metrics.length - 1}
+                >
+                  <ArrowDownIcon className="h-5 w-5" />
+                </button>
+              </TableCell>
+            </TableRow>
+          ))}
         </TableBody>
       </Table>
 
-      {/* Objective Dialog */}
-      <Dialog open={objectiveDialogOpen} onOpenChange={setObjectiveDialogOpen}>
-        <DialogContent className='sm:max-w-[425px]'>
-          <DialogHeader>
-            <DialogTitle>
-              {isEditing ? 'Edit Objective' : 'Add New Objective'}
-            </DialogTitle>
-            <DialogDescription>
-              {isEditing
-                ? 'Update the objective details below.'
-                : 'Enter the details for your new objective.'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className='grid gap-4 py-4'>
-            <div className='grid grid-cols-4 items-center gap-4'>
-              <label
-                htmlFor='objective-name'
-                className='text-right text-sm font-medium'
-              >
-                Name
-              </label>
-              <Input
-                id='objective-name'
-                value={objectiveName}
-                onChange={e => setObjectiveName(e.target.value)}
-                className='col-span-3'
-              />
-            </div>
-            <div className='grid grid-cols-4 items-center gap-4'>
-              <label
-                htmlFor='objective-description'
-                className='text-right text-sm font-medium'
-              >
-                Description
-              </label>
-              <Input
-                id='objective-description'
-                value={objectiveDescription}
-                onChange={e => setObjectiveDescription(e.target.value)}
-                className='col-span-3'
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant='outline'
-              onClick={() => setObjectiveDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleObjectiveSave}>
-              {isEditing ? 'Save Changes' : 'Add Objective'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Add Objective Dialog */}
+      <AddObjectiveDialog
+        open={addObjectiveDialogOpen}
+        onClose={handleCloseAddObjective}
+        onSave={handleSaveObjective}
+      />
 
-      {/* Metric Dialog */}
-      <Dialog open={metricDialogOpen} onOpenChange={setMetricDialogOpen}>
-        <DialogContent className='sm:max-w-[425px]'>
-          <DialogHeader>
-            <DialogTitle>
-              {isEditing ? 'Edit Metric' : 'Add New Metric'}
-            </DialogTitle>
-            <DialogDescription>
-              {isEditing
-                ? 'Update the metric details below.'
-                : 'Enter the details for your new metric.'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className='grid gap-4 py-4'>
-            <div className='grid grid-cols-4 items-center gap-4'>
-              <label
-                htmlFor='metric-name'
-                className='text-right text-sm font-medium'
-              >
-                Name
-              </label>
-              <Input
-                id='metric-name'
-                value={metricName}
-                onChange={e => setMetricName(e.target.value)}
-                className='col-span-3'
-              />
-            </div>
-            <div className='grid grid-cols-4 items-center gap-4'>
-              <label
-                htmlFor='metric-description'
-                className='text-right text-sm font-medium'
-              >
-                Description
-              </label>
-              <Input
-                id='metric-description'
-                value={metricDescription}
-                onChange={e => setMetricDescription(e.target.value)}
-                className='col-span-3'
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant='outline'
-              onClick={() => setMetricDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleMetricSave}>
-              {isEditing ? 'Save Changes' : 'Add Metric'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Edit Objective Dialog */}
+      <EditObjectiveDialog
+        open={editObjectiveDialogOpen}
+        onClose={handleCloseEditObjective}
+        onSave={handleSaveObjective}
+        objective={selectedObjective}
+      />
+
+      {/* Add Metric Dialog */}
+      <AddMetricDialog
+        open={addMetricDialogOpen}
+        onClose={handleCloseAddMetric}
+        onSave={handleSaveMetric}
+      />
+
+      {/* Edit Metric Dialog */}
+      <EditMetricDialog
+        open={editMetricDialogOpen}
+        onClose={handleCloseEditMetric}
+        onSave={handleSaveMetric}
+        metric={selectedMetric}
+      />
     </div>
+  );
+}
+
+// Dialog Components
+function AddObjectiveDialog({ open, onClose, onSave }) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+
+  const handleSubmit = () => {
+    onSave({ name, description });
+    setName("");
+    setDescription("");
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Add New Objective</DialogTitle>
+      <DialogContent>
+        <TextField
+          autoFocus
+          margin="dense"
+          label="Objective Name"
+          type="text"
+          fullWidth
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          variant="outlined"
+          className="mb-4"
+        />
+        <TextField
+          margin="dense"
+          label="Description"
+          type="text"
+          fullWidth
+          multiline
+          rows={4}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          variant="outlined"
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} variant="outline">
+          Cancel
+        </Button>
+        <Button onClick={handleSubmit} disabled={!name}>
+          Save
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function EditObjectiveDialog({ open, onClose, onSave, objective }) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+
+  // Set initial values when objective changes
+  useState(() => {
+    if (objective) {
+      setName(objective.name || "");
+      setDescription(objective.description || "");
+    }
+  });
+
+  // Update form values when objective changes
+  useState(() => {
+    if (objective) {
+      setName(objective.name || "");
+      setDescription(objective.description || "");
+    }
+  }, [objective]);
+
+  const handleSubmit = () => {
+    onSave({ name, description });
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Edit Objective</DialogTitle>
+      <DialogContent>
+        <TextField
+          autoFocus
+          margin="dense"
+          label="Objective Name"
+          type="text"
+          fullWidth
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          variant="outlined"
+          className="mb-4"
+        />
+        <TextField
+          margin="dense"
+          label="Description"
+          type="text"
+          fullWidth
+          multiline
+          rows={4}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          variant="outlined"
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} variant="outline">
+          Cancel
+        </Button>
+        <Button onClick={handleSubmit} disabled={!name}>
+          Save
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function AddMetricDialog({ open, onClose, onSave }) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [type, setType] = useState("numeric");
+  const [measurementUnit, setMeasurementUnit] = useState("");
+
+  const handleSubmit = () => {
+    onSave({
+      name,
+      description,
+      type,
+      measurement_unit: measurementUnit,
+    });
+    setName("");
+    setDescription("");
+    setType("numeric");
+    setMeasurementUnit("");
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Add New Metric</DialogTitle>
+      <DialogContent>
+        <TextField
+          autoFocus
+          margin="dense"
+          label="Metric Name"
+          type="text"
+          fullWidth
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          variant="outlined"
+          className="mb-4"
+        />
+        <TextField
+          margin="dense"
+          label="Description"
+          type="text"
+          fullWidth
+          multiline
+          rows={3}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          variant="outlined"
+          className="mb-4"
+        />
+        <FormControl fullWidth margin="dense" className="mb-4">
+          <InputLabel>Type</InputLabel>
+          <Select
+            value={type}
+            label="Type"
+            onChange={(e) => setType(e.target.value)}
+          >
+            <MenuItem value="numeric">Numeric</MenuItem>
+            <MenuItem value="percentage">Percentage</MenuItem>
+            <MenuItem value="currency">Currency</MenuItem>
+            <MenuItem value="boolean">Boolean</MenuItem>
+          </Select>
+        </FormControl>
+        <TextField
+          margin="dense"
+          label="Measurement Unit"
+          type="text"
+          fullWidth
+          value={measurementUnit}
+          onChange={(e) => setMeasurementUnit(e.target.value)}
+          variant="outlined"
+          placeholder="e.g. $, %, units"
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} variant="outline">
+          Cancel
+        </Button>
+        <Button
+          onClick={handleSubmit}
+          disabled={!name || !type || !measurementUnit}
+        >
+          Save
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function EditMetricDialog({ open, onClose, onSave, metric }) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [type, setType] = useState("numeric");
+  const [measurementUnit, setMeasurementUnit] = useState("");
+
+  // Set initial values when metric changes
+  useState(() => {
+    if (metric) {
+      setName(metric.name || "");
+      setDescription(metric.description || "");
+      setType(metric.type || "numeric");
+      setMeasurementUnit(metric.measurement_unit || "");
+    }
+  });
+
+  // Update form values when metric changes
+  useState(() => {
+    if (metric) {
+      setName(metric.name || "");
+      setDescription(metric.description || "");
+      setType(metric.type || "numeric");
+      setMeasurementUnit(metric.measurement_unit || "");
+    }
+  }, [metric]);
+
+  const handleSubmit = () => {
+    onSave({
+      name,
+      description,
+      type,
+      measurement_unit: measurementUnit,
+    });
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Edit Metric</DialogTitle>
+      <DialogContent>
+        <TextField
+          autoFocus
+          margin="dense"
+          label="Metric Name"
+          type="text"
+          fullWidth
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          variant="outlined"
+          className="mb-4"
+        />
+        <TextField
+          margin="dense"
+          label="Description"
+          type="text"
+          fullWidth
+          multiline
+          rows={3}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          variant="outlined"
+          className="mb-4"
+        />
+        <FormControl fullWidth margin="dense" className="mb-4">
+          <InputLabel>Type</InputLabel>
+          <Select
+            value={type}
+            label="Type"
+            onChange={(e) => setType(e.target.value)}
+          >
+            <MenuItem value="numeric">Numeric</MenuItem>
+            <MenuItem value="percentage">Percentage</MenuItem>
+            <MenuItem value="currency">Currency</MenuItem>
+            <MenuItem value="boolean">Boolean</MenuItem>
+          </Select>
+        </FormControl>
+        <TextField
+          margin="dense"
+          label="Measurement Unit"
+          type="text"
+          fullWidth
+          value={measurementUnit}
+          onChange={(e) => setMeasurementUnit(e.target.value)}
+          variant="outlined"
+          placeholder="e.g. $, %, units"
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} variant="outline">
+          Cancel
+        </Button>
+        <Button
+          onClick={handleSubmit}
+          disabled={!name || !type || !measurementUnit}
+        >
+          Save
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }

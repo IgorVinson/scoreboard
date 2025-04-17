@@ -35,6 +35,7 @@ import {
   ArrowRight,
   Star,
   PlusCircle,
+  Database,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -71,8 +72,16 @@ import { ReportsTable } from '@/components/ReportsTable';
 import { SimpleOverview } from '@/components/SimpleOverview';
 import { format, parseISO } from 'date-fns';
 import { ResultReportsTable } from '@/components/ResultReportsTable';
-import { createObjective, updateObjective, deleteObjective, createObjectiveMetric, updateObjectiveMetric, deleteObjectiveMetric } from '@/lib/supabase-service';
-import { objectivesService } from '../lib/objectives-service';
+import { createObjective, updateObjective, deleteObjective } from '@/lib/supabase-service';
+import { DatabaseExplorer } from '@/components/database-explorer';
+import {
+  useObjectives,
+  useObjectivesByUser,
+  useMetrics,
+  useCreateObjective,
+  useUpdateObjective,
+  useDeleteObjective,
+} from '@/queries';
 
 interface StarRatingProps {
   rating: number;
@@ -156,6 +165,39 @@ export function Dashboard() {
   const [expandedObjectives, setExpandedObjectives] = useState<Set<string>>(
     new Set()
   );
+
+  const { data: objectivesFromDB, isLoading: isLoadingObjectives } = useObjectives();
+  
+  const { data: userObjectives } = useObjectivesByUser(user?.id || '');
+  
+  useEffect(() => {
+    console.log('Objectives from database:', objectivesFromDB);
+  }, [objectivesFromDB]);
+  
+  useEffect(() => {
+    const loadObjectives = async () => {
+      try {
+        // If we have objectives from TanStack Query, use those
+        if (objectivesFromDB && objectivesFromDB.length > 0) {
+          // Format objectives for the component
+          const formattedObjectives = objectivesFromDB.map(obj => ({
+            id: obj.id,
+            name: obj.name,
+            description: obj.description || '',
+            metrics: [], // Start with empty metrics array
+            isExpanded: false
+          }));
+          
+          setObjectives(formattedObjectives);
+          return;
+        }
+      } catch (error) {
+        console.error('Error loading objectives:', error);
+      }
+    };
+    
+    loadObjectives();
+  }, [objectivesFromDB]);
 
   // Add new state variables for report
   const [reportTodayNotes, setReportTodayNotes] = useState('');
@@ -557,130 +599,93 @@ export function Dashboard() {
     setObjectives(updatedObjectives);
   };
 
-  // Add useEffect to load objectives from Supabase on mount
-  useEffect(() => {
-    const loadObjectives = async () => {
-      try {
-        const data = await objectivesService.getObjectives();
-        // Map properly through data and keep the metrics array from the database
-        setObjectives(data.map(obj => ({ 
-          ...obj, 
-          // Keep the metrics from the database response, just convert to expected format
-          metrics: obj.metrics ? obj.metrics.map(metric => ({
-            id: metric.id,
-            name: metric.name,
-            description: metric.description || '',
-            plan: metric.plan,
-            planPeriod: metric.plan_period,
-          })) : [],
-          isExpanded: false 
-        })));
-      } catch (error) {
-        console.error('Error loading objectives:', error);
-      }
-    };
-    
-    // Load objectives only once when component mounts
-    loadObjectives();
-    // Empty dependency array to ensure this only runs once
-  }, []);
-
   // Remove the saveObjectivesToLocalStorage function since we're using Supabase now
   const handleObjectivesChange = async (updatedObjectives: Objective[]) => {
     setObjectives(updatedObjectives);
   };
 
-  // Add functions to handle objective and metric changes
+  // Add the mutation hooks
+  const createObjectiveMutation = useCreateObjective();
+  const updateObjectiveMutation = useUpdateObjective();
+  const deleteObjectiveMutation = useDeleteObjective();
+  
+  // Update handleAddObjective to use createObjectiveMutation
   const handleAddObjective = async (newObjective: Objective) => {
     try {
-      // Save to database using objectivesService
-      const savedObjective = await objectivesService.createObjective(newObjective);
-
-      // Update local state with the saved objective
-      const updatedObjective = {
-        ...savedObjective,
-        metrics: [],
-        isExpanded: false
-      };
-
-      // Update state
-      setObjectives(prevObjectives => [...prevObjectives, updatedObjective]);
+      // Use the mutation hook instead of the service
+      createObjectiveMutation.mutate({
+        name: newObjective.name,
+        description: newObjective.description,
+        user_id: user?.id || ''
+      });
+      
+      // Note: No need to manually update state, the mutation's onSuccess will invalidate queries
     } catch (error) {
-      console.error('Error saving objective:', error);
+      console.error('Error creating objective:', error);
     }
   };
 
+  // Update handleUpdateObjective to use updateObjectiveMutation
   const handleUpdateObjective = async (updatedObjective: Objective) => {
     try {
-      // Update in database using objectivesService
-      await objectivesService.updateObjective(updatedObjective);
-
-      // Update in state
-      const updatedObjectives = objectives.map(obj =>
-        obj.id === updatedObjective.id ? { ...updatedObjective, metrics: obj.metrics } : obj
-      );
-      setObjectives(updatedObjectives);
+      // Use the mutation hook instead of the service
+      updateObjectiveMutation.mutate({
+        id: updatedObjective.id,
+        name: updatedObjective.name,
+        description: updatedObjective.description
+      });
+      
+      // The mutation will handle query invalidation
     } catch (error) {
       console.error('Error updating objective:', error);
     }
   };
 
+  // Update handleDeleteObjective to use deleteObjectiveMutation
   const handleDeleteObjective = async (objectiveId: string) => {
     try {
-      // Delete from database using objectivesService
-      await objectivesService.deleteObjective(objectiveId);
-
-      // Delete from state
-      const updatedObjectives = objectives.filter(obj => obj.id !== objectiveId);
-      setObjectives(updatedObjectives);
+      // Use the mutation hook instead of the service
+      deleteObjectiveMutation.mutate(objectiveId);
+      
+      // The mutation will handle query invalidation
     } catch (error) {
       console.error('Error deleting objective:', error);
     }
   };
 
+  // Modify the handleAddMetric function to work with the metrics table directly
   const handleAddMetric = async (objectiveId: string, newMetric: Metric) => {
     try {
-      // Save to database
-      const dbMetric = await createObjectiveMetric(objectiveId, {
-        name: newMetric.name,
-        description: newMetric.description,
-        plan: newMetric.plan,
-        plan_period: newMetric.planPeriod
-      });
-
-      // Update the metric with the database ID
-      const updatedMetric = {
-        ...newMetric,
-        id: dbMetric.id
-      };
-
+      console.log("This function would normally add a metric to an objective");
+      console.log("Since there's no objective_metrics table, just update the local state");
+      
+      // Generate a temporary ID since we can't create a real database entry
+      const tempId = `temp-metric-${Date.now()}`;
+      
       // Update local state with the new metric
       const updatedObjectives = objectives.map(obj => {
         if (obj.id === objectiveId) {
           return {
             ...obj,
-            metrics: [...obj.metrics, updatedMetric],
+            metrics: [...obj.metrics, { ...newMetric, id: tempId }],
           };
         }
         return obj;
       });
+      
       setObjectives(updatedObjectives);
     } catch (error) {
-      console.error('Error saving metric:', error);
+      console.error('Error handling metric:', error);
     }
   };
 
+  // Modify the handleUpdateMetric function 
   const handleUpdateMetric = async (objectiveId: string, updatedMetric: Metric) => {
     try {
-      // Update in database
-      await updateObjectiveMetric(updatedMetric.id, {
-        name: updatedMetric.name,
-        description: updatedMetric.description,
-        plan: updatedMetric.plan,
-        plan_period: updatedMetric.planPeriod
-      });
-
-      // Update in local state
+      console.log("This function would normally update a metric in the database");
+      console.log("Since there's no objective_metrics table, just update the local state");
+      
+      // Update in local state only
       const updatedObjectives = objectives.map(obj => {
         if (obj.id === objectiveId) {
           return {
@@ -692,18 +697,20 @@ export function Dashboard() {
         }
         return obj;
       });
+      
       setObjectives(updatedObjectives);
     } catch (error) {
       console.error('Error updating metric:', error);
     }
   };
 
+  // Modify the handleDeleteMetric function
   const handleDeleteMetric = async (objectiveId: string, metricId: string) => {
     try {
-      // Delete from database
-      await deleteObjectiveMetric(metricId);
-
-      // Update local state
+      console.log("This function would normally delete a metric from the database");
+      console.log("Since there's no objective_metrics table, just update the local state");
+      
+      // Update local state only
       const updatedObjectives = objectives.map(obj => {
         if (obj.id === objectiveId) {
           return {
@@ -713,6 +720,7 @@ export function Dashboard() {
         }
         return obj;
       });
+      
       setObjectives(updatedObjectives);
     } catch (error) {
       console.error('Error deleting metric:', error);

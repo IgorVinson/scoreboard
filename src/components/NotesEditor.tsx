@@ -255,7 +255,7 @@ export function NotesEditor({
         editorProps={editorProps}
         onUpdate={handleUpdate}
       />
-      <style jsx global>{`
+      <style>{`
         /* Editor container */
         .editor-wrapper {
           border: 1px solid #ccc;
