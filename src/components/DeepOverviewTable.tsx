@@ -39,7 +39,7 @@ import {
   Target,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Objective, Metric } from '@/lib/types';
+import { Objective, Metric } from '@/components/ObjectivesMetricsTable';
 import { Textarea } from '@/components/ui/textarea';
 import {
   format,
