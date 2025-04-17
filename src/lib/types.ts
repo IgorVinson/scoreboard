@@ -38,7 +38,8 @@ export interface Metric {
   description?: string;
   type: string;
   measurement_unit: string;
-  company_id: string;
+  objective_id: string;
+  company_id?: string;
   created_at: string;
   updated_at: string;
 }

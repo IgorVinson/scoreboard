@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Table,
   TableBody,
@@ -37,11 +37,21 @@ import {
   Edit,
   ArrowRight,
   Target,
+  Loader2,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Objective, Metric } from '@/lib/types';
 import { Textarea } from '@/components/ui/textarea';
-import { useCreateObjective, useUpdateObjective, useDeleteObjective } from '@/queries';
+import { 
+  useCreateObjective, 
+  useUpdateObjective, 
+  useDeleteObjective,
+  useCreateMetric,
+  useUpdateMetric,
+  useDeleteMetric,
+  useMetricsByObjective,
+  useMetrics
+} from '@/queries';
 import {
   format,
   startOfWeek,
@@ -70,6 +80,7 @@ import {
 // import { Calendar as CalendarIcon } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/auth-context';
+import { useQueryClient } from '@tanstack/react-query';
 
 // Local extended interface for a simplified metric with UI specific properties
 interface UIMetric {
@@ -98,10 +109,16 @@ export function DeepOverviewTable({
   onObjectivesChange,
   reports = [], // Default to empty array if not provided
 }: DeepOverviewTableProps) {
+  // Get access to the query client for manual cache invalidation
+  const queryClient = useQueryClient();
+
   // Get the mutation hooks
   const createObjectiveMutation = useCreateObjective();
   const updateObjectiveMutation = useUpdateObjective();
   const deleteObjectiveMutation = useDeleteObjective();
+  const createMetricMutation = useCreateMetric();
+  const updateMetricMutation = useUpdateMetric();
+  const deleteMetricMutation = useDeleteMetric();
   const { user } = useAuth();
   
   // Dialog states
@@ -133,6 +150,96 @@ export function DeepOverviewTable({
   const [objectiveName, setObjectiveName] = useState('');
   const [objectiveDescription, setObjectiveDescription] = useState('');
 
+  // Fetch all metrics to populate the objectives
+  const { data: allMetrics, isLoading: isLoadingMetrics, refetch: refetchMetrics } = useMetrics();
+  
+  // Add this state to track optimistic loading without hiding the table
+  const [optimisticLoading, setOptimisticLoading] = useState(false);
+
+  // Modify the refreshData function to use our optimistic loading state
+  const refreshData = useCallback(() => {
+    console.log('Refreshing metrics data...');
+    
+    // Don't hide the whole table during refresh
+    setOptimisticLoading(true);
+    
+    // Force reset the cache completely by removing the metrics query data first
+    queryClient.removeQueries({ queryKey: ['metrics'] });
+    
+    // Then refetch - this forces a complete reload from the server
+    refetchMetrics().then(result => {
+      console.log('Metrics refetch completed:', result.data?.length, 'metrics loaded');
+      
+      if (result.data) {
+        // Also directly update the cache with the fresh data
+        queryClient.setQueryData(['metrics', 'all'], result.data);
+      }
+      setOptimisticLoading(false);
+    }).catch(error => {
+      console.error('Error refreshing metrics:', error);
+      setOptimisticLoading(false);
+    });
+  }, [refetchMetrics, queryClient]);
+
+  // Effect to merge metrics from the database with local objectives
+  useEffect(() => {
+    // Skip if no metrics or still loading
+    if (!allMetrics || isLoadingMetrics) {
+      return;
+    }
+    
+    console.log('Processing metrics from database:', allMetrics.length, 'metrics');
+    
+    // Create a map of metrics by objective_id for easier lookup
+    const metricsByObjective: Record<string, UIMetric[]> = {};
+    allMetrics.forEach(metric => {
+      if (!metricsByObjective[metric.objective_id]) {
+        metricsByObjective[metric.objective_id] = [];
+      }
+      
+      // Convert DB metric to UI metric
+      metricsByObjective[metric.objective_id].push({
+        id: metric.id,
+        name: metric.name,
+        description: metric.description,
+        plan: undefined, 
+        actual: undefined,
+        planPeriod: undefined
+      });
+    });
+    
+    // Update objectives with metrics from the database
+    const updatedObjectives = objectives.map(obj => {
+      // If we have metrics for this objective, use them
+      if (metricsByObjective[obj.id]) {
+        return {
+          ...obj,
+          metrics: metricsByObjective[obj.id]
+        };
+      }
+      // Otherwise keep the existing metrics (if any)
+      return obj;
+    });
+    
+    // Only update if there's actually a change
+    const currentMetricsCount = objectives.reduce(
+      (count, obj) => count + obj.metrics.length, 
+      0
+    );
+    
+    const newMetricsCount = updatedObjectives.reduce(
+      (count, obj) => count + obj.metrics.length, 
+      0
+    );
+    
+    console.log(`Current metrics: ${currentMetricsCount}, New metrics: ${newMetricsCount}`);
+    
+    if (currentMetricsCount !== newMetricsCount) {
+      console.log('Updating objectives with new metrics data');
+      onObjectivesChange(updatedObjectives);
+    }
+  }, [allMetrics, isLoadingMetrics, objectives, onObjectivesChange]);
+
   // Toggle objective expansion
   const toggleObjectiveExpansion = (objectiveId: string) => {
     const updatedObjectives = objectives.map(obj =>
@@ -142,7 +249,7 @@ export function DeepOverviewTable({
   };
 
   // Open dialog to edit a metric's plan and actual values
-  const openEditMetricDialog = (metric: Metric, objectiveId: string) => {
+  const openEditMetricDialog = (metric: UIMetric, objectiveId: string) => {
     setMetricName(metric.name);
     setMetricDescription(metric.description || '');
     setCurrentMetricId(metric.id);
@@ -153,50 +260,173 @@ export function DeepOverviewTable({
 
   // Handle metric save
   const handleMetricSave = () => {
-    if (!currentObjectiveId) return;
+    if (!currentObjectiveId || !user) return;
+
+    // Set loading state
+    setOptimisticLoading(true);
 
     if (isEditing && currentMetricId) {
-      // Update existing metric
-      const updatedObjectives = objectives.map(obj => {
-        if (obj.id === currentObjectiveId) {
-          return {
-            ...obj,
-            metrics: obj.metrics.map(m =>
-              m.id === currentMetricId
-                ? {
-                    ...m,
-                    name: metricName,
-                    description: metricDescription,
-                  }
-                : m
-            ),
-          };
-        }
-        return obj;
-      });
-
-      onObjectivesChange(updatedObjectives);
+      // Update existing metric in database
+      try {
+        console.log('Updating metric in database:', {
+          id: currentMetricId,
+          name: metricName,
+          description: metricDescription,
+        });
+        
+        // Apply optimistic update immediately
+        const updatedObjectives = objectives.map(obj => {
+          if (obj.id === currentObjectiveId) {
+            return {
+              ...obj,
+              metrics: obj.metrics.map(m =>
+                m.id === currentMetricId
+                  ? {
+                      ...m,
+                      name: metricName,
+                      description: metricDescription,
+                    }
+                  : m
+              ),
+            };
+          }
+          return obj;
+        });
+        
+        onObjectivesChange(updatedObjectives);
+        
+        updateMetricMutation.mutate({
+          id: currentMetricId,
+          name: metricName,
+          description: metricDescription,
+        }, {
+          onSuccess: (updatedMetric) => {
+            console.log('Successfully updated metric in database:', updatedMetric);
+            
+            // Manually invalidate the queries to force a refresh
+            queryClient.invalidateQueries({ queryKey: ['metrics'] });
+            
+            // No need to update state again since we did it optimistically
+            setOptimisticLoading(false);
+          },
+          onError: (error) => {
+            console.error('Error updating metric:', error);
+            alert('Failed to update metric: ' + (error instanceof Error ? error.message : String(error)));
+            setOptimisticLoading(false);
+          }
+        });
+      } catch (error) {
+        console.error('Error in metric update:', error);
+        alert('An unexpected error occurred');
+        setOptimisticLoading(false);
+      }
     } else {
-      // Add new metric
-      const newMetric = {
-        id: `metric-${Date.now()}`,
+      // Add new metric optimistically with a temporary ID
+      const tempId = `temp-${Date.now()}`; 
+      
+      // Create a temporary metric for immediate UI update
+      const newTempMetric = {
+        id: tempId,
         name: metricName,
         description: metricDescription,
         plan: undefined,
         actual: undefined,
       };
-
+      
+      // Add it optimistically to the objective
       const updatedObjectives = objectives.map(obj => {
         if (obj.id === currentObjectiveId) {
           return {
             ...obj,
-            metrics: [...obj.metrics, newMetric],
+            metrics: [...obj.metrics, newTempMetric],
           };
         }
         return obj;
       });
-
+      
       onObjectivesChange(updatedObjectives);
+      
+      try {
+        console.log('Creating metric in database:', {
+          name: metricName,
+          description: metricDescription,
+          objective_id: currentObjectiveId,
+        });
+        
+        createMetricMutation.mutate({
+          name: metricName,
+          description: metricDescription,
+          objective_id: currentObjectiveId,
+          type: 'NUMERIC', // Default type
+          measurement_unit: 'NUMBER', // Default measurement unit
+        }, {
+          onSuccess: (newMetric) => {
+            console.log('Successfully created metric in database:', newMetric);
+            
+            // Manually invalidate the queries to force a refresh
+            queryClient.invalidateQueries({ queryKey: ['metrics'] });
+            
+            // Replace temp metric with the real one
+            const finalObjectives = objectives.map(obj => {
+              if (obj.id === currentObjectiveId) {
+                return {
+                  ...obj,
+                  metrics: obj.metrics.map(m => 
+                    m.id === tempId 
+                      ? {
+                          id: newMetric.id,
+                          name: newMetric.name,
+                          description: newMetric.description,
+                          plan: undefined,
+                          actual: undefined,
+                        }
+                      : m
+                  ),
+                };
+              }
+              return obj;
+            });
+            
+            onObjectivesChange(finalObjectives);
+            setOptimisticLoading(false);
+          },
+          onError: (error) => {
+            console.error('Error creating metric:', error);
+            alert('Failed to create metric: ' + (error instanceof Error ? error.message : String(error)));
+            
+            // Remove the temporary metric on error
+            const fallbackObjectives = objectives.map(obj => {
+              if (obj.id === currentObjectiveId) {
+                return {
+                  ...obj,
+                  metrics: obj.metrics.filter(m => m.id !== tempId),
+                };
+              }
+              return obj;
+            });
+            
+            onObjectivesChange(fallbackObjectives);
+            setOptimisticLoading(false);
+          }
+        });
+      } catch (error) {
+        console.error('Error in metric creation:', error);
+        alert('An unexpected error occurred');
+        
+        // Remove the temporary metric on error
+        const fallbackObjectives = objectives.map(obj => {
+          if (obj.id === currentObjectiveId) {
+            return {
+              ...obj,
+              metrics: obj.metrics.filter(m => m.id !== tempId),
+            };
+          }
+          return obj;
+        });
+        
+        onObjectivesChange(fallbackObjectives);
+        setOptimisticLoading(false);
+      }
     }
 
     setMetricDialogOpen(false);
@@ -213,44 +443,82 @@ export function DeepOverviewTable({
   };
 
   // Handle confirmed delete
-  const handleConfirmedDelete = () => {
+  const handleConfirmedDelete = async () => {
     if (!itemToDelete) return;
 
     let updatedObjectives = [...objectives];
 
     if (itemToDelete.type === 'objective') {
-      // Delete the objective from the database first
-      deleteObjectiveMutation.mutate(itemToDelete.objectiveId, {
+      // Get all metrics for this objective
+      const objectiveToDelete = objectives.find(obj => obj.id === itemToDelete.objectiveId);
+      if (!objectiveToDelete) {
+        setDeleteConfirmOpen(false);
+        setItemToDelete(null);
+        return;
+      }
+
+      // Set loading state 
+      setOptimisticLoading(true);
+      
+      try {
+        // First delete all metrics associated with this objective
+        const metricIds = objectiveToDelete.metrics.map(metric => metric.id);
+        
+        // Delete metrics one by one
+        for (const metricId of metricIds) {
+          await deleteMetricMutation.mutateAsync(metricId);
+        }
+        
+        // Then delete the objective
+        await deleteObjectiveMutation.mutateAsync(itemToDelete.objectiveId);
+        
+        console.log('Successfully deleted objective and its metrics from database');
+        
+        // Filter out the deleted objective from local state
+        updatedObjectives = updatedObjectives.filter(
+          obj => obj.id !== itemToDelete.objectiveId
+        );
+        
+        // Update state through parent component
+        onObjectivesChange(updatedObjectives);
+      } catch (error) {
+        console.error('Error deleting objective or its metrics:', error);
+        alert('Failed to delete: ' + (error instanceof Error ? error.message : String(error)));
+      } finally {
+        setOptimisticLoading(false);
+      }
+    } else if (itemToDelete.type === 'metric' && itemToDelete.metricId) {
+      // Delete the metric from the database
+      setOptimisticLoading(true);
+      
+      deleteMetricMutation.mutate(itemToDelete.metricId, {
         onSuccess: () => {
-          console.log('Successfully deleted objective from database');
+          console.log('Successfully deleted metric from database');
           
-          // Then filter out the deleted objective from local state
-          updatedObjectives = updatedObjectives.filter(
-            obj => obj.id !== itemToDelete.objectiveId
-          );
+          // Manually invalidate the queries to force a refresh
+          queryClient.invalidateQueries({ queryKey: ['metrics'] });
+          
+          // Then filter out the deleted metric from the specific objective in local state
+          updatedObjectives = updatedObjectives.map(obj => {
+            if (obj.id === itemToDelete.objectiveId) {
+              return {
+                ...obj,
+                metrics: obj.metrics.filter(m => m.id !== itemToDelete.metricId),
+              };
+            }
+            return obj;
+          });
           
           // Update state through parent component
           onObjectivesChange(updatedObjectives);
+          setOptimisticLoading(false);
         },
         onError: (error) => {
-          console.error('Error deleting objective:', error);
-          alert('Failed to delete objective: ' + (error instanceof Error ? error.message : String(error)));
+          console.error('Error deleting metric:', error);
+          alert('Failed to delete metric: ' + (error instanceof Error ? error.message : String(error)));
+          setOptimisticLoading(false);
         }
       });
-    } else if (itemToDelete.type === 'metric' && itemToDelete.metricId) {
-      // Filter out the deleted metric from the specific objective
-      updatedObjectives = updatedObjectives.map(obj => {
-        if (obj.id === itemToDelete.objectiveId) {
-          return {
-            ...obj,
-            metrics: obj.metrics.filter(m => m.id !== itemToDelete.metricId),
-          };
-        }
-        return obj;
-      });
-      
-      // Update state through parent component
-      onObjectivesChange(updatedObjectives);
     }
 
     // Close the confirmation dialog
@@ -441,6 +709,7 @@ export function DeepOverviewTable({
                 ? { ...obj, name: objectiveName, description: objectiveDescription }
                 : obj
             );
+            
             onObjectivesChange(updatedObjectives);
           },
           onError: (error) => {
@@ -469,6 +738,7 @@ export function DeepOverviewTable({
               metrics: [], // Add the metrics property
               isExpanded: true
             };
+            
             onObjectivesChange([...objectives, newObjectiveLocal]);
           },
           onError: (error) => {
@@ -913,254 +1183,272 @@ export function DeepOverviewTable({
         </div>
       </div>
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className='w-[30%]'>Objectives/Metrics</TableHead>
-            <TableHead className='w-[20%]'>Description</TableHead>
-            <TableHead className='text-right'>Plan</TableHead>
-            <TableHead className='text-right'>Actual</TableHead>
-            <TableHead className='text-center'>Deviation</TableHead>
-            <TableHead className='text-center w-[150px]'>Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {objectives.length === 0 ? (
+      <div className="relative">
+        {optimisticLoading && (
+          <div className="absolute top-2 right-2 z-10 flex items-center gap-2 text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Updating metrics...
+          </div>
+        )}
+        
+        <Table>
+          <TableHeader>
             <TableRow>
-              <TableCell
-                colSpan={6}
-                className='text-center py-4 text-muted-foreground'
-              >
-                No objectives added yet. Add objectives in the Overview tab.
-              </TableCell>
+              <TableHead className='w-[30%]'>Objectives/Metrics</TableHead>
+              <TableHead className='w-[20%]'>Description</TableHead>
+              <TableHead className='text-right'>Plan</TableHead>
+              <TableHead className='text-right'>Actual</TableHead>
+              <TableHead className='text-center'>Deviation</TableHead>
+              <TableHead className='text-center w-[150px]'>Actions</TableHead>
             </TableRow>
-          ) : (
-            objectives.map((objective, objIndex) => (
-              <>
-                <TableRow
-                  key={objective.id}
-                  className='bg-muted/10 font-medium'
+          </TableHeader>
+          <TableBody>
+            {isLoadingMetrics && !optimisticLoading && objectives.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={6}
+                  className='text-center py-4 text-muted-foreground'
                 >
-                  <TableCell>
-                    <div className='flex items-center gap-2'>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-6 w-6 p-0'
-                        onClick={() => toggleObjectiveExpansion(objective.id)}
-                      >
-                        {objective.isExpanded ? (
-                          <ChevronDown className='h-4 w-4' />
-                        ) : (
-                          <ChevronRight className='h-4 w-4' />
-                        )}
-                      </Button>
-                      <div className='flex-1 flex items-center'>
-                        {objective.name}
+                  Loading metrics from database...
+                </TableCell>
+              </TableRow>
+            ) : objectives.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={6}
+                  className='text-center py-4 text-muted-foreground'
+                >
+                  No objectives added yet. Add objectives in the Overview tab.
+                </TableCell>
+              </TableRow>
+            ) : (
+              objectives.map((objective, objIndex) => (
+                <>
+                  <TableRow
+                    key={objective.id}
+                    className='bg-muted/10 font-medium'
+                  >
+                    <TableCell>
+                      <div className='flex items-center gap-2'>
                         <Button
                           variant='ghost'
                           size='sm'
-                          className='h-6 w-6 p-0 ml-2'
-                          onClick={() => openEditObjectiveDialog(objective)}
+                          className='h-6 w-6 p-0'
+                          onClick={() => toggleObjectiveExpansion(objective.id)}
                         >
-                          <Edit className='h-3.5 w-3.5' />
+                          {objective.isExpanded ? (
+                            <ChevronDown className='h-4 w-4' />
+                          ) : (
+                            <ChevronRight className='h-4 w-4' />
+                          )}
+                        </Button>
+                        <div className='flex-1 flex items-center'>
+                          {objective.name}
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            className='h-6 w-6 p-0 ml-2'
+                            onClick={() => openEditObjectiveDialog(objective)}
+                          >
+                            <Edit className='h-3.5 w-3.5' />
+                          </Button>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>{objective.description || '-'}</TableCell>
+                    <TableCell className='text-right'>-</TableCell>
+                    <TableCell className='text-right'>-</TableCell>
+                    <TableCell className='text-center'>-</TableCell>
+                    <TableCell>
+                      <div className='flex gap-1 justify-center'>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          className='h-6 w-6 p-0 text-destructive'
+                          onClick={() =>
+                            openDeleteConfirmation('objective', objective.id)
+                          }
+                        >
+                          <Trash2 className='h-3.5 w-3.5' />
+                        </Button>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          className='h-6 w-6 p-0'
+                          onClick={() => moveObjective(objIndex, 'up')}
+                          disabled={objIndex === 0}
+                        >
+                          ↑
+                        </Button>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          className='h-6 w-6 p-0'
+                          onClick={() => moveObjective(objIndex, 'down')}
+                          disabled={objIndex === objectives.length - 1}
+                        >
+                          ↓
                         </Button>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>{objective.description || '-'}</TableCell>
-                  <TableCell className='text-right'>-</TableCell>
-                  <TableCell className='text-right'>-</TableCell>
-                  <TableCell className='text-center'>-</TableCell>
-                  <TableCell>
-                    <div className='flex gap-1 justify-center'>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-6 w-6 p-0 text-destructive'
-                        onClick={() =>
-                          openDeleteConfirmation('objective', objective.id)
-                        }
-                      >
-                        <Trash2 className='h-3.5 w-3.5' />
-                      </Button>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-6 w-6 p-0'
-                        onClick={() => moveObjective(objIndex, 'up')}
-                        disabled={objIndex === 0}
-                      >
-                        ↑
-                      </Button>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-6 w-6 p-0'
-                        onClick={() => moveObjective(objIndex, 'down')}
-                        disabled={objIndex === objectives.length - 1}
-                      >
-                        ↓
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-
-                {objective.isExpanded &&
-                  objective.metrics.map((metric, metricIndex) => {
-                    const deviation = calculateDeviation(metric as UIMetric, dateRange);
-
-                    return (
-                      <TableRow key={metric.id}>
-                        <TableCell>
-                          <div className='pl-8'>
-                            <div className='flex items-center gap-2'>
-                              <ArrowRight className='h-3 w-3 text-muted-foreground' />
-                              <span className='flex items-center'>
-                                {metric.name}
-                                <Button
-                                  variant='ghost'
-                                  size='sm'
-                                  className='h-6 w-6 p-0 ml-1'
-                                  onClick={() =>
-                                    openEditMetricDialog(metric as UIMetric, objective.id)
-                                  }
-                                >
-                                  <Edit className='h-3 w-3' />
-                                </Button>
-                              </span>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>{metric.description || '-'}</TableCell>
-                        <TableCell className='text-right'>
-                          {metric.plan !== undefined
-                            ? (() => {
-                                // Calculate the appropriate value based on the view period
-                                if (dateRange === 'day') {
-                                  // For daily view, show daily value
-                                  if (metric.planPeriod === 'until_week_end') {
-                                    return (metric.plan / 5).toFixed(2);
-                                  } else if (
-                                    metric.planPeriod === 'until_month_end'
-                                  ) {
-                                    return (metric.plan / 22).toFixed(2);
-                                  }
-                                } else if (dateRange === 'week') {
-                                  // For weekly view, show weekly value (daily * 5)
-                                  if (metric.planPeriod === 'until_month_end') {
-                                    // Convert monthly to weekly: (monthly / 22) * 5
-                                    return ((metric.plan / 22) * 5).toFixed(2);
-                                  } else if (
-                                    metric.planPeriod === 'until_week_end'
-                                  ) {
-                                    // Already weekly
-                                    return metric.plan;
-                                  }
-                                }
-                                // For monthly view or default, show the original plan value
-                                return metric.plan;
-                              })()
-                            : '-'}
-                          {metric.planPeriod && (
-                            <span className='text-xs text-muted-foreground ml-1'>
-                              (
-                              {getPlanPeriodDisplayName(
-                                metric.planPeriod,
-                                dateRange
-                              )}
-                              )
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className='text-right'>
-                          {(() => {
-                            const accumulatedValue = getAccumulatedActualValue(
-                              metric.id,
-                              dateRange
-                            );
-                            return accumulatedValue !== null
-                              ? accumulatedValue
-                              : '-';
-                          })()}
-                        </TableCell>
-                        <TableCell className='text-center'>
-                          {deviation !== null ? (
-                            <Badge
-                              variant={getDeviationBadgeVariant(deviation)}
-                            >
-                              {deviation > 0 ? '+' : ''}
-                              {deviation}%
-                            </Badge>
-                          ) : (
-                            '-'
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className='flex gap-1 justify-center'>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              className='h-6 w-6 p-0 text-destructive'
-                              onClick={() =>
-                                openDeleteConfirmation(
-                                  'metric',
-                                  objective.id,
-                                  metric.id
-                                )
-                              }
-                            >
-                              <Trash2 className='h-3.5 w-3.5' />
-                            </Button>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              className='h-6 w-6 p-0'
-                              onClick={() =>
-                                moveMetric(objIndex, metricIndex, 'up')
-                              }
-                              disabled={metricIndex === 0}
-                            >
-                              ↑
-                            </Button>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              className='h-6 w-6 p-0'
-                              onClick={() =>
-                                moveMetric(objIndex, metricIndex, 'down')
-                              }
-                              disabled={
-                                metricIndex === objective.metrics.length - 1
-                              }
-                            >
-                              ↓
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-
-                {objective.isExpanded && (
-                  <TableRow>
-                    <TableCell colSpan={6}>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='ml-8 text-xs'
-                        onClick={() => openAddMetricDialog(objective.id)}
-                      >
-                        <PlusCircle className='h-3 w-3 mr-1' /> Add Metric
-                      </Button>
                     </TableCell>
                   </TableRow>
-                )}
-              </>
-            ))
-          )}
-        </TableBody>
-      </Table>
+
+                  {objective.isExpanded &&
+                    objective.metrics.map((metric, metricIndex) => {
+                      const deviation = calculateDeviation(metric as UIMetric, dateRange);
+
+                      return (
+                        <TableRow key={metric.id}>
+                          <TableCell>
+                            <div className='pl-8'>
+                              <div className='flex items-center gap-2'>
+                                <ArrowRight className='h-3 w-3 text-muted-foreground' />
+                                <span className='flex items-center'>
+                                  {metric.name}
+                                  <Button
+                                    variant='ghost'
+                                    size='sm'
+                                    className='h-6 w-6 p-0 ml-1'
+                                    onClick={() =>
+                                      openEditMetricDialog(metric as UIMetric, objective.id)
+                                    }
+                                  >
+                                    <Edit className='h-3 w-3' />
+                                  </Button>
+                                </span>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>{metric.description || '-'}</TableCell>
+                          <TableCell className='text-right'>
+                            {metric.plan !== undefined
+                              ? (() => {
+                                  // Calculate the appropriate value based on the view period
+                                  if (dateRange === 'day') {
+                                    // For daily view, show daily value
+                                    if (metric.planPeriod === 'until_week_end') {
+                                      return (metric.plan / 5).toFixed(2);
+                                    } else if (
+                                      metric.planPeriod === 'until_month_end'
+                                    ) {
+                                      return (metric.plan / 22).toFixed(2);
+                                    }
+                                  } else if (dateRange === 'week') {
+                                    // For weekly view, show weekly value (daily * 5)
+                                    if (metric.planPeriod === 'until_month_end') {
+                                      // Convert monthly to weekly: (monthly / 22) * 5
+                                      return ((metric.plan / 22) * 5).toFixed(2);
+                                    } else if (
+                                      metric.planPeriod === 'until_week_end'
+                                    ) {
+                                      // Already weekly
+                                      return metric.plan;
+                                    }
+                                  }
+                                  // For monthly view or default, show the original plan value
+                                  return metric.plan;
+                                })()
+                              : '-'}
+                            {metric.planPeriod && (
+                              <span className='text-xs text-muted-foreground ml-1'>
+                                (
+                                {getPlanPeriodDisplayName(
+                                  metric.planPeriod,
+                                  dateRange
+                                )}
+                                )
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className='text-right'>
+                            {(() => {
+                              const accumulatedValue = getAccumulatedActualValue(
+                                metric.id,
+                                dateRange
+                              );
+                              return accumulatedValue !== null
+                                ? accumulatedValue
+                                : '-';
+                            })()}
+                          </TableCell>
+                          <TableCell className='text-center'>
+                            {deviation !== null ? (
+                              <Badge
+                                variant={getDeviationBadgeVariant(deviation)}
+                              >
+                                {deviation > 0 ? '+' : ''}
+                                {deviation}%
+                              </Badge>
+                            ) : (
+                              '-'
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className='flex gap-1 justify-center'>
+                              <Button
+                                variant='ghost'
+                                size='sm'
+                                className='h-6 w-6 p-0 text-destructive'
+                                onClick={() =>
+                                  openDeleteConfirmation(
+                                    'metric',
+                                    objective.id,
+                                    metric.id
+                                  )
+                                }
+                              >
+                                <Trash2 className='h-3.5 w-3.5' />
+                              </Button>
+                              <Button
+                                variant='ghost'
+                                size='sm'
+                                className='h-6 w-6 p-0'
+                                onClick={() =>
+                                  moveMetric(objIndex, metricIndex, 'up')
+                                }
+                                disabled={metricIndex === 0}
+                              >
+                                ↑
+                              </Button>
+                              <Button
+                                variant='ghost'
+                                size='sm'
+                                className='h-6 w-6 p-0'
+                                onClick={() =>
+                                  moveMetric(objIndex, metricIndex, 'down')
+                                }
+                                disabled={
+                                  metricIndex === objective.metrics.length - 1
+                                }
+                              >
+                                ↓
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+
+                  {objective.isExpanded && (
+                    <TableRow>
+                      <TableCell colSpan={6}>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          className='ml-8 text-xs'
+                          onClick={() => openAddMetricDialog(objective.id)}
+                        >
+                          <PlusCircle className='h-3 w-3 mr-1' /> Add Metric
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
       {/* Metric Edit Dialog */}
       <Dialog open={metricDialogOpen} onOpenChange={setMetricDialogOpen}>

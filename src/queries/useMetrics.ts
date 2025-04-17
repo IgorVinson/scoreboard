@@ -40,21 +40,21 @@ export const useMetric = (id: string) => {
   });
 };
 
-export const useMetricsByCompany = (companyId: string) => {
+export const useMetricsByObjective = (objectiveId: string) => {
   return useQuery({
-    queryKey: queryKeys.metrics.byCompany(companyId),
+    queryKey: queryKeys.metrics.byObjective(objectiveId),
     queryFn: async (): Promise<Metric[]> => {
-      if (!companyId) return [];
+      if (!objectiveId) return [];
       
       const { data, error } = await supabase
         .from('metrics')
         .select('*')
-        .eq('company_id', companyId);
+        .eq('objective_id', objectiveId);
         
       if (error) throw error;
       return data || [];
     },
-    enabled: !!companyId,
+    enabled: !!objectiveId,
   });
 };
 
@@ -93,7 +93,7 @@ export const useCreateMetric = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (metricData: Omit<Metric, 'id' | 'created_at' | 'updated_at'>): Promise<Metric> => {
+    mutationFn: async (metricData: Omit<Metric, 'id' | 'created_at' | 'updated_at'> & { company_id?: string }): Promise<Metric> => {
       const { data, error } = await supabase
         .from('metrics')
         .insert(metricData)
@@ -105,7 +105,7 @@ export const useCreateMetric = () => {
     },
     onSuccess: (newMetric) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.metrics.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.metrics.byCompany(newMetric.company_id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.metrics.byObjective(newMetric.objective_id) });
       queryClient.setQueryData(queryKeys.metrics.byId(newMetric.id), newMetric);
     },
   });
@@ -128,7 +128,7 @@ export const useUpdateMetric = () => {
     },
     onSuccess: (updatedMetric) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.metrics.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.metrics.byCompany(updatedMetric.company_id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.metrics.byObjective(updatedMetric.objective_id) });
       queryClient.setQueryData(queryKeys.metrics.byId(updatedMetric.id), updatedMetric);
     },
   });
@@ -138,11 +138,11 @@ export const useDeleteMetric = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (id: string): Promise<{ id: string, company_id: string }> => {
-      // First get the metric to know the company_id for cache invalidation
+    mutationFn: async (id: string): Promise<{ id: string, objective_id: string }> => {
+      // First get the metric to know the objective_id for cache invalidation
       const { data: metric, error: getError } = await supabase
         .from('metrics')
-        .select('company_id')
+        .select('objective_id')
         .eq('id', id)
         .single();
         
@@ -155,11 +155,11 @@ export const useDeleteMetric = () => {
         
       if (error) throw error;
       
-      return { id, company_id: metric.company_id };
+      return { id, objective_id: metric.objective_id };
     },
-    onSuccess: ({ id, company_id }) => {
+    onSuccess: ({ id, objective_id }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.metrics.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.metrics.byCompany(company_id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.metrics.byObjective(objective_id) });
       queryClient.removeQueries({ queryKey: queryKeys.metrics.byId(id) });
     },
   });
