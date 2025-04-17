@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -30,6 +30,7 @@ import {
   Minus,
   ArrowRight,
 } from 'lucide-react';
+import { objectivesService } from '@/lib/objectives-service';
 
 // Define the data structure
 export interface Metric {
@@ -38,6 +39,7 @@ export interface Metric {
   description: string;
   plan?: number;
   actual?: number;
+  planPeriod?: string;
 }
 
 export interface Objective {
@@ -117,97 +119,184 @@ export function ObjectivesMetricsTable({
   };
 
   // Handle objective save (add or edit)
-  const handleObjectiveSave = () => {
-    if (objectiveName.trim() === '') return;
-
-    if (isEditing && currentObjectiveId) {
-      // Update existing objective
-      const updatedObjective = objectives.find(
-        o => o.id === currentObjectiveId
-      );
-      if (updatedObjective) {
-        const updated = {
-          ...updatedObjective,
-          name: objectiveName,
-          description: objectiveDescription,
-        };
-        onObjectivesChange(
-          objectives.map(o => (o.id === currentObjectiveId ? updated : o))
-        );
-      }
-    } else {
-      // Add new objective
-      const newObjective: Objective = {
-        id: `obj-${Date.now()}`,
-        name: objectiveName,
-        description: objectiveDescription,
-        metrics: [],
-        isExpanded: true,
-      };
-      onObjectivesChange([...objectives, newObjective]);
+  const handleObjectiveSave = async () => {
+    console.log("Save button clicked, starting save process");
+    if (objectiveName.trim() === '') {
+      alert("Objective name cannot be empty");
+      return;
     }
 
-    // Reset form
-    setObjectiveName('');
-    setObjectiveDescription('');
-    setIsEditing(false);
-    setCurrentObjectiveId(null);
-    setObjectiveDialogOpen(false);
+    try {
+      if (isEditing && currentObjectiveId) {
+        // Update existing objective
+        console.log("Updating existing objective with ID:", currentObjectiveId);
+        const updatedObjective = await objectivesService.updateObjective(currentObjectiveId, {
+          name: objectiveName,
+          description: objectiveDescription,
+        });
+        
+        console.log("Update response from database:", updatedObjective);
+        
+        if (updatedObjective) {
+          const updated = {
+            ...updatedObjective,
+            metrics: objectives.find(o => o.id === currentObjectiveId)?.metrics || [],
+          };
+          onObjectivesChange(
+            objectives.map(o => (o.id === currentObjectiveId ? updated : o))
+          );
+          alert("Objective updated successfully!");
+        }
+      } else {
+        // Add new objective
+        console.log("Creating new objective:", { name: objectiveName, description: objectiveDescription });
+        
+        // Try direct database insert to debug
+        const { supabase } = await import('@/lib/supabase');
+        const user = await supabase.auth.getUser();
+        
+        console.log("Current authenticated user:", user);
+        
+        if (!user.data.user) {
+          alert("Error: No authenticated user found! Cannot create objective.");
+          return;
+        }
+        
+        const { data, error } = await supabase
+          .from('objectives')
+          .insert([
+            {
+              name: objectiveName,
+              description: objectiveDescription,
+              user_id: user.data.user.id
+            }
+          ])
+          .select()
+          .single();
+          
+        console.log("Direct insert result:", { data, error });
+        
+        if (error) {
+          alert(`Error creating objective: ${error.message}`);
+          throw error;
+        }
+        
+        if (data) {
+          const newObjective = data;
+          console.log("New objective created:", newObjective);
+          onObjectivesChange([...objectives, { ...newObjective, metrics: [], isExpanded: true }]);
+          alert("Objective created successfully!");
+        }
+      }
+
+      // Reset form
+      setObjectiveName('');
+      setObjectiveDescription('');
+      setIsEditing(false);
+      setCurrentObjectiveId(null);
+      setObjectiveDialogOpen(false);
+    } catch (error: any) {
+      console.error('Error saving objective:', error);
+      alert(`Failed to save objective: ${error.message || 'Unknown error'}`);
+    }
   };
 
   // Handle metric save (add or edit)
-  const handleMetricSave = () => {
+  const handleMetricSave = async () => {
     if (!metricName.trim() || !currentObjectiveId) return;
 
-    if (isEditing && currentMetricId) {
-      // Update existing metric
-      const updatedObjectives = objectives.map(obj => {
-        if (obj.id === currentObjectiveId) {
-          return {
-            ...obj,
-            metrics: obj.metrics.map(m =>
-              m.id === currentMetricId
-                ? { ...m, name: metricName, description: metricDescription }
-                : m
-            ),
-          };
-        }
-        return obj;
-      });
-      onObjectivesChange(updatedObjectives);
-    } else {
-      // Add new metric
-      const newMetric: Metric = {
-        id: `metric-${Date.now()}`,
-        name: metricName,
-        description: metricDescription,
-      };
+    try {
+      if (isEditing && currentMetricId) {
+        // Update existing metric in the database
+        const { updateObjectiveMetric } = await import('@/lib/supabase-service');
+        
+        await updateObjectiveMetric(currentMetricId, {
+          name: metricName,
+          description: metricDescription,
+        });
 
-      const updatedObjectives = objectives.map(obj =>
-        obj.id === currentObjectiveId
-          ? { ...obj, metrics: [...obj.metrics, newMetric] }
-          : obj
-      );
-      onObjectivesChange(updatedObjectives);
+        // Update in state
+        const updatedObjectives = objectives.map(obj => {
+          if (obj.id === currentObjectiveId) {
+            return {
+              ...obj,
+              metrics: obj.metrics.map(m =>
+                m.id === currentMetricId
+                  ? { ...m, name: metricName, description: metricDescription }
+                  : m
+              ),
+            };
+          }
+          return obj;
+        });
+        onObjectivesChange(updatedObjectives);
+      } else {
+        // Add new metric to the database
+        const { createObjectiveMetric } = await import('@/lib/supabase-service');
+        
+        const savedMetric = await createObjectiveMetric(currentObjectiveId, {
+          name: metricName,
+          description: metricDescription,
+        });
+
+        // Add to state with the ID from the database
+        const newMetric: Metric = {
+          id: savedMetric.id,
+          name: savedMetric.name,
+          description: savedMetric.description || '',
+          plan: savedMetric.plan,
+          planPeriod: savedMetric.plan_period,
+        };
+
+        const updatedObjectives = objectives.map(obj =>
+          obj.id === currentObjectiveId
+            ? { ...obj, metrics: [...obj.metrics, newMetric] }
+            : obj
+        );
+        onObjectivesChange(updatedObjectives);
+      }
+
+      // Close dialog and reset form
+      setMetricDialogOpen(false);
+      setMetricName('');
+      setMetricDescription('');
+      setCurrentObjectiveId(null);
+      setCurrentMetricId(null);
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error saving metric:', error);
     }
-
-    setMetricDialogOpen(false);
   };
 
-  // Delete an objective
-  const handleDeleteObjective = (objectiveId: string) => {
-    const updatedObjectives = objectives.filter(obj => obj.id !== objectiveId);
-    onObjectivesChange(updatedObjectives);
+  // Handle objective deletion
+  const handleDeleteObjective = async (objectiveId: string) => {
+    try {
+      await objectivesService.deleteObjective(objectiveId);
+      const updatedObjectives = objectives.filter(obj => obj.id !== objectiveId);
+      onObjectivesChange(updatedObjectives);
+    } catch (error) {
+      console.error('Error deleting objective:', error);
+      // You might want to show an error message to the user here
+    }
   };
 
   // Delete a metric
-  const handleDeleteMetric = (objectiveId: string, metricId: string) => {
-    const updatedObjectives = objectives.map(obj =>
-      obj.id === objectiveId
-        ? { ...obj, metrics: obj.metrics.filter(m => m.id !== metricId) }
-        : obj
-    );
-    onObjectivesChange(updatedObjectives);
+  const handleDeleteMetric = async (objectiveId: string, metricId: string) => {
+    try {
+      // Delete from database
+      const { deleteObjectiveMetric } = await import('@/lib/supabase-service');
+      await deleteObjectiveMetric(metricId);
+      
+      // Update state after database update
+      const updatedObjectives = objectives.map(obj =>
+        obj.id === objectiveId
+          ? { ...obj, metrics: obj.metrics.filter(m => m.id !== metricId) }
+          : obj
+      );
+      onObjectivesChange(updatedObjectives);
+    } catch (error) {
+      console.error('Error deleting metric:', error);
+    }
   };
 
   // Move objective up or down

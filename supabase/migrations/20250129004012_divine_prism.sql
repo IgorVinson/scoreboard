@@ -70,6 +70,28 @@ CREATE TABLE indicators (
     updated_at timestamptz DEFAULT now()
 );
 
+-- Objectives
+CREATE TABLE objectives (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name text NOT NULL,
+    description text,
+    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+-- Objective Metrics
+CREATE TABLE objective_metrics (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    objective_id uuid REFERENCES objectives(id) ON DELETE CASCADE,
+    name text NOT NULL,
+    description text,
+    plan numeric,
+    plan_period text,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
 -- Plans
 CREATE TABLE plans (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -114,6 +136,8 @@ ALTER TABLE indicators ENABLE ROW LEVEL SECURITY;
 ALTER TABLE plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE results ENABLE ROW LEVEL SECURITY;
 ALTER TABLE grades ENABLE ROW LEVEL SECURITY;
+ALTER TABLE objectives ENABLE ROW LEVEL SECURITY;
+ALTER TABLE objective_metrics ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
 
@@ -201,6 +225,56 @@ CREATE POLICY "Only managers can create grades"
             SELECT 1 FROM users 
             WHERE users.id = auth.uid() 
             AND role = 'MANAGER'
+        )
+    );
+
+-- Objectives
+CREATE POLICY "Users can view their own objectives" ON objectives
+    FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own objectives" ON objectives
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own objectives" ON objectives
+    FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own objectives" ON objectives
+    FOR DELETE USING (auth.uid() = user_id);
+
+-- Objective Metrics
+CREATE POLICY "Users can view metrics of their objectives" ON objective_metrics
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM objectives
+            WHERE objectives.id = objective_metrics.objective_id
+            AND objectives.user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Users can insert metrics for their objectives" ON objective_metrics
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM objectives
+            WHERE objectives.id = objective_metrics.objective_id
+            AND objectives.user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Users can update metrics of their objectives" ON objective_metrics
+    FOR UPDATE USING (
+        EXISTS (
+            SELECT 1 FROM objectives
+            WHERE objectives.id = objective_metrics.objective_id
+            AND objectives.user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Users can delete metrics of their objectives" ON objective_metrics
+    FOR DELETE USING (
+        EXISTS (
+            SELECT 1 FROM objectives
+            WHERE objectives.id = objective_metrics.objective_id
+            AND objectives.user_id = auth.uid()
         )
     );
 

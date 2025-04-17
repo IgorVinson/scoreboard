@@ -275,4 +275,154 @@ export const saveDailyNotes = async (userId: string, notes: { today_notes: strin
     if (error) throw error
     return data
   }
-} 
+}
+
+// Objectives
+export const getObjectives = async (userId: string) => {
+  const { data, error } = await supabase
+    .from('objectives')
+    .select(`
+      *,
+      metrics:objective_metrics(*)
+    `)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data;
+};
+
+export const createObjective = async (userId: string, objective: { name: string, description?: string }) => {
+  const { data, error } = await supabase
+    .from('objectives')
+    .insert({
+      user_id: userId,
+      name: objective.name,
+      description: objective.description
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
+export const updateObjective = async (objectiveId: string, updates: { name?: string, description?: string }) => {
+  const { data, error } = await supabase
+    .from('objectives')
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', objectiveId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
+export const deleteObjective = async (objectiveId: string) => {
+  const { error } = await supabase
+    .from('objectives')
+    .delete()
+    .eq('id', objectiveId);
+
+  if (error) throw error;
+};
+
+// Objective Metrics
+// Cache for objective metrics operations
+const metricOperationInProgress: Record<string, boolean> = {};
+
+export const createObjectiveMetric = async (objectiveId: string, metric: { name: string, description?: string, plan?: number, plan_period?: string }) => {
+  // Prevent duplicate requests
+  const operationKey = `create_${objectiveId}_${metric.name}`;
+  if (metricOperationInProgress[operationKey]) {
+    console.log('Skipping duplicate metric creation operation');
+    return null;
+  }
+  
+  try {
+    metricOperationInProgress[operationKey] = true;
+    
+    console.log('Creating new metric in database');
+    const { data, error } = await supabase
+      .from('objective_metrics')
+      .insert({
+        objective_id: objectiveId,
+        name: metric.name,
+        description: metric.description,
+        plan: metric.plan,
+        plan_period: metric.plan_period
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } finally {
+    // Clear operation flag after completion
+    setTimeout(() => {
+      delete metricOperationInProgress[operationKey];
+    }, 1000);
+  }
+};
+
+export const updateObjectiveMetric = async (metricId: string, updates: { name?: string, description?: string, plan?: number, plan_period?: string }) => {
+  // Prevent duplicate requests
+  const operationKey = `update_${metricId}`;
+  if (metricOperationInProgress[operationKey]) {
+    console.log('Skipping duplicate metric update operation');
+    return null;
+  }
+  
+  try {
+    metricOperationInProgress[operationKey] = true;
+    
+    console.log('Updating metric in database');
+    const { data, error } = await supabase
+      .from('objective_metrics')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', metricId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } finally {
+    // Clear operation flag after completion
+    setTimeout(() => {
+      delete metricOperationInProgress[operationKey];
+    }, 1000);
+  }
+};
+
+export const deleteObjectiveMetric = async (metricId: string) => {
+  // Prevent duplicate requests
+  const operationKey = `delete_${metricId}`;
+  if (metricOperationInProgress[operationKey]) {
+    console.log('Skipping duplicate metric deletion operation');
+    return;
+  }
+  
+  try {
+    metricOperationInProgress[operationKey] = true;
+    
+    console.log('Deleting metric from database');
+    const { error } = await supabase
+      .from('objective_metrics')
+      .delete()
+      .eq('id', metricId);
+
+    if (error) throw error;
+  } finally {
+    // Clear operation flag after completion
+    setTimeout(() => {
+      delete metricOperationInProgress[operationKey];
+    }, 1000);
+  }
+}; 

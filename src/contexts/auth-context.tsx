@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
@@ -18,34 +18,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const lastUpdate = useRef<number>(0);
+
+  // Debounced session update to prevent rapid re-renders
+  const updateSession = useCallback((newSession: Session | null) => {
+    const now = Date.now();
+    // Only update if more than 1 second has passed since last update
+    if (now - lastUpdate.current > 1000) {
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
+      lastUpdate.current = now;
+    }
+  }, []);
 
   useEffect(() => {
     // Get initial session
+    let mounted = true;
+    
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+      if (mounted) {
+        updateSession(session);
+        setLoading(false);
+      }
     });
 
-    // Listen for auth changes
+    // Listen for auth changes with debounce
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+      if (mounted) {
+        updateSession(session);
+        setLoading(false);
+      }
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [updateSession]);
 
-  // Configure session persistence
-  useEffect(() => {
-    supabase.auth.setSession({
-      access_token: session?.access_token ?? '',
-      refresh_token: session?.refresh_token ?? '',
-    });
+  // Configure session persistence with debounce
+  const debouncedSetSession = useCallback(async () => {
+    if (!session) return;
+    
+    const now = Date.now();
+    if (now - lastUpdate.current > 1000) {
+      await supabase.auth.setSession({
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+      });
+      lastUpdate.current = now;
+    }
   }, [session]);
+
+  useEffect(() => {
+    debouncedSetSession();
+  }, [debouncedSetSession]);
 
   const signIn = async (email: string, password: string) => {
     try {

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { useAuth } from './auth-context';
 import { useData } from './data-context';
 
@@ -26,13 +26,19 @@ export const SoloModeProvider: React.FC<{ children: React.ReactNode }> = ({
   const { getUserById, getUserPreference, setUserPreference } = useData();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isVirtualManager, setIsVirtualManager] = useState(false);
+  const lastFetch = useRef<number>(0);
 
-  // Get user data
+  // Get user data with debounce
   useEffect(() => {
     const fetchUser = async () => {
-      if (user?.id) {
+      if (!user?.id) return;
+      
+      const now = Date.now();
+      // Only fetch if more than 5 seconds have passed since last fetch
+      if (now - lastFetch.current > 5000) {
         const userData = await getUserById(user.id);
         setCurrentUser(userData);
+        lastFetch.current = now;
       }
     };
     
@@ -42,15 +48,20 @@ export const SoloModeProvider: React.FC<{ children: React.ReactNode }> = ({
   // Check if user is in solo mode
   const isSoloMode = currentUser?.mode === 'SOLO';
 
-  // Load virtual manager preference from Supabase
+  // Load virtual manager preference from Supabase with debounce
   useEffect(() => {
     const loadVirtualManagerPref = async () => {
-      if (user && isSoloMode) {
+      if (!user || !isSoloMode) return;
+      
+      const now = Date.now();
+      // Only fetch if more than 5 seconds have passed since last fetch
+      if (now - lastFetch.current > 5000) {
         try {
           const pref = await getUserPreference('virtual_manager');
           if (pref) {
             setIsVirtualManager(pref.value === true);
           }
+          lastFetch.current = now;
         } catch (error) {
           console.error('Error loading virtual manager preference:', error);
         }

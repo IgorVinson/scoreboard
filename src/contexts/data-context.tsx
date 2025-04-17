@@ -1,6 +1,24 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useAuth } from './auth-context';
 import * as supabaseService from '@/lib/supabase-service';
+
+// Add cache duration (5 minutes)
+const CACHE_DURATION = 5 * 60 * 1000;
+
+// Add cache interface
+interface CacheItem<T> {
+  data: T;
+  timestamp: number;
+}
+
+interface Cache {
+  companies?: CacheItem<any[]>;
+  teams?: CacheItem<any[]>;
+  users?: CacheItem<any[]>;
+  metrics?: CacheItem<any[]>;
+  plans?: CacheItem<any[]>;
+  dailyReports?: CacheItem<any[]>;
+}
 
 interface DataContextType {
   // Companies
@@ -65,12 +83,25 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [metrics, setMetrics] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [dailyReports, setDailyReports] = useState<any[]>([]);
+  
+  // Add cache and loading state refs
+  const cache = useRef<Cache>({});
+  const isLoading = useRef(false);
 
-  // Load data from Supabase
+  // Modified loadData function with caching
   const loadData = async () => {
-    if (!user) return;
+    if (!user || isLoading.current) return;
 
     try {
+      isLoading.current = true;
+      const now = Date.now();
+
+      // Helper function to check if cache is valid
+      const isCacheValid = (item?: CacheItem<any>) => {
+        return item && (now - item.timestamp) < CACHE_DURATION;
+      };
+
+      // Load only uncached data
       const [
         companiesData,
         teamsData,
@@ -79,30 +110,67 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         plansData,
         reportsData
       ] = await Promise.all([
-        supabaseService.getCompanies(),
-        supabaseService.getTeams(),
-        supabaseService.getUsers(),
-        supabaseService.getMetrics(),
-        supabaseService.getPlans(),
-        supabaseService.getDailyReports()
+        isCacheValid(cache.current.companies) 
+          ? cache.current.companies.data 
+          : supabaseService.getCompanies(),
+        isCacheValid(cache.current.teams)
+          ? cache.current.teams.data
+          : supabaseService.getTeams(),
+        isCacheValid(cache.current.users)
+          ? cache.current.users.data
+          : supabaseService.getUsers(),
+        isCacheValid(cache.current.metrics)
+          ? cache.current.metrics.data
+          : supabaseService.getMetrics(),
+        isCacheValid(cache.current.plans)
+          ? cache.current.plans.data
+          : supabaseService.getPlans(),
+        isCacheValid(cache.current.dailyReports)
+          ? cache.current.dailyReports.data
+          : supabaseService.getDailyReports()
       ]);
 
-      setCompanies(companiesData || []);
-      setTeams(teamsData || []);
-      setUsers(usersData || []);
-      setMetrics(metricsData || []);
-      setPlans(plansData || []);
-      setDailyReports(reportsData || []);
+      // Update cache and state
+      if (!isCacheValid(cache.current.companies)) {
+        cache.current.companies = { data: companiesData, timestamp: now };
+        setCompanies(companiesData || []);
+      }
+      if (!isCacheValid(cache.current.teams)) {
+        cache.current.teams = { data: teamsData, timestamp: now };
+        setTeams(teamsData || []);
+      }
+      if (!isCacheValid(cache.current.users)) {
+        cache.current.users = { data: usersData, timestamp: now };
+        setUsers(usersData || []);
+      }
+      if (!isCacheValid(cache.current.metrics)) {
+        cache.current.metrics = { data: metricsData, timestamp: now };
+        setMetrics(metricsData || []);
+      }
+      if (!isCacheValid(cache.current.plans)) {
+        cache.current.plans = { data: plansData, timestamp: now };
+        setPlans(plansData || []);
+      }
+      if (!isCacheValid(cache.current.dailyReports)) {
+        cache.current.dailyReports = { data: reportsData, timestamp: now };
+        setDailyReports(reportsData || []);
+      }
     } catch (error) {
       console.error('Error loading data:', error);
+    } finally {
+      isLoading.current = false;
     }
   };
 
-  // Load data on mount and when user changes
+  // Modified useEffect with proper cleanup
   useEffect(() => {
     if (user) {
       loadData();
     }
+    return () => {
+      // Clear cache on unmount
+      cache.current = {};
+    };
   }, [user]);
 
   const getCompanyById = async (id: string) => {

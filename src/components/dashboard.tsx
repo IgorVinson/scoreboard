@@ -55,6 +55,7 @@ import { NotesEditor } from '@/components/NotesEditor';
 import {
   ObjectivesMetricsTable,
   Objective,
+  Metric,
 } from '@/components/ObjectivesMetricsTable';
 import { DeepOverviewTable } from '@/components/DeepOverviewTable';
 import {
@@ -70,14 +71,36 @@ import { ReportsTable } from '@/components/ReportsTable';
 import { SimpleOverview } from '@/components/SimpleOverview';
 import { format, parseISO } from 'date-fns';
 import { ResultReportsTable } from '@/components/ResultReportsTable';
+import { createObjective, updateObjective, deleteObjective, createObjectiveMetric, updateObjectiveMetric, deleteObjectiveMetric } from '@/lib/supabase-service';
+import { objectivesService } from '../lib/objectives-service';
 
-// Add a StarRating component to replace numeric inputs
-function StarRating({ rating, maxRating = 5, onRatingChange }) {
+interface StarRatingProps {
+  rating: number;
+  onRatingChange: (rating: number) => void;
+}
+
+interface MetricValues {
+  [key: string]: number;
+}
+
+interface Report {
+  id: string;
+  date: string;
+  metrics_data: Record<string, { plan: number; fact: number }>;
+  today_notes: string;
+  tomorrow_notes: string;
+  general_comments: string;
+  user_id: string;
+  created_at: string;
+  reviewed: boolean;
+}
+
+const StarRating: React.FC<StarRatingProps> = ({ rating, onRatingChange }) => {
   const [hoverRating, setHoverRating] = useState(0);
 
   return (
     <div className='flex space-x-1'>
-      {[...Array(maxRating)].map((_, i) => {
+      {[...Array(5)].map((_, i) => {
         const starValue = i + 1;
         return (
           <button
@@ -100,7 +123,7 @@ function StarRating({ rating, maxRating = 5, onRatingChange }) {
       })}
     </div>
   );
-}
+};
 
 export function Dashboard() {
   const { user, signOut } = useAuth();
@@ -124,22 +147,7 @@ export function Dashboard() {
   const [tomorrowNotes, setTomorrowNotes] = useState('');
   const [generalComments, setGeneralComments] = useState('');
   const [isLoadingNotes, setIsLoadingNotes] = useState(true);
-  const [objectives, setObjectives] = useState<Objective[]>(() => {
-    // Try to load from localStorage on initial render
-    if (typeof window !== 'undefined') {
-      const savedObjectives = localStorage.getItem('objectives');
-      if (savedObjectives) {
-        try {
-          return JSON.parse(savedObjectives);
-        } catch (error) {
-          console.error('Error parsing objectives from localStorage:', error);
-        }
-      }
-    }
-
-    // Empty array if nothing in localStorage
-    return [];
-  });
+  const [objectives, setObjectives] = useState<Objective[]>([]);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportDate, setReportDate] = useState(
     format(new Date(), 'yyyy-MM-dd')
@@ -328,7 +336,7 @@ export function Dashboard() {
   const [editingReport, setEditingReport] = useState<any>(null);
 
   // Update the date handling in the report dialog
-  const handleDateChange = e => {
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Get the raw value from the input
     const inputValue = e.target.value;
 
@@ -341,9 +349,14 @@ export function Dashboard() {
 
   // Update the handleCreateReport function to calculate daily plan values
   const handleCreateReport = async () => {
+    if (!user) {
+      console.error('User not authenticated');
+      return;
+    }
+
     try {
       // Create metrics_data object with both plan and fact values
-      const metrics_data = {};
+      const metrics_data: Record<string, { plan: number; fact: number }> = {};
 
       // Iterate through objectives and their metrics
       objectives.forEach(objective => {
@@ -525,7 +538,7 @@ export function Dashboard() {
 
   // Update handleMetricValueChange to only handle fact values
   const handleMetricValueChange = (metricId: string, value: string) => {
-    setMetricValues(prev => ({
+    setMetricValues((prev: MetricValues) => ({
       ...prev,
       [metricId]: value ? Number(value) : 0,
     }));
@@ -542,79 +555,168 @@ export function Dashboard() {
       return obj;
     });
     setObjectives(updatedObjectives);
-    saveObjectivesToLocalStorage(updatedObjectives);
   };
 
-  // Add function to save objectives to localStorage
-  const saveObjectivesToLocalStorage = (updatedObjectives: Objective[]) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('objectives', JSON.stringify(updatedObjectives));
-    }
+  // Add useEffect to load objectives from Supabase on mount
+  useEffect(() => {
+    const loadObjectives = async () => {
+      try {
+        const data = await objectivesService.getObjectives();
+        // Map properly through data and keep the metrics array from the database
+        setObjectives(data.map(obj => ({ 
+          ...obj, 
+          // Keep the metrics from the database response, just convert to expected format
+          metrics: obj.metrics ? obj.metrics.map(metric => ({
+            id: metric.id,
+            name: metric.name,
+            description: metric.description || '',
+            plan: metric.plan,
+            planPeriod: metric.plan_period,
+          })) : [],
+          isExpanded: false 
+        })));
+      } catch (error) {
+        console.error('Error loading objectives:', error);
+      }
+    };
+    
+    // Load objectives only once when component mounts
+    loadObjectives();
+    // Empty dependency array to ensure this only runs once
+  }, []);
+
+  // Remove the saveObjectivesToLocalStorage function since we're using Supabase now
+  const handleObjectivesChange = async (updatedObjectives: Objective[]) => {
+    setObjectives(updatedObjectives);
   };
 
   // Add functions to handle objective and metric changes
-  const handleAddObjective = (newObjective: Objective) => {
-    const updatedObjectives = [...objectives, newObjective];
-    setObjectives(updatedObjectives);
-    saveObjectivesToLocalStorage(updatedObjectives);
+  const handleAddObjective = async (newObjective: Objective) => {
+    try {
+      // Save to database using objectivesService
+      const savedObjective = await objectivesService.createObjective(newObjective);
+
+      // Update local state with the saved objective
+      const updatedObjective = {
+        ...savedObjective,
+        metrics: [],
+        isExpanded: false
+      };
+
+      // Update state
+      setObjectives(prevObjectives => [...prevObjectives, updatedObjective]);
+    } catch (error) {
+      console.error('Error saving objective:', error);
+    }
   };
 
-  const handleUpdateObjective = (updatedObjective: Objective) => {
-    const updatedObjectives = objectives.map(obj =>
-      obj.id === updatedObjective.id ? updatedObjective : obj
-    );
-    setObjectives(updatedObjectives);
-    saveObjectivesToLocalStorage(updatedObjectives);
+  const handleUpdateObjective = async (updatedObjective: Objective) => {
+    try {
+      // Update in database using objectivesService
+      await objectivesService.updateObjective(updatedObjective);
+
+      // Update in state
+      const updatedObjectives = objectives.map(obj =>
+        obj.id === updatedObjective.id ? { ...updatedObjective, metrics: obj.metrics } : obj
+      );
+      setObjectives(updatedObjectives);
+    } catch (error) {
+      console.error('Error updating objective:', error);
+    }
   };
 
-  const handleDeleteObjective = (objectiveId: string) => {
-    const updatedObjectives = objectives.filter(obj => obj.id !== objectiveId);
-    setObjectives(updatedObjectives);
-    saveObjectivesToLocalStorage(updatedObjectives);
+  const handleDeleteObjective = async (objectiveId: string) => {
+    try {
+      // Delete from database using objectivesService
+      await objectivesService.deleteObjective(objectiveId);
+
+      // Delete from state
+      const updatedObjectives = objectives.filter(obj => obj.id !== objectiveId);
+      setObjectives(updatedObjectives);
+    } catch (error) {
+      console.error('Error deleting objective:', error);
+    }
   };
 
-  const handleAddMetric = (objectiveId: string, newMetric: Metric) => {
-    const updatedObjectives = objectives.map(obj => {
-      if (obj.id === objectiveId) {
-        return {
-          ...obj,
-          metrics: [...obj.metrics, newMetric],
-        };
-      }
-      return obj;
-    });
-    setObjectives(updatedObjectives);
-    saveObjectivesToLocalStorage(updatedObjectives);
+  const handleAddMetric = async (objectiveId: string, newMetric: Metric) => {
+    try {
+      // Save to database
+      const dbMetric = await createObjectiveMetric(objectiveId, {
+        name: newMetric.name,
+        description: newMetric.description,
+        plan: newMetric.plan,
+        plan_period: newMetric.planPeriod
+      });
+
+      // Update the metric with the database ID
+      const updatedMetric = {
+        ...newMetric,
+        id: dbMetric.id
+      };
+
+      // Update local state with the new metric
+      const updatedObjectives = objectives.map(obj => {
+        if (obj.id === objectiveId) {
+          return {
+            ...obj,
+            metrics: [...obj.metrics, updatedMetric],
+          };
+        }
+        return obj;
+      });
+      setObjectives(updatedObjectives);
+    } catch (error) {
+      console.error('Error saving metric:', error);
+    }
   };
 
-  const handleUpdateMetric = (objectiveId: string, updatedMetric: Metric) => {
-    const updatedObjectives = objectives.map(obj => {
-      if (obj.id === objectiveId) {
-        return {
-          ...obj,
-          metrics: obj.metrics.map(metric =>
-            metric.id === updatedMetric.id ? updatedMetric : metric
-          ),
-        };
-      }
-      return obj;
-    });
-    setObjectives(updatedObjectives);
-    saveObjectivesToLocalStorage(updatedObjectives);
+  const handleUpdateMetric = async (objectiveId: string, updatedMetric: Metric) => {
+    try {
+      // Update in database
+      await updateObjectiveMetric(updatedMetric.id, {
+        name: updatedMetric.name,
+        description: updatedMetric.description,
+        plan: updatedMetric.plan,
+        plan_period: updatedMetric.planPeriod
+      });
+
+      // Update in local state
+      const updatedObjectives = objectives.map(obj => {
+        if (obj.id === objectiveId) {
+          return {
+            ...obj,
+            metrics: obj.metrics.map(metric =>
+              metric.id === updatedMetric.id ? updatedMetric : metric
+            ),
+          };
+        }
+        return obj;
+      });
+      setObjectives(updatedObjectives);
+    } catch (error) {
+      console.error('Error updating metric:', error);
+    }
   };
 
-  const handleDeleteMetric = (objectiveId: string, metricId: string) => {
-    const updatedObjectives = objectives.map(obj => {
-      if (obj.id === objectiveId) {
-        return {
-          ...obj,
-          metrics: obj.metrics.filter(metric => metric.id !== metricId),
-        };
-      }
-      return obj;
-    });
-    setObjectives(updatedObjectives);
-    saveObjectivesToLocalStorage(updatedObjectives);
+  const handleDeleteMetric = async (objectiveId: string, metricId: string) => {
+    try {
+      // Delete from database
+      await deleteObjectiveMetric(metricId);
+
+      // Update local state
+      const updatedObjectives = objectives.map(obj => {
+        if (obj.id === objectiveId) {
+          return {
+            ...obj,
+            metrics: obj.metrics.filter(metric => metric.id !== metricId),
+          };
+        }
+        return obj;
+      });
+      setObjectives(updatedObjectives);
+    } catch (error) {
+      console.error('Error deleting metric:', error);
+    }
   };
 
   const handleDeleteReport = (reportId: string) => {
@@ -1262,10 +1364,7 @@ export function Dashboard() {
                 <div className='grid gap-6'>
                   <DeepOverviewTable
                     objectives={objectives}
-                    onObjectivesChange={updatedObjectives => {
-                      setObjectives(updatedObjectives);
-                      saveObjectivesToLocalStorage(updatedObjectives);
-                    }}
+                    onObjectivesChange={handleObjectivesChange}
                     reports={reports}
                   />
                 </div>
