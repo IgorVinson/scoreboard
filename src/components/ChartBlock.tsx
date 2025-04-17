@@ -22,6 +22,12 @@ import {
   );
   
   const ChartBlock = () => {
+    // Отримання кольорів із CSS-змінних
+    const foregroundColor = getComputedStyle(document.documentElement).getPropertyValue('--foreground').trim();
+    const borderColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
+    const chart1Color = getComputedStyle(document.documentElement).getPropertyValue('--chart-1').trim();
+    const chart2Color = getComputedStyle(document.documentElement).getPropertyValue('--chart-2').trim();
+  
     const data = {
       labels: ['January', 'February', 'March', 'April', 'May', 'June'],
       datasets: [
@@ -29,8 +35,8 @@ import {
           label: 'Performance',
           data: [65, 59, 80, 81, 56, 55],
           fill: false,
-          backgroundColor: 'rgba(75,192,192,0.4)',
-          borderColor: 'rgba(75,192,192,1)',
+          backgroundColor: `hsl(${chart1Color})`, // Колір для точок
+          borderColor: `hsl(${chart2Color})`, // Колір для лінії
         },
       ],
     };
@@ -38,11 +44,38 @@ import {
     const options = {
       responsive: true,
       maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: {
+            color: `hsl(${foregroundColor})`, // Колір тексту легенди
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: `hsl(${foregroundColor})`, // Колір підписів осі X
+          },
+          grid: {
+            color: `hsl(${borderColor})`, // Колір сітки осі X
+          },
+        },
+        y: {
+          ticks: {
+            color: `hsl(${foregroundColor})`, // Колір підписів осі Y
+          },
+          grid: {
+            color: `hsl(${borderColor})`, // Колір сітки осі Y
+          },
+        },
+      },
     };
   
     return (
-      <div className='p-6 bg-white rounded-lg shadow-md'>
-        <h3 className='text-lg font-semibold mb-4'>Performance Chart</h3>
+      <div className="p-6 bg-card text-card-foreground rounded-lg shadow-md">
+        <h3 className="text-lg font-semibold mb-4 text-primary-foreground">
+          Performance Chart
+        </h3>
         <div style={{ height: '300px' }}>
           <Line data={data} options={options} />
         </div>
