@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar } from '@/components/ui/calendar';
+import ChartBlock from '@/components/ChartBlock';
 import {
   Table,
   TableBody,
@@ -1301,6 +1302,10 @@ export function Dashboard() {
             </Card>
           </div>
 
+        {/* Chart Block */ }
+          <ChartBlock />
+          
+          
           {/* Tabs */}
           <Card>
             <Tabs defaultValue='deep-overview' className='w-full'>
