@@ -53,11 +53,7 @@ import { ModeToggle } from '@/components/mode-toggle';
 import { VirtualManagerToggle } from '@/components/virtual-manager-toggle';
 import { useSoloMode } from '@/contexts/solo-mode-context';
 import { NotesEditor } from '@/components/NotesEditor';
-import {
-  ObjectivesMetricsTable,
-  Objective,
-  Metric,
-} from '@/components/ObjectivesMetricsTable';
+import { Objective, Metric } from '@/lib/types';
 import { DeepOverviewTable } from '@/components/DeepOverviewTable';
 import {
   Dialog,
@@ -82,6 +78,7 @@ import {
   useUpdateObjective,
   useDeleteObjective,
 } from '@/queries';
+import ObjectivesMetricsTable from '@/components/ObjectivesMetricsTable';
 
 interface StarRatingProps {
   rating: number;
@@ -166,9 +163,7 @@ export function Dashboard() {
     new Set()
   );
 
-  const { data: objectivesFromDB, isLoading: isLoadingObjectives } = useObjectives();
-  
-  const { data: userObjectives } = useObjectivesByUser(user?.id || '');
+  const { data: objectivesFromDB } = useObjectivesByUser(user?.id || '');
   
   useEffect(() => {
     console.log('Objectives from database:', objectivesFromDB);
@@ -613,13 +608,14 @@ export function Dashboard() {
   const handleAddObjective = async (newObjective: Objective) => {
     try {
       // Use the mutation hook instead of the service
-      createObjectiveMutation.mutate({
+      await createObjectiveMutation.mutateAsync({
         name: newObjective.name,
         description: newObjective.description,
         user_id: user?.id || ''
       });
       
       // Note: No need to manually update state, the mutation's onSuccess will invalidate queries
+      console.log('Objective saved to the database successfully');
     } catch (error) {
       console.error('Error creating objective:', error);
     }

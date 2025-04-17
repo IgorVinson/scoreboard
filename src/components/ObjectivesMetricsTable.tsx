@@ -103,25 +103,40 @@ export default function ObjectivesMetricsTable({
   const handleSaveObjective = async (objective: { name: string; description: string }) => {
     if (selectedObjective) {
       // Edit existing objective
-      await updateObjective.mutateAsync({
-        id: selectedObjective.id,
-        name: objective.name,
-        description: objective.description
-      });
-      handleCloseEditObjective();
+      try {
+        await updateObjective.mutateAsync({
+          id: selectedObjective.id,
+          name: objective.name,
+          description: objective.description
+        });
+        console.log('Objective updated successfully in the database');
+        handleCloseEditObjective();
+      } catch (error) {
+        console.error('Error updating objective:', error);
+      }
     } else {
       // Add new objective
-      await createObjective.mutateAsync({
-        name: objective.name,
-        description: objective.description,
-        user_id: userId
-      });
-      handleCloseAddObjective();
+      try {
+        const newObjective = await createObjective.mutateAsync({
+          name: objective.name,
+          description: objective.description,
+          user_id: userId
+        });
+        console.log('New objective created successfully:', newObjective);
+        handleCloseAddObjective();
+      } catch (error) {
+        console.error('Error creating objective:', error);
+      }
     }
   };
 
   const handleDeleteObjective = async (objectiveId: string) => {
-    await deleteObjective.mutateAsync(objectiveId);
+    try {
+      await deleteObjective.mutateAsync(objectiveId);
+      console.log('Objective deleted successfully from the database');
+    } catch (error) {
+      console.error('Error deleting objective:', error);
+    }
   };
 
   const handleMoveObjectiveUp = async (index: number) => {
@@ -167,29 +182,44 @@ export default function ObjectivesMetricsTable({
   const handleSaveMetric = async (metric: { name: string; description: string; type: string; measurement_unit: string }) => {
     if (selectedMetric) {
       // Edit existing metric
-      await updateMetric.mutateAsync({
-        id: selectedMetric.id,
-        name: metric.name,
-        description: metric.description,
-        type: metric.type,
-        measurement_unit: metric.measurement_unit
-      });
-      handleCloseEditMetric();
+      try {
+        await updateMetric.mutateAsync({
+          id: selectedMetric.id,
+          name: metric.name,
+          description: metric.description,
+          type: metric.type,
+          measurement_unit: metric.measurement_unit
+        });
+        console.log('Metric updated successfully in the database');
+        handleCloseEditMetric();
+      } catch (error) {
+        console.error('Error updating metric:', error);
+      }
     } else {
       // Add new metric
-      await createMetric.mutateAsync({
-        name: metric.name,
-        description: metric.description,
-        type: metric.type,
-        measurement_unit: metric.measurement_unit,
-        company_id: user?.company_id || '' // Use the user's company_id
-      });
-      handleCloseAddMetric();
+      try {
+        const newMetric = await createMetric.mutateAsync({
+          name: metric.name,
+          description: metric.description,
+          type: metric.type,
+          measurement_unit: metric.measurement_unit,
+          company_id: user?.company_id || '' // Use the user's company_id
+        });
+        console.log('New metric created successfully:', newMetric);
+        handleCloseAddMetric();
+      } catch (error) {
+        console.error('Error creating metric:', error);
+      }
     }
   };
 
   const handleDeleteMetric = async (metricId: string) => {
-    await deleteMetric.mutateAsync(metricId);
+    try {
+      await deleteMetric.mutateAsync(metricId);
+      console.log('Metric deleted successfully from the database');
+    } catch (error) {
+      console.error('Error deleting metric:', error);
+    }
   };
 
   const handleMoveMetricUp = async (index: number) => {
