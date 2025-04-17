@@ -39,8 +39,9 @@ import {
   Target,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Objective, Metric } from '@/components/ObjectivesMetricsTable';
+import { Objective, Metric } from '@/lib/types';
 import { Textarea } from '@/components/ui/textarea';
+import { useCreateObjective, useUpdateObjective, useDeleteObjective } from '@/queries';
 import {
   format,
   startOfWeek,
@@ -68,10 +69,27 @@ import {
 // } from '@/components/ui/popover';
 // import { Calendar as CalendarIcon } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useAuth } from '@/contexts/auth-context';
+
+// Local extended interface for a simplified metric with UI specific properties
+interface UIMetric {
+  id: string;
+  name: string;
+  description?: string;
+  plan?: number;
+  actual?: number;
+  planPeriod?: 'until_week_end' | 'until_month_end';
+}
+
+// Extended type for UI objectives with metrics and expansion state
+interface UIObjective extends Objective {
+  metrics: UIMetric[];
+  isExpanded?: boolean;
+}
 
 interface DeepOverviewTableProps {
-  objectives: Objective[];
-  onObjectivesChange: (objectives: Objective[]) => void;
+  objectives: UIObjective[];
+  onObjectivesChange: (objectives: UIObjective[]) => void;
   reports?: any[]; // Add reports to props
 }
 
@@ -80,6 +98,10 @@ export function DeepOverviewTable({
   onObjectivesChange,
   reports = [], // Default to empty array if not provided
 }: DeepOverviewTableProps) {
+  // Get the mutation hook
+  const createObjectiveMutation = useCreateObjective();
+  const { user } = useAuth();
+  
   // Dialog states
   const [metricDialogOpen, setMetricDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -263,7 +285,7 @@ export function DeepOverviewTable({
 
   // Calculate deviation
   const calculateDeviation = (
-    metric: Metric,
+    metric: UIMetric,
     viewPeriod: 'day' | 'week' | 'month'
   ) => {
     const accumulatedActual = getAccumulatedActualValue(metric.id, viewPeriod);
@@ -364,7 +386,7 @@ export function DeepOverviewTable({
   };
 
   // Open dialog to add a new metric
-  const openAddMetricDialog = objectiveId => {
+  const openAddMetricDialog = (objectiveId: string) => {
     setMetricName('');
     setMetricDescription('');
     setMetricPlan(undefined);
@@ -376,26 +398,49 @@ export function DeepOverviewTable({
 
   // Add handleObjectiveSave function
   const handleObjectiveSave = () => {
-    if (objectiveName.trim() === '') return;
+    if (objectiveName.trim() === '' || !user) return;
 
-    if (isEditing && currentObjectiveId) {
-      // Update existing objective
-      const updatedObjectives = objectives.map(obj =>
-        obj.id === currentObjectiveId
-          ? { ...obj, name: objectiveName, description: objectiveDescription }
-          : obj
-      );
-      onObjectivesChange(updatedObjectives);
-    } else {
-      // Add new objective
-      const newObjective = {
-        id: `obj-${Date.now()}`,
+    try {
+      console.log('Creating objective in database:', {
         name: objectiveName,
         description: objectiveDescription,
-        metrics: [],
-        isExpanded: true,
-      };
-      onObjectivesChange([...objectives, newObjective]);
+      });
+      
+      createObjectiveMutation.mutate({
+        name: objectiveName,
+        description: objectiveDescription,
+        user_id: user.id
+      }, {
+        onSuccess: (newObjective) => {
+          console.log('Successfully created objective in database:', newObjective);
+          
+          // Add new objective to local state as well
+          if (isEditing && currentObjectiveId) {
+            // Update existing objective
+            const updatedObjectives = objectives.map(obj =>
+              obj.id === currentObjectiveId
+                ? { ...obj, name: objectiveName, description: objectiveDescription }
+                : obj
+            );
+            onObjectivesChange(updatedObjectives);
+          } else {
+            // Add new objective with the same structure as existing objectives
+            const newObjectiveLocal: UIObjective = {
+              ...newObjective,
+              metrics: [], // Add the metrics property
+              isExpanded: true
+            };
+            onObjectivesChange([...objectives, newObjectiveLocal]);
+          }
+        },
+        onError: (error) => {
+          console.error('Error creating objective:', error);
+          alert('Failed to create objective: ' + (error instanceof Error ? error.message : String(error)));
+        }
+      });
+    } catch (error) {
+      console.error('Error in objective creation:', error);
+      alert('An unexpected error occurred');
     }
 
     setObjectiveDialogOpen(false);
@@ -461,7 +506,7 @@ export function DeepOverviewTable({
   };
 
   // Add this function to filter objectives based on date range
-  const filterObjectivesByDate = objectives => {
+  const filterObjectivesByDate = (objectives: UIObjective[]) => {
     // In a real implementation, you would filter based on dates in your data
     // For now, we'll just return all objectives
     return objectives;
@@ -580,7 +625,7 @@ export function DeepOverviewTable({
 
   // Add a function to calculate plan value for different periods
   const calculatePlanValueForPeriod = (
-    metric: Metric,
+    metric: UIMetric,
     viewPeriod: 'day' | 'week' | 'month'
   ) => {
     if (!metric.plan || !metric.planPeriod) return metric.plan;
@@ -699,7 +744,7 @@ export function DeepOverviewTable({
   };
 
   // Add function to calculate daily plan value
-  const calculateDailyPlanValue = (metric: Metric) => {
+  const calculateDailyPlanValue = (metric: UIMetric) => {
     if (!metric.plan || !metric.planPeriod) return '-';
 
     const workDaysInMonth = 22; // Assumption for work days in a month
@@ -924,7 +969,7 @@ export function DeepOverviewTable({
 
                 {objective.isExpanded &&
                   objective.metrics.map((metric, metricIndex) => {
-                    const deviation = calculateDeviation(metric, dateRange);
+                    const deviation = calculateDeviation(metric as UIMetric, dateRange);
 
                     return (
                       <TableRow key={metric.id}>
@@ -939,7 +984,7 @@ export function DeepOverviewTable({
                                   size='sm'
                                   className='h-6 w-6 p-0 ml-1'
                                   onClick={() =>
-                                    openEditMetricDialog(metric, objective.id)
+                                    openEditMetricDialog(metric as UIMetric, objective.id)
                                   }
                                 >
                                   <Edit className='h-3 w-3' />
