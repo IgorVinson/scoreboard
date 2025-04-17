@@ -98,8 +98,10 @@ export function DeepOverviewTable({
   onObjectivesChange,
   reports = [], // Default to empty array if not provided
 }: DeepOverviewTableProps) {
-  // Get the mutation hook
+  // Get the mutation hooks
   const createObjectiveMutation = useCreateObjective();
+  const updateObjectiveMutation = useUpdateObjective();
+  const deleteObjectiveMutation = useDeleteObjective();
   const { user } = useAuth();
   
   // Dialog states
@@ -217,10 +219,24 @@ export function DeepOverviewTable({
     let updatedObjectives = [...objectives];
 
     if (itemToDelete.type === 'objective') {
-      // Filter out the deleted objective
-      updatedObjectives = updatedObjectives.filter(
-        obj => obj.id !== itemToDelete.objectiveId
-      );
+      // Delete the objective from the database first
+      deleteObjectiveMutation.mutate(itemToDelete.objectiveId, {
+        onSuccess: () => {
+          console.log('Successfully deleted objective from database');
+          
+          // Then filter out the deleted objective from local state
+          updatedObjectives = updatedObjectives.filter(
+            obj => obj.id !== itemToDelete.objectiveId
+          );
+          
+          // Update state through parent component
+          onObjectivesChange(updatedObjectives);
+        },
+        onError: (error) => {
+          console.error('Error deleting objective:', error);
+          alert('Failed to delete objective: ' + (error instanceof Error ? error.message : String(error)));
+        }
+      });
     } else if (itemToDelete.type === 'metric' && itemToDelete.metricId) {
       // Filter out the deleted metric from the specific objective
       updatedObjectives = updatedObjectives.map(obj => {
@@ -232,10 +248,12 @@ export function DeepOverviewTable({
         }
         return obj;
       });
+      
+      // Update state through parent component
+      onObjectivesChange(updatedObjectives);
     }
 
-    // Update state and localStorage through parent component
-    onObjectivesChange(updatedObjectives);
+    // Close the confirmation dialog
     setDeleteConfirmOpen(false);
     setItemToDelete(null);
   };
@@ -401,45 +419,66 @@ export function DeepOverviewTable({
     if (objectiveName.trim() === '' || !user) return;
 
     try {
-      console.log('Creating objective in database:', {
-        name: objectiveName,
-        description: objectiveDescription,
-      });
-      
-      createObjectiveMutation.mutate({
-        name: objectiveName,
-        description: objectiveDescription,
-        user_id: user.id
-      }, {
-        onSuccess: (newObjective) => {
-          console.log('Successfully created objective in database:', newObjective);
-          
-          // Add new objective to local state as well
-          if (isEditing && currentObjectiveId) {
-            // Update existing objective
+      if (isEditing && currentObjectiveId) {
+        // Update existing objective
+        console.log('Updating objective in database:', {
+          id: currentObjectiveId,
+          name: objectiveName,
+          description: objectiveDescription,
+        });
+        
+        updateObjectiveMutation.mutate({
+          id: currentObjectiveId,
+          name: objectiveName,
+          description: objectiveDescription,
+        }, {
+          onSuccess: (updatedObjective) => {
+            console.log('Successfully updated objective in database:', updatedObjective);
+            
+            // Update the objective in local state
             const updatedObjectives = objectives.map(obj =>
               obj.id === currentObjectiveId
                 ? { ...obj, name: objectiveName, description: objectiveDescription }
                 : obj
             );
             onObjectivesChange(updatedObjectives);
-          } else {
-            // Add new objective with the same structure as existing objectives
+          },
+          onError: (error) => {
+            console.error('Error updating objective:', error);
+            alert('Failed to update objective: ' + (error instanceof Error ? error.message : String(error)));
+          }
+        });
+      } else {
+        // Create new objective
+        console.log('Creating objective in database:', {
+          name: objectiveName,
+          description: objectiveDescription,
+        });
+        
+        createObjectiveMutation.mutate({
+          name: objectiveName,
+          description: objectiveDescription,
+          user_id: user.id
+        }, {
+          onSuccess: (newObjective) => {
+            console.log('Successfully created objective in database:', newObjective);
+            
+            // Add new objective to local state as well
             const newObjectiveLocal: UIObjective = {
               ...newObjective,
               metrics: [], // Add the metrics property
               isExpanded: true
             };
             onObjectivesChange([...objectives, newObjectiveLocal]);
+          },
+          onError: (error) => {
+            console.error('Error creating objective:', error);
+            alert('Failed to create objective: ' + (error instanceof Error ? error.message : String(error)));
           }
-        },
-        onError: (error) => {
-          console.error('Error creating objective:', error);
-          alert('Failed to create objective: ' + (error instanceof Error ? error.message : String(error)));
-        }
-      });
+        });
+      }
     } catch (error) {
-      console.error('Error in objective creation:', error);
+      console.error('Error in objective operation:', error);
       alert('An unexpected error occurred');
     }
 
