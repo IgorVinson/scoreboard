@@ -1,8 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import { syncAuthUserToLocalStorage } from '@/lib/local-storage';
-import { generateSampleData } from '@/lib/sample-data';
 
 interface AuthContextType {
   user: User | null;
@@ -26,14 +24,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      
-      // Sync auth user with local storage if logged in
-      if (session?.user) {
-        const localUser = syncAuthUserToLocalStorage(session.user);
-        // Generate sample data for the user
-        generateSampleData(session.user.id);
-      }
-      
       setLoading(false);
     });
 
@@ -43,14 +33,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
-      
-      // Sync auth user with local storage if logged in
-      if (session?.user) {
-        const localUser = syncAuthUserToLocalStorage(session.user);
-        // Generate sample data for the user
-        generateSampleData(session.user.id);
-      }
-      
       setLoading(false);
     });
 
@@ -77,11 +59,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (signInError) throw signInError;
-      
-      // Generate sample data for the user after successful sign-in
-      if (data.user) {
-        generateSampleData(data.user.id);
-      }
     } catch (error) {
       console.error('Error signing in:', error);
       throw error;
@@ -103,8 +80,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (signUpError) throw signUpError;
-      
-      // Note: We don't generate sample data here because the user needs to verify their email first
     } catch (error) {
       console.error('Error signing up:', error);
       throw error;
@@ -123,8 +98,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) throw error;
-      
-      // Note: Sample data will be generated in the onAuthStateChange handler after redirect
     } catch (error) {
       console.error('Error signing in with Google:', error);
       throw error;

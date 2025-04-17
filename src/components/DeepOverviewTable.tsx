@@ -722,9 +722,6 @@ export function DeepOverviewTable({
   ) => {
     if (!reports || reports.length === 0) return null;
 
-    // Debug the reports data
-    console.log('All reports:', reports);
-
     // Get today's date without time component
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -746,27 +743,23 @@ export function DeepOverviewTable({
       startDate = new Date(today.getFullYear(), today.getMonth(), 1);
     }
 
-    console.log(`View period: ${viewPeriod}`);
-    console.log(`Start date: ${startDate.toISOString()}`);
-    console.log(`Today: ${today.toISOString()}`);
-
     // Filter reports within the date range
     const relevantReports = reports.filter(report => {
       // Parse the report date string to a Date object
-      const reportDate = new Date(report.date + 'T00:00:00'); // Add time component to ensure proper parsing
+      // Ensure consistent date format parsing - use YYYY-MM-DD format
+      const dateParts = report.date.split('-');
+      if (dateParts.length !== 3) return false;
+      
+      const year = parseInt(dateParts[0], 10);
+      const month = parseInt(dateParts[1], 10) - 1; // Month is 0-indexed
+      const day = parseInt(dateParts[2], 10);
+      
+      // Create the date using the parsed components to avoid timezone issues
+      const reportDate = new Date(year, month, day);
       reportDate.setHours(0, 0, 0, 0);
-
-      console.log(
-        `Report date: ${report.date}, parsed: ${reportDate.toISOString()}`
-      );
-      console.log(
-        `Is within range: ${reportDate >= startDate && reportDate <= today}`
-      );
 
       return reportDate >= startDate && reportDate <= today;
     });
-
-    console.log(`Relevant reports for ${viewPeriod} view:`, relevantReports);
 
     if (relevantReports.length === 0) return null;
 
@@ -777,9 +770,6 @@ export function DeepOverviewTable({
         const factValue = report.metrics_data[metricId].fact;
         if (typeof factValue === 'number') {
           accumulatedValue += factValue;
-          console.log(
-            `Adding ${factValue} for metric ${metricId}, total now: ${accumulatedValue}`
-          );
         }
       }
     });

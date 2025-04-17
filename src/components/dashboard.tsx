@@ -112,54 +112,18 @@ export function Dashboard() {
     dailyReports,
     getPlansByUser,
     getDailyReportsByUser,
+    getDailyNotes,
+    saveDailyNotes
   } = useData();
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [selectedIndicator, setSelectedIndicator] = useState('All Indicators');
   const [selectedPeriod, setSelectedPeriod] = useState('Daily');
   const [reportsIndicator, setReportsIndicator] = useState('All Indicators');
   const [reportsPeriod, setReportsPeriod] = useState('Daily');
-  const [todayNotes, setTodayNotes] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedNotes = localStorage.getItem('dailyNotes');
-        if (savedNotes) {
-          const parsed = JSON.parse(savedNotes);
-          return parsed.today || '';
-        }
-      } catch (error) {
-        console.error('Error loading today notes:', error);
-      }
-    }
-    return '';
-  });
-  const [tomorrowNotes, setTomorrowNotes] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedNotes = localStorage.getItem('dailyNotes');
-        if (savedNotes) {
-          const parsed = JSON.parse(savedNotes);
-          return parsed.tomorrow || '';
-        }
-      } catch (error) {
-        console.error('Error loading tomorrow notes:', error);
-      }
-    }
-    return '';
-  });
-  const [generalComments, setGeneralComments] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedNotes = localStorage.getItem('dailyNotes');
-        if (savedNotes) {
-          const parsed = JSON.parse(savedNotes);
-          return parsed.general || '';
-        }
-      } catch (error) {
-        console.error('Error loading general comments:', error);
-      }
-    }
-    return '';
-  });
+  const [todayNotes, setTodayNotes] = useState('');
+  const [tomorrowNotes, setTomorrowNotes] = useState('');
+  const [generalComments, setGeneralComments] = useState('');
+  const [isLoadingNotes, setIsLoadingNotes] = useState(true);
   const [objectives, setObjectives] = useState<Objective[]>(() => {
     // Try to load from localStorage on initial render
     if (typeof window !== 'undefined') {
@@ -248,81 +212,61 @@ export function Dashboard() {
   const shouldShowManagerView =
     isVirtualManager || (!isSoloMode && user?.role === 'MANAGER');
 
-  // Add functions to work with localStorage
-  const saveDailyNotesToLocalStorage = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(
-        'dailyNotes',
-        JSON.stringify({
-          today: todayNotes,
-          tomorrow: tomorrowNotes,
-          general: generalComments,
-        })
-      );
-    }
-  };
-
-  // Modify useEffect for automatic saving
+  // Load daily notes from Supabase
   useEffect(() => {
-    const saveTimeout = setTimeout(() => {
-      saveDailyNotesToLocalStorage();
+    const loadNotes = async () => {
+      try {
+        setIsLoadingNotes(true);
+        const notes = await getDailyNotes();
+        if (notes) {
+          setTodayNotes(notes.today_notes || '');
+          setTomorrowNotes(notes.tomorrow_notes || '');
+          setGeneralComments(notes.general_comments || '');
+        }
+      } catch (error) {
+        console.error('Error loading notes:', error);
+      } finally {
+        setIsLoadingNotes(false);
+      }
+    };
+
+    if (user) {
+      loadNotes();
+    }
+  }, [user, getDailyNotes]);
+
+  // Save notes to Supabase with debounce
+  useEffect(() => {
+    if (isLoadingNotes) return; // Don't save during initial load
+    
+    const saveTimeout = setTimeout(async () => {
+      try {
+        await saveDailyNotes({
+          today_notes: todayNotes,
+          tomorrow_notes: tomorrowNotes,
+          general_comments: generalComments
+        });
+      } catch (error) {
+        console.error('Error saving notes:', error);
+      }
     }, 1000);
 
     return () => clearTimeout(saveTimeout);
-  }, [todayNotes, tomorrowNotes, generalComments]);
+  }, [todayNotes, tomorrowNotes, generalComments, saveDailyNotes, isLoadingNotes]);
 
   // Change handler for today-notes
   const handleTodayNotesChange = (html: string) => {
     setTodayNotes(html);
-
-    // Save to localStorage on each change
-    const currentNotes = JSON.parse(
-      localStorage.getItem('dailyNotes') ||
-        '{"today":"","tomorrow":"","general":""}'
-    );
-    localStorage.setItem(
-      'dailyNotes',
-      JSON.stringify({
-        ...currentNotes,
-        today: html,
-      })
-    );
   };
 
   // Change handler for tomorrow-notes
   const handleTomorrowNotesChange = (html: string) => {
     setTomorrowNotes(html);
-
-    // Save to localStorage on each change
-    const currentNotes = JSON.parse(
-      localStorage.getItem('dailyNotes') ||
-        '{"today":"","tomorrow":"","general":""}'
-    );
-    localStorage.setItem(
-      'dailyNotes',
-      JSON.stringify({
-        ...currentNotes,
-        tomorrow: html,
-      })
-    );
   };
 
   // Change handler for general-comments
   const handleGeneralCommentsChange = (html: string) => {
     setGeneralComments(html);
-
-    // Save to localStorage on each change
-    const currentNotes = JSON.parse(
-      localStorage.getItem('dailyNotes') ||
-        '{"today":"","tomorrow":"","general":""}'
-    );
-    localStorage.setItem(
-      'dailyNotes',
-      JSON.stringify({
-        ...currentNotes,
-        general: html,
-      })
-    );
   };
 
   // Add this state for report-specific objective expansion state

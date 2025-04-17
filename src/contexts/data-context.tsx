@@ -1,156 +1,225 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './auth-context';
-import * as localStorageService from '@/lib/local-storage';
+import * as supabaseService from '@/lib/supabase-service';
 
 interface DataContextType {
   // Companies
-  companies: localStorageService.Company[];
-  getCompanyById: (id: string) => localStorageService.Company | undefined;
-  createCompany: (name: string) => localStorageService.Company;
-  updateCompany: (id: string, data: Partial<localStorageService.Company>) => localStorageService.Company | null;
+  companies: any[];
+  getCompanyById: (id: string) => Promise<any>;
+  createCompany: (name: string) => Promise<any>;
   
   // Teams
-  teams: localStorageService.Team[];
-  getTeamById: (id: string) => localStorageService.Team | undefined;
-  getTeamsByCompany: (companyId: string) => localStorageService.Team[];
-  createTeam: (name: string, companyId: string) => localStorageService.Team;
+  teams: any[];
+  getTeamById: (id: string) => Promise<any>;
+  createTeam: (name: string, companyId: string) => Promise<any>;
   
   // Users
-  users: localStorageService.User[];
-  getUserById: (id: string) => localStorageService.User | undefined;
-  getUsersByCompany: (companyId: string) => localStorageService.User[];
-  updateUser: (id: string, data: Partial<localStorageService.User>) => localStorageService.User | null;
+  users: any[];
+  getUserById: (id: string) => Promise<any>;
+  updateUser: (id: string, data: any) => Promise<any>;
   
   // Metrics
-  metrics: localStorageService.Metric[];
-  getMetricById: (id: string) => localStorageService.Metric | undefined;
-  getMetricsByCompany: (companyId: string) => localStorageService.Metric[];
-  createMetric: (metricData: Partial<localStorageService.Metric>) => localStorageService.Metric;
+  metrics: any[];
+  getMetricById: (id: string) => Promise<any>;
+  createMetric: (data: any) => Promise<any>;
   
   // Plans
-  plans: localStorageService.Plan[];
-  getPlanById: (id: string) => localStorageService.Plan | undefined;
-  getPlansByUser: (userId: string) => localStorageService.Plan[];
-  createPlan: (planData: Partial<localStorageService.Plan>) => localStorageService.Plan;
+  plans: any[];
+  getPlanById: (id: string) => Promise<any>;
+  createPlan: (data: any) => Promise<any>;
+  getPlansByUser: (userId: string) => any[];
   
   // Daily Reports
-  dailyReports: localStorageService.DailyReport[];
-  getDailyReportById: (id: string) => localStorageService.DailyReport | undefined;
-  getDailyReportsByUser: (userId: string) => localStorageService.DailyReport[];
-  createDailyReport: (reportData: Partial<localStorageService.DailyReport>) => localStorageService.DailyReport;
+  dailyReports: any[];
+  getDailyReportById: (id: string) => Promise<any>;
+  createDailyReport: (data: any) => Promise<any>;
+  getDailyReportsByUser: (userId: string) => any[];
+  
+  // Daily Notes
+  getDailyNotes: () => Promise<any>;
+  saveDailyNotes: (notes: { today_notes: string, tomorrow_notes: string, general_comments: string }) => Promise<any>;
+  
+  // User Preferences
+  getUserPreference: (key: string) => Promise<any>;
+  setUserPreference: (key: string, value: any) => Promise<any>;
   
   // Refresh data
-  refreshData: () => void;
+  refreshData: () => Promise<void>;
 }
 
-const DataContext = createContext<DataContextType>({} as DataContextType);
+const DataContext = createContext<DataContextType | undefined>(undefined);
 
-export const useData = () => useContext(DataContext);
+export const useData = () => {
+  const context = useContext(DataContext);
+  if (!context) {
+    throw new Error('useData must be used within a DataProvider');
+  }
+  return context;
+};
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
-  const [companies, setCompanies] = useState<localStorageService.Company[]>([]);
-  const [teams, setTeams] = useState<localStorageService.Team[]>([]);
-  const [users, setUsers] = useState<localStorageService.User[]>([]);
-  const [metrics, setMetrics] = useState<localStorageService.Metric[]>([]);
-  const [plans, setPlans] = useState<localStorageService.Plan[]>([]);
-  const [dailyReports, setDailyReports] = useState<localStorageService.DailyReport[]>([]);
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [teams, setTeams] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [metrics, setMetrics] = useState<any[]>([]);
+  const [plans, setPlans] = useState<any[]>([]);
+  const [dailyReports, setDailyReports] = useState<any[]>([]);
 
-  // Load data from local storage
-  const loadData = () => {
-    setCompanies(localStorageService.getCompanies());
-    setTeams(localStorageService.getTeams());
-    setUsers(localStorageService.getUsers());
-    setMetrics(localStorageService.getMetrics());
-    setPlans(localStorageService.getPlans());
-    setDailyReports(localStorageService.getDailyReports());
+  // Load data from Supabase
+  const loadData = async () => {
+    if (!user) return;
+
+    try {
+      const [
+        companiesData,
+        teamsData,
+        usersData,
+        metricsData,
+        plansData,
+        reportsData
+      ] = await Promise.all([
+        supabaseService.getCompanies(),
+        supabaseService.getTeams(),
+        supabaseService.getUsers(),
+        supabaseService.getMetrics(),
+        supabaseService.getPlans(),
+        supabaseService.getDailyReports()
+      ]);
+
+      setCompanies(companiesData || []);
+      setTeams(teamsData || []);
+      setUsers(usersData || []);
+      setMetrics(metricsData || []);
+      setPlans(plansData || []);
+      setDailyReports(reportsData || []);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    }
   };
 
   // Load data on mount and when user changes
   useEffect(() => {
-    loadData();
+    if (user) {
+      loadData();
+    }
   }, [user]);
 
-  // Listen for storage events (in case of multiple tabs)
-  useEffect(() => {
-    const handleStorageChange = () => {
-      loadData();
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, []);
-
-  const value: DataContextType = {
-    // Companies
-    companies,
-    getCompanyById: localStorageService.getCompanyById,
-    createCompany: (name) => {
-      const company = localStorageService.createCompany(name);
-      loadData();
-      return company;
-    },
-    updateCompany: (id, data) => {
-      const company = localStorageService.updateCompany(id, data);
-      loadData();
-      return company;
-    },
-    
-    // Teams
-    teams,
-    getTeamById: localStorageService.getTeamById,
-    getTeamsByCompany: localStorageService.getTeamsByCompany,
-    createTeam: (name, companyId) => {
-      const team = localStorageService.createTeam(name, companyId);
-      loadData();
-      return team;
-    },
-    
-    // Users
-    users,
-    getUserById: localStorageService.getUserById,
-    getUsersByCompany: localStorageService.getUsersByCompany,
-    updateUser: (id, data) => {
-      const user = localStorageService.updateUser(id, data);
-      loadData();
-      return user;
-    },
-    
-    // Metrics
-    metrics,
-    getMetricById: localStorageService.getMetricById,
-    getMetricsByCompany: localStorageService.getMetricsByCompany,
-    createMetric: (metricData) => {
-      const metric = localStorageService.createMetric(metricData);
-      loadData();
-      return metric;
-    },
-    
-    // Plans
-    plans,
-    getPlanById: localStorageService.getPlanById,
-    getPlansByUser: localStorageService.getPlansByUser,
-    createPlan: (planData) => {
-      const plan = localStorageService.createPlan(planData);
-      loadData();
-      return plan;
-    },
-    
-    // Daily Reports
-    dailyReports,
-    getDailyReportById: localStorageService.getDailyReportById,
-    getDailyReportsByUser: localStorageService.getDailyReportsByUser,
-    createDailyReport: (reportData) => {
-      const report = localStorageService.createDailyReport(reportData);
-      loadData();
-      return report;
-    },
-    
-    // Refresh data
-    refreshData: loadData,
+  const getCompanyById = async (id: string) => {
+    return companies.find(c => c.id === id);
   };
 
-  return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
+  const getTeamById = async (id: string) => {
+    return teams.find(t => t.id === id);
+  };
+
+  const getUserById = async (id: string) => {
+    return users.find(u => u.id === id);
+  };
+
+  const getMetricById = async (id: string) => {
+    return metrics.find(m => m.id === id);
+  };
+
+  const getPlanById = async (id: string) => {
+    return plans.find(p => p.id === id);
+  };
+
+  const getDailyReportById = async (id: string) => {
+    return dailyReports.find(r => r.id === id);
+  };
+  
+  // Filter functions for related data
+  const getTeamsByCompany = (companyId: string) => {
+    return teams.filter(team => team.company_id === companyId);
+  };
+  
+  const getUsersByCompany = (companyId: string) => {
+    return users.filter(user => user.company_id === companyId);
+  };
+  
+  const getMetricsByCompany = (companyId: string) => {
+    return metrics.filter(metric => metric.company_id === companyId);
+  };
+  
+  const getPlansByUser = (userId: string) => {
+    return plans.filter(plan => plan.user_id === userId);
+  };
+  
+  const getDailyReportsByUser = (userId: string) => {
+    return dailyReports.filter(report => report.user_id === userId);
+  };
+
+  const value: DataContextType = {
+    companies,
+    teams,
+    users,
+    metrics,
+    plans,
+    dailyReports,
+    getCompanyById,
+    getTeamById,
+    getUserById,
+    getMetricById,
+    getPlanById,
+    getDailyReportById,
+    createCompany: async (name) => {
+      const company = await supabaseService.createCompany(name);
+      await loadData();
+      return company;
+    },
+    createTeam: async (name, companyId) => {
+      const team = await supabaseService.createTeam(name, companyId);
+      await loadData();
+      return team;
+    },
+    updateUser: async (id, data) => {
+      const user = await supabaseService.updateUser(id, data);
+      await loadData();
+      return user;
+    },
+    createMetric: async (data) => {
+      const metric = await supabaseService.createMetric(data);
+      await loadData();
+      return metric;
+    },
+    createPlan: async (data) => {
+      const plan = await supabaseService.createPlan(data);
+      await loadData();
+      return plan;
+    },
+    createDailyReport: async (data) => {
+      const report = await supabaseService.createDailyReport(data);
+      await loadData();
+      return report;
+    },
+    // Daily Notes functions
+    getDailyNotes: async () => {
+      if (!user) return { today_notes: '', tomorrow_notes: '', general_comments: '' };
+      return await supabaseService.getDailyNotes(user.id);
+    },
+    saveDailyNotes: async (notes) => {
+      if (!user) return null;
+      const result = await supabaseService.saveDailyNotes(user.id, notes);
+      return result;
+    },
+    // User Preferences functions
+    getUserPreference: async (key) => {
+      if (!user) return null;
+      return await supabaseService.getUserPreference(user.id, key);
+    },
+    setUserPreference: async (key, value) => {
+      if (!user) return null;
+      return await supabaseService.setUserPreference(user.id, key, value);
+    },
+    refreshData: loadData,
+    getPlansByUser,
+    getDailyReportsByUser
+  };
+
+  return (
+    <DataContext.Provider value={value}>
+      {children}
+    </DataContext.Provider>
+  );
 }; 

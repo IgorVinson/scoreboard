@@ -1,4 +1,4 @@
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useAuth } from './auth-context';
 import { useData } from './data-context';
 
@@ -9,36 +9,71 @@ interface SoloModeContextType {
   toggleVirtualManager: () => void;
 }
 
-const SoloModeContext = createContext<SoloModeContextType>(
-  {} as SoloModeContextType
-);
+const SoloModeContext = createContext<SoloModeContextType | null>(null);
 
-export const useSoloMode = () => useContext(SoloModeContext);
+export const useSoloMode = () => {
+  const context = useContext(SoloModeContext);
+  if (!context) {
+    throw new Error('useSoloMode must be used within a SoloModeProvider');
+  }
+  return context;
+};
 
 export const SoloModeProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const { user } = useAuth();
-  const { getUserById, updateUser } = useData();
-  const currentUser = getUserById(user?.id || '');
+  const { getUserById, getUserPreference, setUserPreference } = useData();
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isVirtualManager, setIsVirtualManager] = useState(false);
+
+  // Get user data
+  useEffect(() => {
+    const fetchUser = async () => {
+      if (user?.id) {
+        const userData = await getUserById(user.id);
+        setCurrentUser(userData);
+      }
+    };
+    
+    fetchUser();
+  }, [user, getUserById]);
 
   // Check if user is in solo mode
   const isSoloMode = currentUser?.mode === 'SOLO';
 
-  // Use local storage to remember if the user is acting as a virtual manager in solo mode
-  const [isVirtualManager, setIsVirtualManager] = React.useState(() => {
-    if (!isSoloMode) return false;
-    const stored = localStorage.getItem(`virtual_manager_${user?.id}`);
-    return stored === 'true';
-  });
+  // Load virtual manager preference from Supabase
+  useEffect(() => {
+    const loadVirtualManagerPref = async () => {
+      if (user && isSoloMode) {
+        try {
+          const pref = await getUserPreference('virtual_manager');
+          if (pref) {
+            setIsVirtualManager(pref.value === true);
+          }
+        } catch (error) {
+          console.error('Error loading virtual manager preference:', error);
+        }
+      }
+    };
+    
+    loadVirtualManagerPref();
+  }, [user, isSoloMode, getUserPreference]);
 
   // Toggle between regular user and virtual manager in solo mode
-  const toggleVirtualManager = () => {
-    if (!isSoloMode) return;
+  const toggleVirtualManager = async () => {
+    if (!isSoloMode || !user) return;
 
     const newValue = !isVirtualManager;
     setIsVirtualManager(newValue);
-    localStorage.setItem(`virtual_manager_${user?.id}`, newValue.toString());
+    
+    try {
+      await setUserPreference('virtual_manager', newValue);
+    } catch (error) {
+      console.error('Error saving virtual manager preference:', error);
+      // Revert UI if save fails
+      setIsVirtualManager(!newValue);
+    }
   };
 
   const value: SoloModeContextType = {
