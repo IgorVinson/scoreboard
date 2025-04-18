@@ -42,10 +42,17 @@ import {
       labels: ['January', 'February', 'March', 'April', 'May', 'June'],
       datasets: [
         {
-          label: 'Performance',
-          data: [65, 59, 80, 81, 56, 55],
+          label: 'Plan',
+          data: [65, 59, 80, 81, 56, 55], // Дані для "Plan"
           fill: false,
           backgroundColor: `hsl(${borderColor})`, // Колір для точок
+          borderColor: `hsl(${chart2Color})`, // Колір для лінії
+        },
+        {
+          label: 'Fact',
+          data: [70, 50, 75, 85, 60, 65], // Дані для "Fact"
+          fill: false,
+          backgroundColor: `hsl(${chart2Color})`, // Колір для точок
           borderColor: `hsl(${chart2Color})`, // Колір для лінії
         },
       ],
