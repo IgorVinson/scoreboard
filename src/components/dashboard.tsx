@@ -79,6 +79,7 @@ import {
   useDailyNotesByUser,
   useUpdateDailyNote,
   useCreateDailyNote,
+  useLatestDailyNote,
 } from '@/queries';
 import { useCreateMetric, useUpdateMetric, useDeleteMetric } from '@/queries';
 
@@ -153,18 +154,19 @@ export function Dashboard() {
   const { theme, setTheme } = useTheme();
   const { isSoloMode, isVirtualManager } = useSoloMode();
   const {
-    plans,
-    dailyReports,
     getPlansByUser,
     getDailyReportsByUser,
-    getDailyNotes,
-    saveDailyNotes,
   } = useData();
   
   const { data: metrics = [], isLoading: isLoadingMetrics } = useMetrics();
   const createMetricMutation = useCreateMetric();
   const updateMetricMutation = useUpdateMetric();
   const deleteMetricMutation = useDeleteMetric();
+  
+  // TanStack Query hooks for daily notes
+  const { data: latestNote, isLoading: isLoadingLatestNote } = useLatestDailyNote(user?.id || '');
+  const updateDailyNoteMutation = useUpdateDailyNote();
+  const createDailyNoteMutation = useCreateDailyNote();
   
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [selectedIndicator, setSelectedIndicator] = useState('All Indicators');
@@ -186,6 +188,7 @@ export function Dashboard() {
   const [tomorrowNotes, setTomorrowNotes] = useState('');
   const [generalComments, setGeneralComments] = useState('');
   const [isLoadingNotes, setIsLoadingNotes] = useState(true);
+  const [currentNoteId, setCurrentNoteId] = useState<string | null>(null);
 
   // Handle note changes
   const handleTodayNotesChange = (html: string) => {
@@ -200,49 +203,53 @@ export function Dashboard() {
     setGeneralComments(html);
   };
 
-  // Use the context version of getDailyNotes and saveDailyNotes
-  // Keep the useEffect for loading and saving notes from data-context
-  // Load daily notes from Supabase
+  // Load daily notes from TanStack Query
   useEffect(() => {
-    const loadNotes = async () => {
-      try {
-        setIsLoadingNotes(true);
-        const notes = await getDailyNotes();
-        if (notes) {
-          setTodayNotes(notes.today_notes || '');
-          setTomorrowNotes(notes.tomorrow_notes || '');
-          setGeneralComments(notes.general_comments || '');
-        }
-      } catch (error) {
-        console.error('Error loading notes:', error);
-      } finally {
-        setIsLoadingNotes(false);
-      }
-    };
-
-    if (user) {
-      loadNotes();
+    if (latestNote && !isLoadingLatestNote) {
+      setTodayNotes(latestNote.today_notes || '');
+      setTomorrowNotes(latestNote.tomorrow_notes || '');
+      setGeneralComments(latestNote.general_comments || '');
+      setCurrentNoteId(latestNote.id);
+      setIsLoadingNotes(false);
+    } else if (!isLoadingLatestNote) {
+      setIsLoadingNotes(false);
     }
-  }, [user, getDailyNotes]);
+  }, [latestNote, isLoadingLatestNote]);
 
-  // Save notes to Supabase with debounce
+  // Save notes with TanStack Query mutations
   useEffect(() => {
     if (isLoadingNotes) return; // Don't save during initial load
     
     const saveTimeout = setTimeout(async () => {
       try {
-        await saveDailyNotes({
+        const noteData = {
           today_notes: todayNotes,
           tomorrow_notes: tomorrowNotes,
-          general_comments: generalComments
-        });
+          general_comments: generalComments,
+          date: format(new Date(), 'yyyy-MM-dd')
+        };
+        
+        if (currentNoteId) {
+          // Update existing note
+          await updateDailyNoteMutation.mutateAsync({
+            id: currentNoteId,
+            ...noteData
+          });
+        } else if (user?.id) {
+          // Create new note
+          const result = await createDailyNoteMutation.mutateAsync({
+            ...noteData,
+            user_id: user.id
+          });
+          setCurrentNoteId(result.id);
+        }
       } catch (error) {
         console.error('Error saving notes:', error);
       }
     }, 1000);
 
     return () => clearTimeout(saveTimeout);
-  }, [todayNotes, tomorrowNotes, generalComments, saveDailyNotes, isLoadingNotes]);
+  }, [todayNotes, tomorrowNotes, generalComments, currentNoteId, updateDailyNoteMutation, createDailyNoteMutation, user, isLoadingNotes]);
 
   const { data: objectivesFromDB } = useObjectivesByUser(user?.id || '');
   
@@ -287,7 +294,7 @@ export function Dashboard() {
   const [missingDates, setMissingDates] = useState<string[]>([]);
   const [currentMissingIndex, setCurrentMissingIndex] = useState(0);
 
-  const [indicators, setIndicators] = useState([]);
+  const [indicators, setIndicators] = useState<any[]>([]);
   const [teamMembers, setTeamMembers] = useState([]);
   const [allIndicators, setAllIndicators] = useState(['All Indicators']);
   const [timePeriods, setTimePeriods] = useState([
@@ -526,6 +533,15 @@ export function Dashboard() {
       console.error('Error deleting metric:', error);
       return false;
     }
+  };
+
+  // Fix the handler for metric value changes in both dialog boxes to handle empty values correctly
+  const handleMetricValueChange = (metricId: string, value: string) => {
+    const newValue = value ? parseFloat(value) : 0;
+    setMetricValues({
+      ...metricValues,
+      [metricId]: newValue,
+    });
   };
 
   return (
@@ -861,13 +877,7 @@ export function Dashboard() {
                                 type='number'
                                 value={metricValues[metric.id] || ''}
                                 onChange={e => {
-                                  const newValue = e.target.value
-                                    ? parseFloat(e.target.value)
-                                    : '';
-                                  setMetricValues({
-                                    ...metricValues,
-                                    [metric.id]: newValue,
-                                  });
+                                  handleMetricValueChange(metric.id, e.target.value);
                                 }}
                                 className='w-20'
                               />
@@ -1233,13 +1243,7 @@ export function Dashboard() {
                                 type='number'
                                 value={metricValues[metric.id] || ''}
                                 onChange={e => {
-                                  const newValue = e.target.value
-                                    ? parseFloat(e.target.value)
-                                    : '';
-                                  setMetricValues({
-                                    ...metricValues,
-                                    [metric.id]: newValue,
-                                  });
+                                  handleMetricValueChange(metric.id, e.target.value);
                                 }}
                                 className='w-20'
                               />
