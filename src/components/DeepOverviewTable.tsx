@@ -72,7 +72,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { useQueryClient } from '@tanstack/react-query';
 
 // Local extended interface for a simplified metric with UI specific properties
-interface UIMetric {
+export interface UIMetric {
   id: string;
   name: string;
   description?: string;
@@ -83,7 +83,7 @@ interface UIMetric {
 }
 
 // Extended type for UI objectives with metrics and expansion state
-interface UIObjective extends Objective {
+export interface UIObjective extends Objective {
   metrics: UIMetric[];
   isExpanded?: boolean;
 }

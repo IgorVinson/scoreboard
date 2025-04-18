@@ -82,6 +82,7 @@ import {
   useLatestDailyNote,
 } from '@/queries';
 import { useCreateMetric, useUpdateMetric, useDeleteMetric } from '@/queries';
+import type { UIObjective } from '@/components/DeepOverviewTable';
 
 interface StarRatingProps {
   rating: number;
@@ -173,7 +174,7 @@ export function Dashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState('Daily');
   const [reportsIndicator, setReportsIndicator] = useState('All Indicators');
   const [reportsPeriod, setReportsPeriod] = useState('Daily');
-  const [objectives, setObjectives] = useState<Objective[]>([]);
+  const [objectives, setObjectives] = useState<UIObjective[]>([]);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportDate, setReportDate] = useState(
     format(new Date(), 'yyyy-MM-dd')
@@ -246,7 +247,7 @@ export function Dashboard() {
       } catch (error) {
         console.error('Error saving notes:', error);
       }
-    }, 1000);
+    }, 2500); // Increase debounce to 2.5 seconds for better performance
 
     return () => clearTimeout(saveTimeout);
   }, [todayNotes, tomorrowNotes, generalComments, currentNoteId, updateDailyNoteMutation, createDailyNoteMutation, user, isLoadingNotes]);
@@ -268,7 +269,10 @@ export function Dashboard() {
             name: obj.name,
             description: obj.description || '',
             metrics: [], // Start with empty metrics array
-            isExpanded: false
+            isExpanded: false,
+            user_id: obj.user_id,
+            created_at: obj.created_at,
+            updated_at: obj.updated_at
           }));
           
           setObjectives(formattedObjectives);
@@ -361,12 +365,12 @@ export function Dashboard() {
   };
 
   // Add missing handler functions
-  const handleObjectivesChange = (updatedObjectives: Objective[]) => {
+  const handleObjectivesChange = (updatedObjectives: UIObjective[]) => {
     setObjectives(updatedObjectives);
   };
   
   // Add reportObjectives state and toggle function
-  const [reportObjectives, setReportObjectives] = useState<Objective[]>([]);
+  const [reportObjectives, setReportObjectives] = useState<UIObjective[]>([]);
   
   const toggleReportObjectiveExpansion = (objectiveId: string) => {
     setReportObjectives(prevObjs =>
@@ -763,7 +767,6 @@ export function Dashboard() {
                       </h4>
                       <NotesEditor
                         id='today-notes'
-                        key={`today-${todayNotes ? todayNotes.slice(0, 10) : 'empty'}`}
                         content={todayNotes}
                         onChange={handleTodayNotesChange}
                         placeholder='What did you accomplish today?'
@@ -775,7 +778,6 @@ export function Dashboard() {
                       </h4>
                       <NotesEditor
                         id='tomorrow-notes'
-                        key={`tomorrow-${tomorrowNotes ? tomorrowNotes.slice(0, 10) : 'empty'}`}
                         content={tomorrowNotes}
                         onChange={handleTomorrowNotesChange}
                         placeholder='What do you plan to work on tomorrow?'
@@ -788,7 +790,6 @@ export function Dashboard() {
                     </h4>
                     <NotesEditor
                       id='general-comments'
-                      key={`general-${generalComments ? generalComments.slice(0, 10) : 'empty'}`}
                       content={generalComments}
                       onChange={handleGeneralCommentsChange}
                       placeholder='Any other thoughts or comments...'
@@ -900,7 +901,6 @@ export function Dashboard() {
                   </h4>
                   <NotesEditor
                     id='report-today-notes'
-                    key={`report-today-${reportTodayNotes ? reportTodayNotes.slice(0, 10) : 'empty'}`}
                     content={reportTodayNotes}
                     onChange={setReportTodayNotes}
                     placeholder='What did you accomplish today?'
@@ -912,7 +912,6 @@ export function Dashboard() {
                   </h4>
                   <NotesEditor
                     id='report-tomorrow-notes'
-                    key={`report-tomorrow-${reportTomorrowNotes ? reportTomorrowNotes.slice(0, 10) : 'empty'}`}
                     content={reportTomorrowNotes}
                     onChange={setReportTomorrowNotes}
                     placeholder='What do you plan to work on tomorrow?'
@@ -924,7 +923,6 @@ export function Dashboard() {
                   </h4>
                   <NotesEditor
                     id='report-general-comments'
-                    key={`report-general-${reportGeneralComments ? reportGeneralComments.slice(0, 10) : 'empty'}`}
                     content={reportGeneralComments}
                     onChange={setReportGeneralComments}
                     placeholder='Any other thoughts or comments...'

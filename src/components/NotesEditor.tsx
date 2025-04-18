@@ -6,6 +6,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import { Extension, mergeAttributes } from '@tiptap/core';
+import { Plugin } from 'prosemirror-state';
 import {
   Bold,
   Italic,
@@ -22,7 +23,7 @@ import {
   Eraser,
   Type,
 } from 'lucide-react';
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 
 interface NotesEditorProps {
   id?: string;
@@ -193,6 +194,32 @@ const CustomTaskItem = TaskItem.extend({
   },
 });
 
+// Simplified version of the empty doc handler that doesn't use buggy plugin
+const CustomEmptyDocHandler = Extension.create({
+  name: 'customEmptyDocHandler',
+  
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        props: {
+          handleKeyDown(view, event) {
+            // Special handling for the first paragraph typing
+            if (view.state.doc.childCount === 1 && 
+                view.state.doc.firstChild?.type.name === 'paragraph' &&
+                view.state.doc.firstChild.content.size === 0) {
+              // Allow backspace to work as expected
+              if (event.key === 'Backspace') {
+                return false;
+              }
+            }
+            return false; // Let Tiptap handle other key events
+          }
+        }
+      })
+    ];
+  }
+});
+
 export function NotesEditor({
   id = 'default-editor',
   content = '',
@@ -200,18 +227,52 @@ export function NotesEditor({
   onChange,
   disabled,
 }: NotesEditorProps) {
-  // Use a unique key to force re-render when content changes
-  const editorKey = `${id}-${content ? content.slice(0, 10) : 'empty'}`;
-  
-  // Modify handleUpdate to not save to localStorage
+  const editorRef = useRef<any>(null);
+  const isUpdatingRef = useRef(false);
+  const lastContentRef = useRef(content);
+  const initializedRef = useRef(false);
+
+  // Improve update handling for performance
   const handleUpdate = ({ editor }: { editor: any }) => {
+    // Skip if this is an update from our own setContent
+    if (isUpdatingRef.current) return;
+    
     const html = editor.getHTML();
 
-    // Only call the external onChange
-    if (onChange) {
+    // Only call the external onChange if content actually changed
+    if (onChange && html !== lastContentRef.current) {
+      lastContentRef.current = html;
       onChange(html);
     }
   };
+
+  // Handle external content changes
+  useEffect(() => {
+    // Only update content from props if it's different from our last known content
+    if (editorRef.current && content !== lastContentRef.current) {
+      isUpdatingRef.current = true;
+      editorRef.current.commands.setContent(content);
+      lastContentRef.current = content;
+      // Reset the flag after a short delay to ensure the update has processed
+      setTimeout(() => {
+        isUpdatingRef.current = false;
+      }, 10);
+    }
+  }, [content]);
+
+  // Ensure the editor is properly focused after first render
+  useEffect(() => {
+    if (editorRef.current && !initializedRef.current) {
+      // A small delay to ensure DOM is fully rendered
+      setTimeout(() => {
+        initializedRef.current = true;
+        // Only focus if the editor is empty and not disabled
+        if ((!content || content === '<p></p>') && !disabled) {
+          editorRef.current.commands.focus('end');
+        }
+      }, 100);
+    }
+  }, [content, disabled]);
 
   // Set up the extensions
   const extensions = [
@@ -230,6 +291,8 @@ export function NotesEditor({
     }),
     Placeholder.configure({
       placeholder,
+      showOnlyWhenEditable: true,
+      includeChildren: true, // Ensures placeholder works in nested nodes too
     }),
     TaskList,
     // Replace TaskItem with our custom implementation
@@ -237,6 +300,7 @@ export function NotesEditor({
       nested: true,
     }),
     CustomHeadingExit,
+    CustomEmptyDocHandler, // Add our custom handler for empty document
   ];
 
   // Custom editorProps for styling
@@ -250,10 +314,12 @@ export function NotesEditor({
   return (
     <div className={`editor-wrapper ${disabled ? 'disabled' : ''}`}>
       <EditorProvider
-        key={editorKey} // Add key to force new instance when content changes
+        onBeforeCreate={({ editor }) => {
+          editorRef.current = editor;
+        }}
         slotBefore={<MenuBar />}
         extensions={extensions}
-        content={content}
+        content={content || '<p></p>'} // Ensure we always have at least one paragraph
         editorProps={editorProps}
         onUpdate={handleUpdate}
       />
@@ -424,13 +490,23 @@ export function NotesEditor({
           flex: 1;
         }
 
-        /* Placeholder styling */
-        .tiptap p.is-editor-empty:first-child::before {
+        /* Placeholder styling - improved for better responsiveness */
+        .tiptap .is-editor-empty.is-empty::before {
           content: attr(data-placeholder);
           float: left;
           color: #9ca3af;
           pointer-events: none;
           height: 0;
+          cursor: text;
+        }
+
+        /* Make sure the placeholder doesn't interfere with typing */
+        .tiptap .is-editor-empty:first-child::before {
+          height: 0;
+          pointer-events: none;
+          user-select: none;
+          position: absolute;
+          opacity: 0.5;
         }
 
         /* Add this to create the strikethrough effect */
