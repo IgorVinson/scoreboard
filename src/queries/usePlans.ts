@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { queryKeys } from './queryKeys';
 import type { Plan } from '@/lib/types';
 
+// Get all plans
 export const usePlans = () => {
   return useQuery({
     queryKey: queryKeys.plans.all,
@@ -17,6 +18,7 @@ export const usePlans = () => {
   });
 };
 
+// Get a single plan by ID
 export const usePlan = (id: string) => {
   return useQuery({
     queryKey: queryKeys.plans.byId(id),
@@ -40,6 +42,7 @@ export const usePlan = (id: string) => {
   });
 };
 
+// Get plans by user
 export const usePlansByUser = (userId: string) => {
   return useQuery({
     queryKey: queryKeys.plans.byUser(userId),
@@ -58,6 +61,7 @@ export const usePlansByUser = (userId: string) => {
   });
 };
 
+// Get plans by metric
 export const usePlansByMetric = (metricId: string) => {
   return useQuery({
     queryKey: queryKeys.plans.byMetric(metricId),
@@ -76,6 +80,7 @@ export const usePlansByMetric = (metricId: string) => {
   });
 };
 
+// Create a new plan
 export const useCreatePlan = () => {
   const queryClient = useQueryClient();
   
@@ -99,6 +104,7 @@ export const useCreatePlan = () => {
   });
 };
 
+// Update an existing plan
 export const useUpdatePlan = () => {
   const queryClient = useQueryClient();
   
@@ -123,6 +129,7 @@ export const useUpdatePlan = () => {
   });
 };
 
+// Delete a plan
 export const useDeletePlan = () => {
   const queryClient = useQueryClient();
   

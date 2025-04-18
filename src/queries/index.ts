@@ -26,4 +26,5 @@ export * from './useDailyNotes';
 export * from './useObjectives';
 
 // User preferences queries
-export * from './useUserPreferences'; 
+export * from './useUserPreferences';
+
