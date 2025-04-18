@@ -29,6 +29,7 @@ interface NotesEditorProps {
   content?: string;
   placeholder?: string;
   onChange?: (html: string) => void;
+  disabled?: boolean;
 }
 
 // Simplified MenuBar component with icons
@@ -197,12 +198,11 @@ export function NotesEditor({
   content = '',
   placeholder = 'Write something...',
   onChange,
+  disabled,
 }: NotesEditorProps) {
-  // Remove storageKey and loading from localStorage
-
-  // Use input content instead of localStorage
-  const initialContent = content;
-
+  // Use a unique key to force re-render when content changes
+  const editorKey = `${id}-${content ? content.slice(0, 10) : 'empty'}`;
+  
   // Modify handleUpdate to not save to localStorage
   const handleUpdate = ({ editor }: { editor: any }) => {
     const html = editor.getHTML();
@@ -244,14 +244,16 @@ export function NotesEditor({
     attributes: {
       class: 'tiptap',
     },
+    editable: () => !disabled, // Fix the type error by providing a function
   };
 
   return (
-    <div className='editor-wrapper'>
+    <div className={`editor-wrapper ${disabled ? 'disabled' : ''}`}>
       <EditorProvider
+        key={editorKey} // Add key to force new instance when content changes
         slotBefore={<MenuBar />}
         extensions={extensions}
-        content={initialContent}
+        content={content}
         editorProps={editorProps}
         onUpdate={handleUpdate}
       />
@@ -435,6 +437,16 @@ export function NotesEditor({
         .tiptap ul[data-type='taskList'] li[data-checked='true'] > div {
           text-decoration: line-through;
           opacity: 0.7;
+        }
+
+        /* Add disabled state styling */
+        .editor-wrapper.disabled {
+          opacity: 0.7;
+          pointer-events: none;
+        }
+        
+        .editor-wrapper.disabled .menu-bar {
+          display: none;
         }
       `}</style>
     </div>
