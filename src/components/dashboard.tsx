@@ -69,7 +69,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { ReportsTable } from '@/components/ReportsTable';
 import { SimpleOverview } from '@/components/SimpleOverview';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, set } from 'date-fns';
 import { ResultReportsTable } from '@/components/ResultReportsTable';
 import { createObjective, updateObjective, deleteObjective } from '@/lib/supabase-service';
 import { DatabaseExplorer } from '@/components/database-explorer';
@@ -80,6 +80,7 @@ import {
   useCreateObjective,
   useUpdateObjective,
   useDeleteObjective,
+  useDailyNotesByUser
 } from '@/queries';
 
 interface StarRatingProps {
@@ -258,6 +259,24 @@ export function Dashboard() {
 
   const shouldShowManagerView =
     isVirtualManager || (!isSoloMode && user?.role === 'MANAGER');
+
+
+    // Use the hook directly rather than assigning to intermediate variable
+    const { data: notesFromDB, isLoading: isLoadingNotesFromDB } = useDailyNotesByUser(user?.id || '');
+
+    // State for tracking the notes text
+    const [testTodayNotes, setTestTodayNotes] = useState('');
+    console.log('Text note  from database:', testTodayNotes);
+
+    useEffect(() => {
+      // Only update if we have notes and aren't loading
+      if (notesFromDB && !isLoadingNotesFromDB) {
+        const latestNote = notesFromDB[0]?.today_notes || '';
+        setTestTodayNotes(latestNote);
+      }
+    }, [notesFromDB, isLoadingNotesFromDB]);
+
+
 
   // Load daily notes from Supabase
   useEffect(() => {
@@ -1436,7 +1455,8 @@ export function Dashboard() {
                   </h4>
                   <NotesEditor
                     id='today-notes'
-                    content={todayNotes}
+                    key={testTodayNotes}
+                    content={testTodayNotes}
                     onChange={handleTodayNotesChange}
                     placeholder='What did you accomplish today?'
                   />
