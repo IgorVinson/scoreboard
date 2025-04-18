@@ -393,7 +393,7 @@ export function Dashboard() {
     // This ensures we get exactly what the user selected
     setReportDate(inputValue);
 
-    console.log('Date selected:', inputValue); // Debug log
+    // console.log('Date selected:', inputValue); // Debug log
   };
 
   // Update the handleCreateReport function to calculate daily plan values

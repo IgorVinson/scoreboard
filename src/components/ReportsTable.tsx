@@ -45,6 +45,7 @@ export function ReportsTable({
     });
   };
 
+
   const toggleMainObjectiveExpansion = (reportId, objectiveId, event) => {
     // Stop propagation to prevent triggering the row expansion
     event.stopPropagation();
@@ -201,6 +202,7 @@ export function ReportsTable({
     // ... keep other tabs if they exist ...
   ];
 
+  
   // Update the tab content rendering logic
   function renderTabContent() {
     switch (activeTab) {
@@ -234,9 +236,31 @@ export function ReportsTable({
     }
   }
 
+  // Function to collect metrics for the chart
+  const collectMetricsForChart = () => {
+    const planMetrics = [];
+    const factMetrics = [];
+    const objectiveNames = [];
+  
+    reports.forEach(report => {
+      objectives.forEach(objective => {
+        objectiveNames.push(objective.name); // Додаємо назву об'єкта
+        objective.metrics.forEach(metric => {
+          const { plan, actual } = getMetricValues(metric, report);
+          planMetrics.push(plan);
+          factMetrics.push(actual);
+        });
+      });
+    });
+  
+    return { planMetrics, factMetrics, objectiveNames };
+  };
+
+  
   // Update the initial state or useEffect to set the default active tab
   useEffect(() => {
     setActiveTab('overview-performance');
+    const { planMetrics, factMetrics, objectiveNames } = collectMetricsForChart();
   }, []);
 
   return (

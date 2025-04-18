@@ -22,6 +22,7 @@ import {
   );
   
   
+  
   const ChartBlock = () => {
 
     // Функція для отримання значення CSS-змінної
@@ -37,6 +38,7 @@ import {
       const chart2Color = getCSSVariable('--chart-2');
     // Данні для графіка
 
+    
 
     const data = {
       labels: ['January', 'February', 'March', 'April', 'May', 'June'],
