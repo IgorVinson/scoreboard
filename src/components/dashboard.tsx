@@ -80,6 +80,7 @@ import {
   useUpdateDailyNote,
   useCreateDailyNote,
 } from '@/queries';
+import { useCreateMetric, useUpdateMetric, useDeleteMetric } from '@/queries';
 
 interface StarRatingProps {
   rating: number;
@@ -152,7 +153,6 @@ export function Dashboard() {
   const { theme, setTheme } = useTheme();
   const { isSoloMode, isVirtualManager } = useSoloMode();
   const {
-    metrics,
     plans,
     dailyReports,
     getPlansByUser,
@@ -160,6 +160,12 @@ export function Dashboard() {
     getDailyNotes,
     saveDailyNotes,
   } = useData();
+  
+  const { data: metrics = [], isLoading: isLoadingMetrics } = useMetrics();
+  const createMetricMutation = useCreateMetric();
+  const updateMetricMutation = useUpdateMetric();
+  const deleteMetricMutation = useDeleteMetric();
+  
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [selectedIndicator, setSelectedIndicator] = useState('All Indicators');
   const [selectedPeriod, setSelectedPeriod] = useState('Daily');
@@ -304,10 +310,13 @@ export function Dashboard() {
     return [];
   });
 
+  // When dealing with the indicators in the UI, add loading state handling
   const filteredIndicators =
-    selectedIndicator === 'All Indicators'
-      ? indicators
-      : indicators.filter((i: any) => i.name === selectedIndicator);
+    isLoadingMetrics 
+      ? []
+      : selectedIndicator === 'All Indicators'
+        ? indicators
+        : indicators.filter((i: any) => i.name === selectedIndicator);
 
   const filteredReports =
     reportsIndicator === 'All Indicators'
@@ -464,6 +473,59 @@ export function Dashboard() {
     setResultReportSummary('');
     setResultReportNextGoals('');
     setResultReportComments('');
+  };
+
+  // Add some display of the metrics data to confirm it's working
+  useEffect(() => {
+    if (metrics.length > 0) {
+      console.log('Metrics from TanStack Query:', metrics);
+      
+      // Update indicators with metrics data
+      const metricIndicators = metrics.map(metric => ({
+        id: metric.id,
+        name: metric.name,
+        description: metric.description || '',
+        type: metric.type,
+        measurement_unit: metric.measurement_unit
+      }));
+      
+      setIndicators(metricIndicators);
+      setAllIndicators(['All Indicators', ...metricIndicators.map(m => m.name)]);
+    }
+  }, [metrics]);
+
+  // Add metric operation handlers using TanStack Query
+  const handleCreateMetric = async (metricData: any) => {
+    try {
+      console.log('Creating metric with data:', metricData);
+      await createMetricMutation.mutateAsync(metricData);
+      return true;
+    } catch (error) {
+      console.error('Error creating metric:', error);
+      return false;
+    }
+  };
+
+  const handleUpdateMetric = async (id: string, metricData: any) => {
+    try {
+      console.log('Updating metric:', id, metricData);
+      await updateMetricMutation.mutateAsync({ id, ...metricData });
+      return true;
+    } catch (error) {
+      console.error('Error updating metric:', error);
+      return false;
+    }
+  };
+
+  const handleDeleteMetric = async (id: string) => {
+    try {
+      console.log('Deleting metric:', id);
+      await deleteMetricMutation.mutateAsync(id);
+      return true;
+    } catch (error) {
+      console.error('Error deleting metric:', error);
+      return false;
+    }
   };
 
   return (
