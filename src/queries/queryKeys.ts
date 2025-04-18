@@ -19,6 +19,7 @@ export const queryKeys = {
     byId: (id: string) => [...queryKeys.metrics.all, id] as const,
     byCompany: (companyId: string) => [...queryKeys.metrics.all, 'by-company', companyId] as const,
     byOwner: (userId: string) => [...queryKeys.metrics.all, 'by-owner', userId] as const,
+    byObjective: (objectiveId: string) => [...queryKeys.metrics.all, 'by-objective', objectiveId] as const,
   },
   metricOwners: {
     all: ['metric-owners'] as const,

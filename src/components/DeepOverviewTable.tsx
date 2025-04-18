@@ -306,11 +306,30 @@ export function DeepOverviewTable({
           onSuccess: (updatedMetric) => {
             console.log('Successfully updated metric in database:', updatedMetric);
             
-            // Manually invalidate the queries to force a refresh
+            // Manually invalidate the queries to force a refresh of metrics
             queryClient.invalidateQueries({ queryKey: ['metrics'] });
             
-            // No need to update state again since we did it optimistically
-            setOptimisticLoading(false);
+            // Also refresh plan-related data
+            if (user?.id) {
+              queryClient.invalidateQueries({ 
+                queryKey: ['plans', 'by-user', user.id],
+                refetchType: 'all'
+              });
+            } else {
+              queryClient.invalidateQueries({ 
+                queryKey: ['plans'],
+                refetchType: 'all'
+              });
+            }
+            
+            // Force a complete refresh of the data after UI has updated
+            setTimeout(() => {
+              console.log('Refreshing data after metric update...');
+              forceReloadPlans();
+            }, 500);
+            
+            // Turn off optimistic loading with a delay
+            setTimeout(() => setOptimisticLoading(false), 800);
           },
           onError: (error) => {
             console.error('Error updating metric:', error);
@@ -366,10 +385,7 @@ export function DeepOverviewTable({
           onSuccess: (newMetric) => {
             console.log('Successfully created metric in database:', newMetric);
             
-            // Manually invalidate the queries to force a refresh
-            queryClient.invalidateQueries({ queryKey: ['metrics'] });
-            
-            // Replace temp metric with the real one
+            // Immediately replace temp metric with the real one 
             const finalObjectives = objectives.map(obj => {
               if (obj.id === currentObjectiveId) {
                 return {
@@ -390,8 +406,34 @@ export function DeepOverviewTable({
               return obj;
             });
             
+            // Update the state immediately with the new metric
             onObjectivesChange(finalObjectives);
-            setOptimisticLoading(false);
+            
+            // Then refetch all metrics to ensure the data is fresh
+            queryClient.invalidateQueries({ queryKey: ['metrics'] });
+            
+            // Also update any plan-related state
+            if (user?.id) {
+              // Ensure plans data is immediately available 
+              queryClient.invalidateQueries({ 
+                queryKey: ['plans', 'by-user', user.id],
+                refetchType: 'all'
+              });
+            } else {
+              queryClient.invalidateQueries({ 
+                queryKey: ['plans'],
+                refetchType: 'all'
+              });
+            }
+            
+            // Set a timeout to allow the UI to update first, then force refresh of related data
+            setTimeout(() => {
+              console.log('Refreshing data after metric creation...');
+              forceReloadPlans();
+            }, 500);
+            
+            // Turn off optimistic loading with a delay
+            setTimeout(() => setOptimisticLoading(false), 800);
           },
           onError: (error) => {
             console.error('Error creating metric:', error);
@@ -484,6 +526,17 @@ export function DeepOverviewTable({
         
         // Update state through parent component
         onObjectivesChange(updatedObjectives);
+        
+        // Force refresh of plans data to ensure UI is in sync with database
+        if (user?.id) {
+          queryClient.invalidateQueries({ 
+            queryKey: ['plans', 'by-user', user.id]
+          });
+        } else {
+          queryClient.invalidateQueries({ queryKey: ['plans'] });
+        }
+        // Reset the cache ref to force a reload of plans
+        processedCacheRef.current = null;
       } catch (error) {
         console.error('Error deleting objective or its metrics:', error);
         alert('Failed to delete: ' + (error instanceof Error ? error.message : String(error)));
@@ -494,34 +547,57 @@ export function DeepOverviewTable({
       // Delete the metric from the database
       setOptimisticLoading(true);
       
-      deleteMetricMutation.mutate(itemToDelete.metricId, {
-        onSuccess: () => {
-          console.log('Successfully deleted metric from database');
+      // Find any associated plans to delete them properly
+      const metricToDelete = itemToDelete.metricId;
+      const metricPlans = userPlans?.filter(plan => plan.metric_id === metricToDelete) || [];
+      
+      try {
+        // First delete any associated plans
+        if (metricPlans.length > 0) {
+          console.log(`Found ${metricPlans.length} plans for metric ${metricToDelete}, deleting them first`);
           
-          // Manually invalidate the queries to force a refresh
-          queryClient.invalidateQueries({ queryKey: ['metrics'] });
-          
-          // Then filter out the deleted metric from the specific objective in local state
-          updatedObjectives = updatedObjectives.map(obj => {
-            if (obj.id === itemToDelete.objectiveId) {
-              return {
-                ...obj,
-                metrics: obj.metrics.filter(m => m.id !== itemToDelete.metricId),
-              };
-            }
-            return obj;
-          });
-          
-          // Update state through parent component
-          onObjectivesChange(updatedObjectives);
-          setOptimisticLoading(false);
-        },
-        onError: (error) => {
-          console.error('Error deleting metric:', error);
-          alert('Failed to delete metric: ' + (error instanceof Error ? error.message : String(error)));
-          setOptimisticLoading(false);
+          // Delete plans one by one to ensure they're all removed
+          for (const plan of metricPlans) {
+            await deletePlanMutation.mutateAsync(plan.id);
+          }
         }
-      });
+        
+        // Then delete the metric
+        await deleteMetricMutation.mutateAsync(metricToDelete);
+        
+        console.log('Successfully deleted metric and its plans from database');
+        
+        // Then filter out the deleted metric from the specific objective in local state
+        updatedObjectives = updatedObjectives.map(obj => {
+          if (obj.id === itemToDelete.objectiveId) {
+            return {
+              ...obj,
+              metrics: obj.metrics.filter(m => m.id !== itemToDelete.metricId),
+            };
+          }
+          return obj;
+        });
+        
+        // Update state through parent component
+        onObjectivesChange(updatedObjectives);
+        
+        // Force refresh of plans data to ensure UI is in sync with database
+        if (user?.id) {
+          queryClient.invalidateQueries({ 
+            queryKey: ['plans', 'by-user', user.id]
+          });
+        } else {
+          queryClient.invalidateQueries({ queryKey: ['plans'] });
+        }
+        // Reset the cache ref to force a reload of plans
+        processedCacheRef.current = null;
+        
+        setOptimisticLoading(false);
+      } catch (error) {
+        console.error('Error deleting metric or its plans:', error);
+        alert('Failed to delete: ' + (error instanceof Error ? error.message : String(error)));
+        setOptimisticLoading(false);
+      }
     }
 
     // Close the confirmation dialog
@@ -852,32 +928,45 @@ export function DeepOverviewTable({
 
   // Update the openPlansDialog function
   const openPlansDialog = () => {
-    // Initialize metric plans with all metrics and their existing plans
-    const initialMetricPlans: Record<
-      string,
-      {
-        selected: boolean;
-        value: number | undefined;
-        period: 'until_week_end' | 'until_month_end';
-        planId?: string;
-      }
-    > = {};
-
-    objectives.forEach(objective => {
-      objective.metrics.forEach(metric => {
-        initialMetricPlans[metric.id] = {
-          selected: metric.plan !== undefined,
-          value: metric.plan,
-          period:
-            (metric.planPeriod as 'until_week_end' | 'until_month_end') ||
-            'until_week_end',
-          planId: metric.planId,
-        };
+    // Ensure we have the latest plan data by forcing a refresh
+    forceReloadPlans();
+    
+    // Set a brief delay to allow the reload to complete
+    setTimeout(() => {
+      // Initialize metric plans with all metrics and their existing plans
+      const initialMetricPlans: Record<
+        string,
+        {
+          selected: boolean;
+          value: number | undefined;
+          period: 'until_week_end' | 'until_month_end';
+          planId?: string;
+        }
+      > = {};
+  
+      // Gather current metrics and their plans
+      console.log('Opening plans dialog - metrics count:', 
+        objectives.reduce((count, obj) => count + obj.metrics.length, 0));
+      
+      objectives.forEach(objective => {
+        objective.metrics.forEach(metric => {
+          initialMetricPlans[metric.id] = {
+            selected: metric.plan !== undefined,
+            value: metric.plan,
+            period:
+              (metric.planPeriod as 'until_week_end' | 'until_month_end') ||
+              'until_week_end',
+            planId: metric.planId,
+          };
+          
+          // Debug
+          console.log(`Metric in dialog: ${metric.name} (${metric.id}) - has plan: ${metric.plan !== undefined}`);
+        });
       });
-    });
-
-    setMetricPlans(initialMetricPlans);
-    setPlansDialogOpen(true);
+  
+      setMetricPlans(initialMetricPlans);
+      setPlansDialogOpen(true);
+    }, 300); // Small delay to ensure data is fresh
   };
 
   // Update the getPlanPeriodText function
@@ -1028,15 +1117,50 @@ export function DeepOverviewTable({
       return;
     }
 
+    // Set loading state
+    setOptimisticLoading(true);
+
     // Get selected metrics with their plans
     const selectedMetricPlans = Object.entries(metricPlans)
-      .filter(([_, data]) => data.selected && data.value !== undefined)
+      .filter(([metricId, data]) => {
+        // Skip if not selected or no value
+        if (!data.selected || data.value === undefined) return false;
+        
+        // Verify this metric still exists in the objectives
+        let metricExists = false;
+        for (const objective of objectives) {
+          if (objective.metrics.some(m => m.id === metricId)) {
+            metricExists = true;
+            break;
+          }
+        }
+        
+        if (!metricExists) {
+          console.log(`Skipping plan for metric ${metricId} as it no longer exists`);
+        }
+        
+        return metricExists;
+      })
       .map(([metricId, data]) => ({
         metricId,
         planValue: data.value as number,
         period: data.period,
         planId: data.planId, // Track existing plan ID for updates
       }));
+
+    // Check if any plans were skipped
+    const skippedCount = Object.entries(metricPlans)
+      .filter(([_, data]) => data.selected && data.value !== undefined).length - selectedMetricPlans.length;
+    
+    if (skippedCount > 0) {
+      console.log(`Skipped ${skippedCount} plans for metrics that no longer exist`);
+    }
+
+    if (selectedMetricPlans.length === 0) {
+      setPlansDialogOpen(false);
+      alert('No valid metrics selected for planning');
+      return;
+    }
 
     // Track promises for all database operations
     const dbOperations: Promise<Plan | void>[] = [];
@@ -1062,52 +1186,50 @@ export function DeepOverviewTable({
       }
     };
 
-    // Set optimistic loading state
-    setOptimisticLoading(true);
-
-    // Create or update plans in the database
-    for (const plan of selectedMetricPlans) {
-      if (plan.planId) {
-        // Update existing plan
-        const updatePromise = updatePlanMutation.mutateAsync({
-          id: plan.planId,
-          target_value: plan.planValue,
-          start_date: today, // Optionally update start date, or keep existing
-          end_date: getEndDate(plan.period),
-          status: 'ACTIVE', // Assuming plan becomes active on save
-        }).then((updatedPlan: Plan) => {
-          planUpdatesForState[plan.metricId] = {
-            plan: updatedPlan.target_value,
-            planPeriod: plan.period,
-            planId: updatedPlan.id,
-          };
-          return updatedPlan;
-        });
-        dbOperations.push(updatePromise);
-      } else {
-        // Create new plan
-        const createPromise = createPlanMutation.mutateAsync({
-          metric_id: plan.metricId,
-          target_value: plan.planValue,
-          user_id: user.id,
-          start_date: today,
-          end_date: getEndDate(plan.period),
-          status: 'ACTIVE',
-        }).then((newPlan: Plan) => {
-          planUpdatesForState[plan.metricId] = {
-            plan: newPlan.target_value,
-            planPeriod: plan.period,
-            planId: newPlan.id,
-          };
-          return newPlan;
-        });
-        dbOperations.push(createPromise);
-      }
-    }
-
     try {
+      // Create or update plans in the database
+      for (const plan of selectedMetricPlans) {
+        if (plan.planId) {
+          // Update existing plan
+          const updatePromise = updatePlanMutation.mutateAsync({
+            id: plan.planId,
+            target_value: plan.planValue,
+            start_date: today, // Optionally update start date, or keep existing
+            end_date: getEndDate(plan.period),
+            status: 'ACTIVE', // Assuming plan becomes active on save
+          }).then((updatedPlan: Plan) => {
+            planUpdatesForState[plan.metricId] = {
+              plan: updatedPlan.target_value,
+              planPeriod: plan.period,
+              planId: updatedPlan.id,
+            };
+            return updatedPlan;
+          });
+          dbOperations.push(updatePromise);
+        } else {
+          // Create new plan
+          const createPromise = createPlanMutation.mutateAsync({
+            metric_id: plan.metricId,
+            target_value: plan.planValue,
+            user_id: user.id,
+            start_date: today,
+            end_date: getEndDate(plan.period),
+            status: 'ACTIVE',
+          }).then((newPlan: Plan) => {
+            planUpdatesForState[plan.metricId] = {
+              plan: newPlan.target_value,
+              planPeriod: plan.period,
+              planId: newPlan.id,
+            };
+            return newPlan;
+          });
+          dbOperations.push(createPromise);
+        }
+      }
+
       // Wait for all database operations to complete
-      await Promise.all(dbOperations);
+      const completedOperations = await Promise.all(dbOperations);
+      console.log('All plan operations completed successfully:', completedOperations);
       
       // Update UI state with the results from DB operations
       const updatedObjectives = objectives.map(objective => {
@@ -1120,16 +1242,52 @@ export function DeepOverviewTable({
         return { ...objective, metrics: updatedMetrics };
       });
 
-      // Update objectives through the parent component
-      onObjectivesChange(updatedObjectives);
-
-      // Close dialog
+      // Close dialog first to prevent UI glitches
       setPlansDialogOpen(false);
       
-      // Refresh metrics data cache
-      queryClient.invalidateQueries({ queryKey: ['metrics'] });
+      // Update objectives through the parent component
+      onObjectivesChange(updatedObjectives);
       
-      setOptimisticLoading(false);
+      // Also update the plans in our local store for immediate access
+      // This ensures the UI has access to the latest plan data without waiting for a refetch
+      if (userPlans) {
+        const updatedUserPlans = [...userPlans];
+        
+        // Update existing plans or add new ones
+        for (const result of completedOperations) {
+          if (result && 'id' in result) {
+            const planIndex = updatedUserPlans.findIndex(p => p.id === result.id);
+            if (planIndex >= 0) {
+              updatedUserPlans[planIndex] = result as Plan;
+            } else {
+              updatedUserPlans.push(result as Plan);
+            }
+          }
+        }
+        
+        // Manually update the query data to ensure it's immediately available
+        if (user?.id) {
+          queryClient.setQueryData(['plans', 'by-user', user.id], updatedUserPlans);
+        }
+        
+        console.log('Updated plans data in cache:', updatedUserPlans);
+      }
+      
+      // Force refetch to ensure backend and frontend are in sync
+      setTimeout(() => {
+        // Invalidate queries to ensure data consistency
+        if (user?.id) {
+          queryClient.invalidateQueries({ queryKey: ['plans', 'by-user', user.id] });
+        } else {
+          queryClient.invalidateQueries({ queryKey: ['plans'] });
+        }
+        
+        // Also refresh metrics to ensure consistency
+        queryClient.invalidateQueries({ queryKey: ['metrics'] });
+        
+        // Turn off loading indicator
+        setOptimisticLoading(false);
+      }, 500);
     } catch (error) {
       console.error('Error saving plans:', error);
       alert('Failed to save plans: ' + (error instanceof Error ? error.message : String(error)));
@@ -1246,108 +1404,162 @@ export function DeepOverviewTable({
 
   // Use effect to initialize metric plans with data from database when userPlans changes
   useEffect(() => {
-    // Skip if no plans or objectives
-    if (!userPlans || userPlans.length === 0 || objectives.length === 0) {
+    console.log('Plans useEffect triggered - userPlans:', userPlans?.length);
+    
+    // Skip if no objectives
+    if (objectives.length === 0) {
+      console.log('No objectives, skipping plans processing');
+      return;
+    }
+
+    // Skip if plans are still loading and we haven't determined if they're defined yet
+    if (plansLoading) {
+      console.log('Plans still loading, will process later');
       return;
     }
     
-    // Add a ref to prevent unnecessary re-renders
-    const planIds = userPlans.map(plan => plan.id).sort().join(',');
-    const objectiveIds = objectives.map(obj => obj.id).sort().join(',');
+    console.log('Processing plans with userPlans:', userPlans);
     
-    // Store this combination in a ref to prevent infinite loops
-    const cacheKey = `${planIds}-${objectiveIds}`;
-    console.log('Cache key generated:', cacheKey, 'Current cached key:', processedCacheRef.current);
+    // Even if userPlans is empty or undefined, we should still process to reset plans
+    const validPlans = userPlans || [];
     
-    // Use the ref from the component level, not create a new one
-    const processedRef = processedCacheRef;
+    // First, collect all metric IDs from objectives to know what metrics still exist
+    const existingMetricIds = new Set<string>();
+    objectives.forEach(obj => {
+      obj.metrics.forEach(metric => {
+        existingMetricIds.add(metric.id);
+      });
+    });
     
-    // Skip if we've already processed this exact combination of plans and objectives
-    if (processedRef.current === cacheKey) {
-      return;
-    }
+    console.log('All metrics that currently exist:', Array.from(existingMetricIds));
     
-    console.log('Found', userPlans.length, 'plans for the current user');
-    console.log('Plan data from database:', userPlans);
-    
-    const initialMetricPlans: Record<
-      string,
-      {
-        selected: boolean;
-        value: number | undefined;
-        period: 'until_week_end' | 'until_month_end';
-        planId?: string; // Store the plan ID for updates
+    // Create a map of plan data by metric ID for quick lookup
+    const plansByMetricId = new Map<string, Plan>();
+    validPlans.forEach(plan => {
+      // Only include plans for metrics that exist
+      if (existingMetricIds.has(plan.metric_id)) {
+        plansByMetricId.set(plan.metric_id, plan);
+      } else {
+        console.log(`Plan ${plan.id} references non-existent metric ${plan.metric_id}`);
       }
-    > = {};
+    });
     
+    console.log('Processing plans for', plansByMetricId.size, 'metrics');
+    
+    // Now update all objectives and their metrics with the latest plan data
     const updatedObjectives = objectives.map(objective => {
       const updatedMetrics = objective.metrics.map(metric => {
-        const dbPlan = userPlans.find(p => p.metric_id === metric.id);
-        let uiMetricUpdate: Partial<UIMetric> = {};
-        let planDialogUpdate: any = {};
+        const plan = plansByMetricId.get(metric.id);
         
-        if (dbPlan) {
-          console.log('Found plan for metric:', metric.name, dbPlan);
+        if (plan) {
+          console.log(`Applying plan to metric ${metric.name} (${metric.id}):`, plan);
           
           // Determine the period based on end_date
           let period: 'until_week_end' | 'until_month_end' = 'until_week_end';
-          const endDate = new Date(dbPlan.end_date);
-          const endOfMonth = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0);
-          const isEndOfMonth = endDate.getDate() === endOfMonth.getDate();
-          if (isEndOfMonth) {
-            period = 'until_month_end';
+          try {
+            const endDate = new Date(plan.end_date);
+            const endOfMonth = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0);
+            const isEndOfMonth = endDate.getDate() === endOfMonth.getDate();
+            if (isEndOfMonth) {
+              period = 'until_month_end';
+            }
+          } catch (e) {
+            console.error('Error parsing plan date:', e);
           }
-
-          uiMetricUpdate = {
-            plan: dbPlan.target_value,
-            planPeriod: period,
-            planId: dbPlan.id,
-          };
           
-          planDialogUpdate = {
-            selected: true,
-            value: dbPlan.target_value,
-            period: period,
-            planId: dbPlan.id,
+          // Return metric with plan data
+          return {
+            ...metric,
+            plan: plan.target_value,
+            planPeriod: period,
+            planId: plan.id,
           };
         } else {
-           // Initialize planDialogUpdate even if no dbPlan exists
-           planDialogUpdate = {
-             selected: false,
-             value: undefined,
-             period: 'until_week_end',
-             planId: undefined,
-           };
+          // Clear any plan data if no plan exists for this metric
+          return {
+            ...metric,
+            plan: undefined,
+            planPeriod: undefined,
+            planId: undefined,
+          };
         }
-        
-        initialMetricPlans[metric.id] = planDialogUpdate;
-        return { ...metric, ...uiMetricUpdate };
       });
-      return { ...objective, metrics: updatedMetrics };
+      
+      return {
+        ...objective,
+        metrics: updatedMetrics,
+      };
     });
     
-    // Save the current state to prevent reprocessing
-    processedRef.current = cacheKey;
+    // Only update if something actually changed
+    const hasChanges = JSON.stringify(updatedObjectives) !== JSON.stringify(objectives);
+    if (hasChanges) {
+      console.log('Plan data changed, updating objectives');
+      onObjectivesChange(updatedObjectives);
+    } else {
+      console.log('No changes to plan data');
+    }
     
-    // Update the main objectives state passed from parent
-    onObjectivesChange(updatedObjectives);
-    
-    // Set the state for the plans dialog
-    setMetricPlans(initialMetricPlans);
-    
-  }, [userPlans, objectives, onObjectivesChange, processedCacheRef]);
+  // We depend on metrics loading state and several key events that should trigger a reprocessing of plans
+  // The refetchMetrics function reference will change when metrics are refetched
+  }, [userPlans, objectives, onObjectivesChange, plansLoading, refetchMetrics]);
 
   // Add function to force reload plans
   const forceReloadPlans = useCallback(() => {
-    // Reset the cache key to force a reload
-    processedCacheRef.current = null;
-    // Invalidate the plans query to force a refetch
-    queryClient.invalidateQueries({ queryKey: ['plans'] });
-    // Set optimistic loading
+    console.log('Forcing reload of plans data...');
+    
+    // Show loading indicator
     setOptimisticLoading(true);
-    // Wait a bit and then set loading false
-    setTimeout(() => setOptimisticLoading(false), 1000);
-  }, [queryClient]);
+    
+    // Force refetch metrics data first to ensure we have latest metrics
+    refetchMetrics().then(() => {
+      console.log('Metrics refetched, now refetching plans');
+      
+      // Then invalidate plans queries to force a refetch
+      if (user?.id) {
+        // First remove all queries to ensure a fresh fetch
+        queryClient.removeQueries({ queryKey: ['plans', 'by-user', user.id] });
+        // Then invalidate to trigger a refetch
+        queryClient.invalidateQueries({ queryKey: ['plans', 'by-user', user.id] });
+      } else {
+        queryClient.removeQueries({ queryKey: ['plans'] });
+        queryClient.invalidateQueries({ queryKey: ['plans'] });
+      }
+      
+      // Initialize a clean metric plans state for the dialog
+      const freshMetricPlans: Record<string, any> = {};
+      objectives.forEach(obj => {
+        obj.metrics.forEach(metric => {
+          freshMetricPlans[metric.id] = {
+            selected: metric.plan !== undefined,
+            value: metric.plan,
+            period: metric.planPeriod || 'until_week_end',
+            planId: metric.planId,
+          };
+        });
+      });
+      
+      // Update the metricPlans state with fresh data
+      setMetricPlans(freshMetricPlans);
+      
+      // Turn off loading after a delay to ensure everything is updated
+      setTimeout(() => setOptimisticLoading(false), 800);
+    });
+  }, [queryClient, user?.id, objectives, refetchMetrics]);
+
+  // Add function to log plans for debugging
+  const logPlansData = useCallback(() => {
+    console.log('Current plans in UI state:');
+    objectives.forEach(obj => {
+      obj.metrics.forEach(metric => {
+        if (metric.plan !== undefined) {
+          console.log(`Metric: ${metric.name} (${metric.id}) - Plan: ${metric.plan} (${metric.planPeriod})`);
+        }
+      });
+    });
+    
+    console.log('Plans from database:', userPlans);
+  }, [objectives, userPlans]);
 
   // Add loading indicator for plans
   if (plansLoading && !isLoadingMetrics && !optimisticLoading) {
@@ -1409,6 +1621,15 @@ export function DeepOverviewTable({
           >
             <Loader2 className='h-4 w-4' />
             Refresh Plans
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={logPlansData}
+            className='flex items-center gap-1'
+          >
+            <Target className='h-4 w-4' />
+            Log Plans
           </Button>
           <Button
             variant='outline'
