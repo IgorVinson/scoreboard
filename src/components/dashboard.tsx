@@ -48,9 +48,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/contexts/auth-context';
-import { useData } from '@/contexts/data-context';
-import { ModeToggle } from '@/components/mode-toggle';
-import { VirtualManagerToggle } from '@/components/virtual-manager-toggle';
 import { useSoloMode } from '@/contexts/solo-mode-context';
 import { NotesEditor } from '@/components/NotesEditor';
 import { DeepOverviewTable } from '@/components/DeepOverviewTable';
@@ -67,7 +64,6 @@ import { ReportsTable } from '@/components/ReportsTable';
 import { SimpleOverview } from '@/components/SimpleOverview';
 import { format, parseISO, set } from 'date-fns';
 import { ResultReportsTable } from '@/components/ResultReportsTable';
-import { createObjective, updateObjective, deleteObjective } from '@/lib/supabase-service';
 import { DatabaseExplorer } from '@/components/database-explorer';
 import {
   useObjectives,
@@ -81,8 +77,28 @@ import {
   useCreateDailyNote,
   useLatestDailyNote,
 } from '@/queries';
-import { useCreateMetric, useUpdateMetric, useDeleteMetric } from '@/queries';
+import { 
+  useCreateMetric, 
+  useUpdateMetric, 
+  useDeleteMetric,
+  useDailyReports,
+  useDailyReportsByUser,
+  useDailyReportByUserAndDate,
+  useCreateDailyReport,
+  useUpdateDailyReport,
+  useDeleteDailyReport
+} from '@/queries';
 import type { UIObjective } from '@/components/DeepOverviewTable';
+import type { DailyReport } from '@/lib/types';
+import { ModeToggle } from '@/components/mode-toggle';
+import { VirtualManagerToggle } from '@/components/virtual-manager-toggle';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { supabase } from '@/lib/supabase';
+
+// Extend the DailyReport type to include the 'reviewed' field for our app's usage
+interface ExtendedDailyReport extends Omit<DailyReport, 'id' | 'created_at' | 'updated_at'> {
+  reviewed?: boolean;
+}
 
 interface StarRatingProps {
   rating: number;
@@ -154,15 +170,17 @@ export function Dashboard() {
   const { user, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
   const { isSoloMode, isVirtualManager } = useSoloMode();
-  const {
-    getPlansByUser,
-    getDailyReportsByUser,
-  } = useData();
   
   const { data: metrics = [], isLoading: isLoadingMetrics } = useMetrics();
   const createMetricMutation = useCreateMetric();
   const updateMetricMutation = useUpdateMetric();
   const deleteMetricMutation = useDeleteMetric();
+  
+  // TanStack Query hooks for daily reports
+  const { data: userReports = [], isLoading: isLoadingReports } = useDailyReportsByUser(user?.id || '');
+  const createDailyReportMutation = useCreateDailyReport();
+  const updateDailyReportMutation = useUpdateDailyReport();
+  const deleteDailyReportMutation = useDeleteDailyReport();
   
   // TanStack Query hooks for daily notes
   const { data: latestNote, isLoading: isLoadingLatestNote } = useLatestDailyNote(user?.id || '');
@@ -190,6 +208,11 @@ export function Dashboard() {
   const [generalComments, setGeneralComments] = useState('');
   const [isLoadingNotes, setIsLoadingNotes] = useState(true);
   const [currentNoteId, setCurrentNoteId] = useState<string | null>(null);
+
+  // Add Report Notes states
+  const [reportTodayNotes, setReportTodayNotes] = useState('');
+  const [reportTomorrowNotes, setReportTomorrowNotes] = useState('');
+  const [reportGeneralComments, setReportGeneralComments] = useState('');
 
   // Handle note changes
   const handleTodayNotesChange = (html: string) => {
@@ -286,11 +309,257 @@ export function Dashboard() {
     loadObjectives();
   }, [objectivesFromDB]);
 
-  // Add new state variables for report
-  const [reportTodayNotes, setReportTodayNotes] = useState('');
-  const [reportTomorrowNotes, setReportTomorrowNotes] = useState('');
-  const [reportGeneralComments, setReportGeneralComments] = useState('');
+  // Report related state - these were accidentally removed in the previous edit
+  const [editingReport, setEditingReport] = useState<any>(null);
+  const [reviewMode, setReviewMode] = useState(false);
+  const [reportQuantityRating, setReportQuantityRating] = useState(0);
+  const [reportQualityRating, setReportQualityRating] = useState(0);
+  const [resultReportType, setResultReportType] = useState<'weekly' | 'monthly'>('weekly');
+  const [resultReportStartDate, setResultReportStartDate] = useState('');
+  const [resultReportEndDate, setResultReportEndDate] = useState('');
+  const [resultReportSummary, setResultReportSummary] = useState('');
+  const [resultReportNextGoals, setResultReportNextGoals] = useState('');
+  const [resultReportComments, setResultReportComments] = useState('');
+  const [resultReports, setResultReports] = useState<any[]>([]);
+  const [editingResultReport, setEditingResultReport] = useState<any>(null);
+  
+  // Helper functions
+  const calculateDailyPlanValue = (metric: any) => {
+    if (!metric.plan) return '0';
+    return String(metric.plan);
+  };
+  
+  // Add alert dialog state
+  const [alertDialogOpen, setAlertDialogOpen] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertDialogTitle, setAlertDialogTitle] = useState('Alert');
 
+  // Open report dialog and copy current notes to report fields
+  const handleOpenReport = () => {
+    // Set the reportDate to today's date initially
+    setReportDate(format(new Date(), 'yyyy-MM-dd'));
+    
+    // Copy the current notes to the report fields
+    setReportTodayNotes(todayNotes);
+    setReportTomorrowNotes(tomorrowNotes);
+    setReportGeneralComments(generalComments);
+    
+    // Check if we already have objectives for the report
+    if (objectives && objectives.length > 0) {
+      // Format objectives with isExpanded property for the report dialog
+      const formattedReportObjectives = objectives.map(obj => ({
+        ...obj,
+        isExpanded: false // Initially collapse all objectives
+      }));
+      setReportObjectives(formattedReportObjectives);
+    }
+    
+    // Reset metric values
+    setMetricValues({});
+    setEditingReport(null);
+    
+    // Open the dialog
+    setReportDialogOpen(true);
+  };
+  
+  // Check if a report exists for the selected date before creating
+  const checkReportExists = async (date: string) => {
+    try {
+      if (!user?.id) return false;
+      
+      const { data } = await supabase
+        .from('daily_reports')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('date', date)
+        .single();
+      
+      return !!data;
+    } catch (error) {
+      return false;
+    }
+  };
+  
+  // Handle date change in the report dialog
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newDate = e.target.value;
+    setReportDate(newDate);
+    
+    // Check if we're editing an existing report for this date
+    if (editingReport && editingReport.date === newDate) {
+      return;
+    }
+    
+    // Check if a report already exists for the selected date
+    checkReportExists(newDate).then(exists => {
+      if (exists) {
+        // Show a toast notification instead of an alert
+        setAlertMessage("You can create only one report per day. Please use the Daily Reports tab if you want to view or edit it.");
+        setAlertDialogOpen(true);
+      }
+    });
+  };
+  
+  // Create a new daily report using TanStack Query
+  const handleCreateReport = async () => {
+    try {
+      if (!user?.id) return;
+      
+      // Check if a report already exists for this date
+      const exists = await checkReportExists(reportDate);
+      
+      if (exists) {
+        // Show alert dialog with message
+        setAlertDialogTitle("Report Already Exists");
+        setAlertMessage("You can create only one report per day. Please use the Daily Reports tab if you want to edit an existing report.");
+        setAlertDialogOpen(true);
+        return;
+      }
+      
+      // Prepare metrics data
+      const metricsData: Record<string, { plan: number; fact: number }> = {};
+      
+      // For each metric with a value entered, add an entry
+      Object.entries(metricValues).forEach(([metricId, factValue]) => {
+        // Find the metric in objectives to get its plan value
+        let planValue = 0;
+        
+        objectives.forEach(obj => {
+          obj.metrics.forEach(metric => {
+            if (metric.id === metricId && metric.plan !== undefined) {
+              planValue = metric.plan;
+            }
+          });
+        });
+        
+        metricsData[metricId] = {
+          plan: planValue,
+          fact: factValue
+        };
+      });
+      
+      // Create the report data for application logic
+      const reportData: ExtendedDailyReport = {
+        date: reportDate,
+        user_id: user.id,
+        metrics_data: metricsData,
+        today_notes: reportTodayNotes,
+        tomorrow_notes: reportTomorrowNotes,
+        general_comments: reportGeneralComments,
+        reviewed: false
+      };
+      
+      // Remove the 'reviewed' field before sending to database
+      const { reviewed, ...dbReportData } = reportData;
+      
+      // Create the report in the database
+      await createDailyReportMutation.mutateAsync(dbReportData);
+      
+      console.log('Report created successfully');
+      setReportDialogOpen(false);
+      
+      // Show success alert
+      setAlertDialogTitle("Success");
+      setAlertMessage("Daily report for " + format(parseISO(reportDate), 'MMMM d, yyyy') + " has been created successfully.");
+      setAlertDialogOpen(true);
+    } catch (error) {
+      console.error('Error creating report:', error);
+      
+      // Show error alert
+      setAlertDialogTitle("Error");
+      setAlertMessage("Failed to create report. Please try again.");
+      setAlertDialogOpen(true);
+    }
+  };
+  
+  // Update an existing daily report
+  const handleUpdateReport = async () => {
+    try {
+      if (!editingReport || !user?.id) return;
+      
+      // Prepare metrics data
+      const metricsData: Record<string, { plan: number; fact: number }> = {};
+      
+      // For each metric with a value entered, add an entry
+      Object.entries(metricValues).forEach(([metricId, factValue]) => {
+        // Find the metric in objectives to get its plan value
+        let planValue = 0;
+        
+        objectives.forEach(obj => {
+          obj.metrics.forEach(metric => {
+            if (metric.id === metricId && metric.plan !== undefined) {
+              planValue = metric.plan;
+            }
+          });
+        });
+        
+        metricsData[metricId] = {
+          plan: planValue,
+          fact: factValue
+        };
+      });
+      
+      // Create the report update data without 'reviewed' field
+      const reportData = {
+        id: editingReport.id,
+        metrics_data: metricsData,
+        today_notes: reportTodayNotes,
+        tomorrow_notes: reportTomorrowNotes,
+        general_comments: reportGeneralComments
+      };
+      
+      // Update the report
+      await updateDailyReportMutation.mutateAsync(reportData);
+      
+      console.log('Report updated successfully');
+      setReportDialogOpen(false);
+      setEditingReport(null);
+    } catch (error) {
+      console.error('Error updating report:', error);
+    }
+  };
+  
+  // Delete a daily report
+  const handleDeleteReport = async (reportId: string) => {
+    try {
+      await deleteDailyReportMutation.mutateAsync(reportId);
+      console.log('Report deleted successfully');
+    } catch (error) {
+      console.error('Error deleting report:', error);
+    }
+  };
+
+  // When showing user-specific data, use the data from TanStack Query
+  const shouldShowManagerView =
+    isVirtualManager || (!isSoloMode && user?.role === 'MANAGER');
+
+  // Add the missing toggleStrictMode function
+  const toggleStrictMode = () => {
+    setStrictModeEnabled(prev => !prev);
+  };
+
+  // Add missing handler functions
+  const handleObjectivesChange = (updatedObjectives: UIObjective[]) => {
+    setObjectives(updatedObjectives);
+  };
+  
+  // Add reportObjectives state and toggle function
+  const [reportObjectives, setReportObjectives] = useState<UIObjective[]>([]);
+  
+  const toggleReportObjectiveExpansion = (objectiveId: string) => {
+    setReportObjectives(prevObjs =>
+      prevObjs.map(obj => {
+        if (obj.id === objectiveId) {
+          return {
+            ...obj,
+            isExpanded: !obj.isExpanded,
+          };
+        }
+        return obj;
+      })
+    );
+  };
+  
   // Add the missing strictModeEnabled state
   const [strictModeEnabled, setStrictModeEnabled] = useState(false);
   const [resultReportDialogOpen, setResultReportDialogOpen] = useState(false);
@@ -352,65 +621,7 @@ export function Dashboard() {
     }
   };
 
-  // When you need to get user-specific data:
-  const userPlans = user?.id ? getPlansByUser(user.id) : [];
-  const userReports = user?.id ? getDailyReportsByUser(user.id) : [];
-
-  const shouldShowManagerView =
-    isVirtualManager || (!isSoloMode && user?.role === 'MANAGER');
-
-  // Add the missing toggleStrictMode function
-  const toggleStrictMode = () => {
-    setStrictModeEnabled(prev => !prev);
-  };
-
   // Add missing handler functions
-  const handleObjectivesChange = (updatedObjectives: UIObjective[]) => {
-    setObjectives(updatedObjectives);
-  };
-  
-  // Add reportObjectives state and toggle function
-  const [reportObjectives, setReportObjectives] = useState<UIObjective[]>([]);
-  
-  const toggleReportObjectiveExpansion = (objectiveId: string) => {
-    setReportObjectives(prevObjs =>
-      prevObjs.map(obj => {
-        if (obj.id === objectiveId) {
-          return {
-            ...obj,
-            isExpanded: !obj.isExpanded,
-          };
-        }
-        return obj;
-      })
-    );
-  };
-  
-  // Add report related state
-  const [editingReport, setEditingReport] = useState<any>(null);
-  const [reviewMode, setReviewMode] = useState(false);
-  const [reportQuantityRating, setReportQuantityRating] = useState(0);
-  const [reportQualityRating, setReportQualityRating] = useState(0);
-  const [resultReportType, setResultReportType] = useState<'weekly' | 'monthly'>('weekly');
-  const [resultReportStartDate, setResultReportStartDate] = useState('');
-  const [resultReportEndDate, setResultReportEndDate] = useState('');
-  const [resultReportSummary, setResultReportSummary] = useState('');
-  const [resultReportNextGoals, setResultReportNextGoals] = useState('');
-  const [resultReportComments, setResultReportComments] = useState('');
-  const [resultReports, setResultReports] = useState<any[]>([]);
-  const [editingResultReport, setEditingResultReport] = useState<any>(null);
-  
-  // Add missing helper functions
-  const calculateDailyPlanValue = (metric: any) => {
-    if (!metric.plan) return '0';
-    return String(metric.plan);
-  };
-  
-  // Add missing handler functions
-  const handleDeleteReport = () => {
-    console.log('Delete report');
-  };
-  
   const handleEditReport = () => {
     console.log('Edit report');
   };
@@ -421,24 +632,6 @@ export function Dashboard() {
   
   const handleToggleReview = () => {
     console.log('Toggle review');
-  };
-  
-  const handleOpenReport = () => {
-    setReportDialogOpen(true);
-  };
-  
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setReportDate(e.target.value);
-  };
-  
-  const handleCreateReport = () => {
-    console.log('Create report');
-    setReportDialogOpen(false);
-  };
-  
-  const handleUpdateReport = () => {
-    console.log('Update report');
-    setReportDialogOpen(false);
   };
   
   const handleSubmitReview = () => {
@@ -705,7 +898,7 @@ export function Dashboard() {
                   </div>
 
                   <ReportsTable
-                    reports={reports}
+                    reports={userReports}
                     objectives={objectives}
                     onDeleteReport={handleDeleteReport}
                     onEditReport={handleEditReport}
@@ -1304,6 +1497,21 @@ export function Dashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Add the Alert Dialog */}
+      <AlertDialog open={alertDialogOpen} onOpenChange={setAlertDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{alertDialogTitle}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {alertMessage}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction>OK</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
