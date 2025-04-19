@@ -657,21 +657,125 @@ export function Dashboard() {
   };
 
   // Add missing handler functions
-  const handleEditReport = () => {
-    console.log('Edit report');
+  const handleEditReport = (report) => {
+    // Set the report being edited
+    setEditingReport(report);
+    
+    // Set the report date
+    setReportDate(report.date);
+    
+    // Copy the notes from the report
+    setReportTodayNotes(report.today_notes || '');
+    setReportTomorrowNotes(report.tomorrow_notes || '');
+    setReportGeneralComments(report.general_comments || '');
+    
+    // Set the metric values from the report's metrics_data
+    const values = {};
+    if (report.metrics_data) {
+      Object.entries(report.metrics_data).forEach(([metricId, data]) => {
+        if (data.fact !== undefined) {
+          values[metricId] = data.fact;
+        }
+      });
+    }
+    setMetricValues(values);
+    
+    // Format objectives for the report dialog
+    if (objectives && objectives.length > 0) {
+      // Format objectives with isExpanded property for the report dialog
+      const formattedReportObjectives = objectives.map(obj => ({
+        ...obj,
+        isExpanded: true // Initially expand all objectives for editing
+      }));
+      setReportObjectives(formattedReportObjectives);
+    }
+    
+    // Open the dialog
+    setReportDialogOpen(true);
   };
   
-  const handleReviewReport = () => {
-    console.log('Review report');
+  // Report review functions
+  const handleReviewReport = (report) => {
+    // Set the report being reviewed
+    setEditingReport(report);
+    
+    // Set review mode to true
+    setReviewMode(true);
+    
+    // Set the initial ratings from the report if they exist
+    setReportQuantityRating(report.quantity_rating || 0);
+    setReportQualityRating(report.quality_rating || 0);
+    
+    // Copy the notes from the report (readonly in review mode)
+    setReportTodayNotes(report.today_notes || '');
+    setReportTomorrowNotes(report.tomorrow_notes || '');
+    setReportGeneralComments(report.general_comments || '');
+    
+    // Open the dialog
+    setReportDialogOpen(true);
   };
   
-  const handleToggleReview = () => {
-    console.log('Toggle review');
+  const handleToggleReview = async (reportId) => {
+    try {
+      // Find the report
+      const report = userReports.find(r => r.id === reportId);
+      if (!report) return;
+      
+      // Toggle the reviewed status
+      const updatedReport = {
+        id: reportId,
+        reviewed: !report.reviewed
+      };
+      
+      // Update the report
+      await updateDailyReportMutation.mutateAsync(updatedReport);
+      
+      // Show success message
+      setAlertDialogTitle("Success");
+      setAlertMessage(`Report ${report.reviewed ? 'unmarked' : 'marked'} as reviewed`);
+      setAlertDialogOpen(true);
+    } catch (error) {
+      console.error('Error toggling review status:', error);
+      
+      // Show error message
+      setAlertDialogTitle("Error");
+      setAlertMessage("Failed to update review status. Please try again.");
+      setAlertDialogOpen(true);
+    }
   };
   
-  const handleSubmitReview = () => {
-    console.log('Submit review');
-    setReportDialogOpen(false);
+  const handleSubmitReview = async () => {
+    try {
+      if (!editingReport) return;
+      
+      // Create the review data
+      const reviewData = {
+        id: editingReport.id,
+        reviewed: true,
+        quantity_rating: reportQuantityRating,
+        quality_rating: reportQualityRating
+      };
+      
+      // Update the report with review data
+      await updateDailyReportMutation.mutateAsync(reviewData);
+      
+      // Show success message
+      setAlertDialogTitle("Success");
+      setAlertMessage("Review submitted successfully");
+      setAlertDialogOpen(true);
+      
+      // Close the dialog and reset state
+      setReportDialogOpen(false);
+      setEditingReport(null);
+      setReviewMode(false);
+    } catch (error) {
+      console.error('Error submitting review:', error);
+      
+      // Show error message
+      setAlertDialogTitle("Error");
+      setAlertMessage("Failed to submit review. Please try again.");
+      setAlertDialogOpen(true);
+    }
   };
   
   const handleNextMissingReport = () => {
@@ -1052,10 +1156,11 @@ export function Dashboard() {
       <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
         <DialogContent className='sm:max-w-[800px] max-h-[90vh]'>
           <DialogHeader>
-            <DialogTitle>Close Day Report</DialogTitle>
+            <DialogTitle>{editingReport ? 'Edit Daily Report' : 'Close Day Report'}</DialogTitle>
             <DialogDescription>
-              Create a daily report by filling in metric values and reviewing
-              your notes.
+              {editingReport 
+                ? 'Update your daily report by modifying the values and notes below.' 
+                : 'Create a daily report by filling in metric values and reviewing your notes.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -1068,6 +1173,7 @@ export function Dashboard() {
                 value={reportDate}
                 onChange={handleDateChange}
                 className='w-[200px]'
+                disabled={editingReport !== null || reviewMode}
               />
             </div>
 
@@ -1121,6 +1227,7 @@ export function Dashboard() {
                                   handleMetricValueChange(metric.id, e.target.value);
                                 }}
                                 className='w-20'
+                                disabled={reviewMode}
                               />
                             </TableCell>
                           </TableRow>
@@ -1144,6 +1251,7 @@ export function Dashboard() {
                     content={reportTodayNotes}
                     onChange={setReportTodayNotes}
                     placeholder='What did you accomplish today?'
+                    disabled={reviewMode}
                   />
                 </div>
                 <div>
@@ -1155,6 +1263,7 @@ export function Dashboard() {
                     content={reportTomorrowNotes}
                     onChange={setReportTomorrowNotes}
                     placeholder='What do you plan to work on tomorrow?'
+                    disabled={reviewMode}
                   />
                 </div>
                 <div>
@@ -1166,6 +1275,7 @@ export function Dashboard() {
                     content={reportGeneralComments}
                     onChange={setReportGeneralComments}
                     placeholder='Any other thoughts or comments...'
+                    disabled={reviewMode}
                   />
                 </div>
               </div>
@@ -1484,6 +1594,7 @@ export function Dashboard() {
                                   handleMetricValueChange(metric.id, e.target.value);
                                 }}
                                 className='w-20'
+                                disabled={reviewMode}
                               />
                             </TableCell>
                           </TableRow>

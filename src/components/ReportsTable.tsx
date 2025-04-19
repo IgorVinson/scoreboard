@@ -33,16 +33,29 @@ export function ReportsTable({
   );
   const [activeTab, setActiveTab] = useState('overview-performance');
 
-  const toggleReportExpansion = reportId => {
-    setExpandedReports(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(reportId)) {
-        newSet.delete(reportId);
-      } else {
-        newSet.add(reportId);
-      }
-      return newSet;
-    });
+  const toggleReportExpansion = (reportId, event) => {
+    // Always stop event propagation
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    
+    // Use direct state setting for more predictable updates
+    const isCurrentlyExpanded = expandedReports.has(reportId);
+    
+    if (isCurrentlyExpanded) {
+      // If currently expanded, create a new set without this ID
+      const newSet = new Set(expandedReports);
+      newSet.delete(reportId);
+      setExpandedReports(newSet);
+      console.log('Report collapsed:', reportId);
+    } else {
+      // If currently collapsed, create a new set with this ID added
+      const newSet = new Set(expandedReports);
+      newSet.add(reportId);
+      setExpandedReports(newSet);
+      console.log('Report expanded:', reportId);
+    }
   };
 
   const toggleMainObjectiveExpansion = (reportId, objectiveId, event) => {
@@ -239,6 +252,13 @@ export function ReportsTable({
     setActiveTab('overview-performance');
   }, []);
 
+  // Add a debugging effect to monitor state changes
+  useEffect(() => {
+    const expandedCount = expandedReports.size;
+    console.log(`Expanded reports count: ${expandedCount}`, 
+      Array.from(expandedReports));
+  }, [expandedReports]);
+
   return (
     <Table>
       <TableHeader>
@@ -268,16 +288,55 @@ export function ReportsTable({
 
             return (
               <React.Fragment key={report.id}>
-                <TableRow>
+                <TableRow 
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={(e) => {
+                    // Stop event from propagating to parent row
+                    e.stopPropagation();
+                    e.preventDefault();
+                    
+                    // Direct state change for more predictable behavior
+                    const isCurrentlyExpanded = expandedReports.has(report.id);
+                    const newSet = new Set(expandedReports);
+                    
+                    if (isCurrentlyExpanded) {
+                      newSet.delete(report.id);
+                    } else {
+                      newSet.add(report.id);
+                    }
+                    
+                    setExpandedReports(newSet);
+                  }}
+                >
                   <TableCell>
                     <div className='flex items-center'>
                       <Button
                         variant='ghost'
                         size='sm'
                         className='h-6 w-6 p-0 mr-2'
-                        onClick={() => toggleReportExpansion(report.id)}
+                        onClick={(e) => {
+                          // Stop event from propagating to parent row
+                          e.stopPropagation();
+                          e.preventDefault();
+                          
+                          // Direct state change for more predictable behavior
+                          const isCurrentlyExpanded = expandedReports.has(report.id);
+                          const newSet = new Set(expandedReports);
+                          
+                          if (isCurrentlyExpanded) {
+                            newSet.delete(report.id);
+                          } else {
+                            newSet.add(report.id);
+                          }
+                          
+                          setExpandedReports(newSet);
+                        }}
                       >
-                        <FileText className='h-4 w-4 text-gray-400' />
+                        {isExpanded ? (
+                          <ChevronDown className='h-4 w-4 text-gray-400' />
+                        ) : (
+                          <FileText className='h-4 w-4 text-gray-400' />
+                        )}
                       </Button>
                       {formattedDate}
                     </div>
@@ -303,7 +362,10 @@ export function ReportsTable({
                         variant='ghost'
                         size='sm'
                         className='h-8 w-8 p-0'
-                        onClick={() => onDeleteReport(report.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteReport(report.id);
+                        }}
                       >
                         <Trash2 className='h-4 w-4 text-destructive' />
                       </Button>
@@ -311,7 +373,10 @@ export function ReportsTable({
                         variant='ghost'
                         size='sm'
                         className='h-8 w-8 p-0'
-                        onClick={() => onEditReport(report)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditReport(report);
+                        }}
                       >
                         <Edit className='h-4 w-4 text-muted-foreground' />
                       </Button>
@@ -324,7 +389,8 @@ export function ReportsTable({
                       variant='ghost'
                       size='sm'
                       className='h-8 w-8 p-0 rounded-full'
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         if (report.reviewed) {
                           // If already reviewed, just toggle it off
                           onToggleReview(report.id);
