@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -29,56 +30,54 @@ import {
     // Функція для отримання значення CSS-змінної
     const getCSSVariable = (variableName: string) => {
         return getComputedStyle(document.documentElement).getPropertyValue(variableName).trim();
-
       };
+       // Використання
+       const foregroundColor = getCSSVariable('--foreground');
+       const borderColor = getCSSVariable('--border');
+
+
+      const [selectedMetric, setSelectedMetric] = useState('');
+
+      const metrics = Array.from(
+        new Set(
+          reports.flatMap(report => Object.keys(report.metrics_data))
+        )
+      );
       
-      // Використання
-      const cardForeground = getCSSVariable('--card-foreground');
-      const foregroundColor = getCSSVariable('--foreground');
-      const borderColor = getCSSVariable('--border');
+     
     // Данні для графіка
 
     const uniqueDates = [...new Set(reports.map(report => report.date))].sort();
     const planData = uniqueDates.map(date =>
-      reports
-        .filter(report => report.date === date) // Фільтруємо звіти за датою
-        .reduce((sum, report) => {
-          return (
-            sum +
-            Object.values(report.metrics_data).reduce(
-              (metricSum, metric) => metricSum + (metric.plan || 0),
-              0
-            )
-          );
-        }, 0)
-    );
+       reports
+      .filter(report => report.date === date)
+      .reduce((sum, report) => {
+        const metric = report.metrics_data[selectedMetric];
+        return sum + (metric?.plan || 0);
+      }, 0)
+  );
   
-    const factData = uniqueDates.map(date =>
-      reports
-        .filter(report => report.date === date) // Фільтруємо звіти за датою
-        .reduce((sum, report) => {
-          return (
-            sum +
-            Object.values(report.metrics_data).reduce(
-              (metricSum, metric) => metricSum + (metric.fact || 0),
-              0
-            )
-          );
-        }, 0)
-    );
+  const factData = uniqueDates.map(date =>
+    reports
+      .filter(report => report.date === date)
+      .reduce((sum, report) => {
+        const metric = report.metrics_data[selectedMetric];
+        return sum + (metric?.fact || 0);
+      }, 0)
+  );
 
     const data = {
       labels: uniqueDates,
       datasets: [
         {
-          label: 'Plan',
+        label: 'Plan',
         data: planData,
         backgroundColor: 'rgba(75, 192, 192, 0.2)',
         borderColor: 'rgba(75, 192, 192, 1)',
         fill: false,
         },
         {
-          label: 'Fact',
+        label: 'Fact',
         data: factData,
         backgroundColor: 'rgba(255, 99, 132, 0.2)',
         borderColor: 'rgba(255, 99, 132, 1)',
@@ -92,9 +91,7 @@ import {
       maintainAspectRatio: false,
       plugins: {
         legend: {
-          labels: {
-            color: `hsl(${cardForeground})`, // Колір тексту легенди
-          },
+         display: true, // Сховати легенду
         },
       },
       scales: {
@@ -120,6 +117,27 @@ import {
     return (
       <div className="p-6 bg-card text-card-foreground rounded-lg shadow-md">
       <h3 className="text-lg font-semibold mb-4">Performance Chart</h3>
+       {/* Випадаючий список для вибору метрики */}
+       <div className="mb-4">
+        <label htmlFor="metric-select" className="block text-sm font-medium text-gray-700">
+          Select Metric:
+        </label>
+        <select
+          id="metric-select"
+          value={selectedMetric}
+          onChange={e => setSelectedMetric(e.target.value)}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+        >
+          <option value="">Select a metric</option>
+          {metrics.map(metric => (
+            <option key={metric} value={metric}>
+              {metric}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Графік */}
       <div style={{ height: '300px' }}>
         <Line data={data} options={options} />
       </div>
