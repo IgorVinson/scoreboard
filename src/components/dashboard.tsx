@@ -1303,7 +1303,7 @@ export function Dashboard() {
           </div>
 
         {/* Chart Block */ }
-          <ChartBlock objectives={objectives} />
+          <ChartBlock objectives={objectives} reports={reports}/>
           
           
           {/* Tabs */}
