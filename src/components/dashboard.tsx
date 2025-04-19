@@ -94,6 +94,8 @@ import { ModeToggle } from '@/components/mode-toggle';
 import { VirtualManagerToggle } from '@/components/virtual-manager-toggle';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from '@/lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/queries/queryKeys';
 
 // Extend the DailyReport type to include the 'reviewed' field for our app's usage
 interface ExtendedDailyReport extends Omit<DailyReport, 'id' | 'created_at' | 'updated_at'> {
@@ -170,17 +172,21 @@ export function Dashboard() {
   const { user, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
   const { isSoloMode, isVirtualManager } = useSoloMode();
+  const queryClient = useQueryClient();
+  
+  // Add state for delete confirmation dialog
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [reportToDelete, setReportToDelete] = useState<string | null>(null);
   
   const { data: metrics = [], isLoading: isLoadingMetrics } = useMetrics();
   const createMetricMutation = useCreateMetric();
   const updateMetricMutation = useUpdateMetric();
-  const deleteMetricMutation = useDeleteMetric();
+  const deleteDailyReportMutation = useDeleteDailyReport();
   
   // TanStack Query hooks for daily reports
   const { data: userReports = [], isLoading: isLoadingReports } = useDailyReportsByUser(user?.id || '');
   const createDailyReportMutation = useCreateDailyReport();
   const updateDailyReportMutation = useUpdateDailyReport();
-  const deleteDailyReportMutation = useDeleteDailyReport();
   
   // TanStack Query hooks for daily notes
   const { data: latestNote, isLoading: isLoadingLatestNote } = useLatestDailyNote(user?.id || '');
@@ -519,13 +525,42 @@ export function Dashboard() {
     }
   };
   
-  // Delete a daily report
+  // Delete a daily report with confirmation
   const handleDeleteReport = async (reportId: string) => {
+    // Open confirmation dialog
+    setReportToDelete(reportId);
+    setDeleteConfirmOpen(true);
+  };
+  
+  // Confirm and execute report deletion
+  const confirmDeleteReport = async () => {
+    if (!reportToDelete) return;
+    
     try {
-      await deleteDailyReportMutation.mutateAsync(reportId);
-      console.log('Report deleted successfully');
+      console.log('Deleting report:', reportToDelete);
+      await deleteDailyReportMutation.mutateAsync(reportToDelete);
+      
+      // Show success alert
+      setAlertDialogTitle("Success");
+      setAlertMessage("Report deleted successfully");
+      setAlertDialogOpen(true);
+      
+      // Close the confirmation dialog
+      setDeleteConfirmOpen(false);
+      setReportToDelete(null);
+      return true;
     } catch (error) {
       console.error('Error deleting report:', error);
+      
+      // Show error alert
+      setAlertDialogTitle("Error");
+      setAlertMessage("Failed to delete report. Please try again.");
+      setAlertDialogOpen(true);
+      
+      // Close the confirmation dialog
+      setDeleteConfirmOpen(false);
+      setReportToDelete(null);
+      return false;
     }
   };
 
@@ -895,6 +930,18 @@ export function Dashboard() {
                 <div className='space-y-4'>
                   <div className='flex justify-between items-center'>
                     <h2 className='text-2xl font-bold'>Reports</h2>
+                    <Button 
+                      variant='outline'
+                      onClick={() => queryClient.invalidateQueries({ queryKey: queryKeys.dailyReports.all })}
+                      className='flex items-center gap-2'
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                        <path d="M21 2v6h-6"></path>
+                        <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+                        <path d="M3 12a9 9 0 0 0 15 6.7l3-2.7"></path>
+                      </svg>
+                      Refresh
+                    </Button>
                   </div>
 
                   <ReportsTable
@@ -1498,7 +1545,28 @@ export function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Add the Alert Dialog */}
+      {/* Add the Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Report</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this report? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteReport}
+              className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      
+      {/* Keep the existing Alert Dialog */}
       <AlertDialog open={alertDialogOpen} onOpenChange={setAlertDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
