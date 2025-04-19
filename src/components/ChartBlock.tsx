@@ -23,7 +23,8 @@ import {
   
   
   
-  const ChartBlock = () => {
+  const ChartBlock = ({objectives}) => {
+    // console.log('objectives', objectives)
 
     // Функція для отримання значення CSS-змінної
     const getCSSVariable = (variableName: string) => {
@@ -41,19 +42,21 @@ import {
     
 
     const data = {
-      labels: ['January', 'February', 'March', 'April', 'May', 'June'],
+      labels: objectives.map(obj => obj.name), // Використовуємо назви об'єктів як мітки
       datasets: [
         {
           label: 'Plan',
-          data: [65, 59, 80, 81, 56, 55], // Дані для "Plan"
-          fill: false,
+          data: objectives.map(obj =>
+            obj.metrics.reduce((sum, metric) => sum + (metric.plan || 0), 0)
+          ), // Сума планових значень
           backgroundColor: `hsl(${borderColor})`, // Колір для точок
           borderColor: `hsl(${chart2Color})`, // Колір для лінії
         },
         {
           label: 'Fact',
-          data: [70, 50, 75, 85, 60, 65], // Дані для "Fact"
-          fill: false,
+          data: objectives.map(obj =>
+            obj.metrics.reduce((sum, metric) => sum + (metric.actual || 0), 0)
+          ), // Сума фактичних значень
           backgroundColor: `hsl(${chart2Color})`, // Колір для точок
           borderColor: `hsl(${chart2Color})`, // Колір для лінії
         },
