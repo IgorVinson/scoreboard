@@ -23,9 +23,9 @@ import {
   
   
   
-  const ChartBlock = ({objectives}) => {
-    // console.log('objectives', objectives)
-
+  const ChartBlock = ({ reports}) => {
+// console.log(reports);
+    
     // Функція для отримання значення CSS-змінної
     const getCSSVariable = (variableName: string) => {
         return getComputedStyle(document.documentElement).getPropertyValue(variableName).trim();
@@ -36,29 +36,53 @@ import {
       const cardForeground = getCSSVariable('--card-foreground');
       const foregroundColor = getCSSVariable('--foreground');
       const borderColor = getCSSVariable('--border');
-      const chart2Color = getCSSVariable('--chart-2');
     // Данні для графіка
 
-    
+    const uniqueDates = [...new Set(reports.map(report => report.date))].sort();
+    const planData = uniqueDates.map(date =>
+      reports
+        .filter(report => report.date === date) // Фільтруємо звіти за датою
+        .reduce((sum, report) => {
+          return (
+            sum +
+            Object.values(report.metrics_data).reduce(
+              (metricSum, metric) => metricSum + (metric.plan || 0),
+              0
+            )
+          );
+        }, 0)
+    );
+  
+    const factData = uniqueDates.map(date =>
+      reports
+        .filter(report => report.date === date) // Фільтруємо звіти за датою
+        .reduce((sum, report) => {
+          return (
+            sum +
+            Object.values(report.metrics_data).reduce(
+              (metricSum, metric) => metricSum + (metric.fact || 0),
+              0
+            )
+          );
+        }, 0)
+    );
 
     const data = {
-      labels: objectives.map(obj => obj.name), // Використовуємо назви об'єктів як мітки
+      labels: uniqueDates,
       datasets: [
         {
           label: 'Plan',
-          data: objectives.map(obj =>
-            obj.metrics.reduce((sum, metric) => sum + (metric.plan || 0), 0)
-          ), // Сума планових значень
-          backgroundColor: `hsl(${borderColor})`, // Колір для точок
-          borderColor: `hsl(${chart2Color})`, // Колір для лінії
+        data: planData,
+        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+        borderColor: 'rgba(75, 192, 192, 1)',
+        fill: false,
         },
         {
           label: 'Fact',
-          data: objectives.map(obj =>
-            obj.metrics.reduce((sum, metric) => sum + (metric.actual || 0), 0)
-          ), // Сума фактичних значень
-          backgroundColor: `hsl(${chart2Color})`, // Колір для точок
-          borderColor: `hsl(${chart2Color})`, // Колір для лінії
+        data: factData,
+        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+        borderColor: 'rgba(255, 99, 132, 1)',
+        fill: false,
         },
       ],
     };
@@ -95,16 +119,11 @@ import {
   
     return (
       <div className="p-6 bg-card text-card-foreground rounded-lg shadow-md">
-        <h3
-  className="text-lg font-semibold mb-4"
-  style={{ color: `hsl(${foregroundColor})` }}
->
-  Performance Chart
-</h3>
-        <div style={{ height: '300px' }}>
-          <Line data={data} options={options} />
-        </div>
+      <h3 className="text-lg font-semibold mb-4">Performance Chart</h3>
+      <div style={{ height: '300px' }}>
+        <Line data={data} options={options} />
       </div>
+    </div>
     );
   };
   
