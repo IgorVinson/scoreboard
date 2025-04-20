@@ -24,8 +24,10 @@ import {
   
   
   
-  const ChartBlock = ({ reports}) => {
+  const ChartBlock = ({ reports, objectives}) => {
 // console.log(reports);
+// console.log(objectives);
+
     
     // Функція для отримання значення CSS-змінної
     const getCSSVariable = (variableName: string) => {
@@ -35,6 +37,18 @@ import {
        const foregroundColor = getCSSVariable('--foreground');
        const borderColor = getCSSVariable('--border');
 
+       const getMetricNameById = (metricId) => {
+        for (const objective of objectives) {
+          for (const metric of objective.metrics) {
+            if (metric.id === metricId) {
+              return metric.name; // Повертаємо назву метрики
+            }
+          }
+        }
+        return metricId; // Якщо назва не знайдена, повертаємо сам id
+      };
+
+    
 
       const [selectedMetric, setSelectedMetric] = useState('');
 
@@ -129,9 +143,9 @@ import {
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
         >
           <option value="">Select a metric</option>
-          {metrics.map(metric => (
-            <option key={metric} value={metric}>
-              {metric}
+          {metrics.map(metricId => (
+            <option key={metricId} value={metricId}>
+               {getMetricNameById(metricId)}
             </option>
           ))}
         </select>

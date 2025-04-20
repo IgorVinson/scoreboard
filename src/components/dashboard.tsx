@@ -429,7 +429,7 @@ export function Dashboard() {
       });
 
       // Log the date being saved
-      console.log('Saving report with date:', reportDate);
+      // console.log('Saving report with date:', reportDate);
 
       const newReport = {
         id: `report-${Date.now()}`,
@@ -1303,7 +1303,7 @@ export function Dashboard() {
           </div>
 
         {/* Chart Block */ }
-          <ChartBlock reports={reports}/>
+          <ChartBlock reports={reports} objectives={objectives}/>
           
           
           {/* Tabs */}
