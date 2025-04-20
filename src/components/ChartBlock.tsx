@@ -36,6 +36,7 @@ import {
        // Використання
        const foregroundColor = getCSSVariable('--foreground');
        const borderColor = getCSSVariable('--border');
+       const backgroundColor = getCSSVariable('--background');
 
        const getMetricNameById = (metricId) => {
         for (const objective of objectives) {
@@ -88,6 +89,7 @@ import {
         data: planData,
         backgroundColor: 'rgba(75, 192, 192, 0.2)',
         borderColor: 'rgba(75, 192, 192, 1)',
+        borderWidth: 4,
         fill: false,
         },
         {
@@ -95,6 +97,7 @@ import {
         data: factData,
         backgroundColor: 'rgba(255, 99, 132, 0.2)',
         borderColor: 'rgba(255, 99, 132, 1)',
+        borderWidth: 4,
         fill: false,
         },
       ],
@@ -105,7 +108,11 @@ import {
       maintainAspectRatio: false,
       plugins: {
         legend: {
-         display: true, // Сховати легенду
+         display: true, 
+         labels: {
+          usePointStyle: true,
+          pointStyle: 'line',
+         }
         },
       },
       scales: {
@@ -133,16 +140,17 @@ import {
       <h3 className="text-lg font-semibold mb-4">Performance Chart</h3>
        {/* Випадаючий список для вибору метрики */}
        <div className="mb-4">
-        <label htmlFor="metric-select" className="block text-sm font-medium text-gray-700">
+        <label htmlFor="metric-select" className="block text-sm font-medium text-gray-700" style={{ color: `hsl(${foregroundColor})` }}>
           Select Metric:
         </label>
         <select
           id="metric-select"
           value={selectedMetric}
           onChange={e => setSelectedMetric(e.target.value)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          className="mt-1 block w-2/5 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          style={{ backgroundColor: `hsl(${backgroundColor})` }}
         >
-          <option value="">Select a metric</option>
+          <option value="" style={{ color: `hsl(${foregroundColor})` }}>Select a metric</option>
           {metrics.map(metricId => (
             <option key={metricId} value={metricId}>
                {getMetricNameById(metricId)}
