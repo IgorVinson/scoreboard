@@ -96,6 +96,7 @@ import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/queries/queryKeys';
 import { ResultReportManager } from '@/components/result-report/MetricCalculator';
+import { toast } from '@/components/ui/use-toast';
 
 // Extend the DailyReport type to include the 'reviewed' field for our app's usage
 interface ExtendedDailyReport extends Omit<DailyReport, 'id' | 'created_at' | 'updated_at'> {
@@ -549,7 +550,6 @@ export function Dashboard() {
   
   // Delete a daily report with confirmation
   const handleDeleteReport = async (reportId: string) => {
-    // Open confirmation dialog
     setReportToDelete(reportId);
     setDeleteConfirmOpen(true);
   };
@@ -560,7 +560,25 @@ export function Dashboard() {
     
     try {
       console.log('Deleting report:', reportToDelete);
-      await deleteDailyReportMutation.mutateAsync(reportToDelete);
+      
+      // First, check if it's a result report or daily report
+      const isResultReport = resultReports.some(r => r.id === reportToDelete);
+      
+      if (isResultReport) {
+        // Delete from result_reports table
+        const { error } = await supabase
+          .from('result_reports')
+          .delete()
+          .eq('id', reportToDelete);
+          
+        if (error) throw error;
+        
+        // Refresh the result reports list
+        loadResultReports();
+      } else {
+        // Delete from daily_reports using the existing mutation
+        await deleteDailyReportMutation.mutateAsync(reportToDelete);
+      }
       
       // Show success alert
       setAlertDialogTitle("Success");
@@ -804,96 +822,153 @@ export function Dashboard() {
     console.log('Next missing report');
   };
   
-  const handleDeleteResultReport = () => {
-    console.log('Delete result report');
+  const handleEditResultReport = (report: Report) => {
+    setEditingReport(report);
+    if (report.type === 'result') {
+      // For result reports, populate form data with result report values
+      setResultReportForm({
+        summary: report.summary || '',
+        startDate: report.start_date ? new Date(report.start_date) : new Date(),
+        endDate: report.end_date ? new Date(report.end_date) : new Date(),
+      });
+      setResultReportDialogOpen(true);
+    }
   };
   
-  const handleEditResultReport = () => {
-    console.log('Edit result report');
+  const handleReviewResultReport = (report: Report) => {
+    setReviewingReport(report);
+    // Initialize ratings for the result report review
+    setResultReportReview({
+      rating: report.rating || 0,
+      feedback: report.feedback || '',
+    });
+    setResultReportReviewDialogOpen(true);
   };
   
-  const handleReviewResultReport = () => {
-    console.log('Review result report');
-  };
-  
-  const handleToggleResultReview = () => {
-    console.log('Toggle result review');
+  const handleToggleResultReview = async (report) => {
+    console.log('Toggling review for result report:', report);
+    
+    try {
+      const reportId = typeof report === 'object' ? report.id : report;
+      
+      // Toggle the reviewed status
+      const { data, error } = await supabase
+        .from('result_reports')
+        .update({ reviewed: !report.reviewed })
+        .eq('id', reportId)
+        .select();
+
+      if (error) {
+        console.error('Error toggling result report review:', error);
+        toast({
+          title: 'Error',
+          description: 'Could not update review status',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Update local state
+      setResultReports(resultReports.map(r => 
+        r.id === reportId ? { ...r, reviewed: !r.reviewed } : r
+      ));
+
+      toast({
+        title: 'Success',
+        description: 'Review status updated',
+      });
+    } catch (error) {
+      console.error('Error in handleToggleResultReview:', error);
+      toast({
+        title: 'Error',
+        description: 'An unexpected error occurred',
+        variant: 'destructive',
+      });
+    }
   };
   
   const generateResultReport = async () => {
     try {
-      if (!user?.id) return;
-      
-      // Validate inputs
+      // Validate user ID
+      if (!user?.id) {
+        toast.error("User ID is required to generate a report");
+        console.error("Missing user ID for result report");
+        return;
+      }
+
+      // Validate date selection
       if (!resultReportStartDate || !resultReportEndDate) {
-        setAlertDialogTitle("Error");
-        setAlertMessage("Please select a start and end date for the report");
-        setAlertDialogOpen(true);
+        toast.error("Please select both start and end dates");
+        console.error("Start or end date missing");
         return;
       }
-      
+
+      // Validate summary
       if (!resultReportSummary) {
-        setAlertDialogTitle("Error");
-        setAlertMessage("Please enter a summary for the report");
-        setAlertDialogOpen(true);
+        toast.error("Please provide a summary for the report");
+        console.error("Missing result report summary");
         return;
       }
+
+      // Validate metrics data
+      if (!resultReportMetrics || Object.keys(resultReportMetrics).length === 0) {
+        toast.error("No metrics data available");
+        console.error("Missing metrics data for result report");
+        return;
+      }
+
+      // Format date range for display
+      const formattedStartDate = format(resultReportStartDate, "MMM dd, yyyy");
+      const formattedEndDate = format(resultReportEndDate, "MMM dd, yyyy");
+      const dateRange = `${formattedStartDate} - ${formattedEndDate}`;
+
+      // Format metrics data for result report
+      const formattedMetrics = {};
       
+      // Transform metrics data to the correct format for result reports
+      Object.keys(resultReportMetrics).forEach(metricId => {
+        const metricData = resultReportMetrics[metricId];
+        formattedMetrics[metricId] = {
+          plan: metricData.plan,
+          fact: metricData.actual, // In result reports, 'actual' is saved as 'fact'
+          deviation: metricData.deviation
+        };
+      });
+
       // Create result report data
       const resultReportData = {
         user_id: user.id,
-        type: resultReportType,
-        start_date: resultReportStartDate,
-        end_date: resultReportEndDate,
+        date: dateRange, // Store the formatted date range
         summary: resultReportSummary,
-        next_goals: resultReportNextGoals,
-        comments: resultReportComments,
-        metrics_summary: resultReportMetrics,
-        reviewed: false
+        is_result_report: true,
+        metrics_summary: formattedMetrics, // Use metrics_summary for result reports
       };
-      
-      // Save to database
+
+      console.log("Generating result report with data:", resultReportData);
+
+      // Insert the result report into the database
       const { data, error } = await supabase
-        .from('result_reports')
+        .from('reports')
         .insert(resultReportData)
-        .select()
-        .single();
-        
-      if (error) throw error;
-      
-      console.log('Result report generated:', data);
-      
-      // Show success message
-      setAlertDialogTitle("Success");
-      setAlertMessage("Result report generated successfully");
-      setAlertDialogOpen(true);
-      
-      // Refresh result reports list - make sure to handle null values
-      const { data: updatedReports } = await supabase
-        .from('result_reports')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-        
-      if (updatedReports) {
-        // Make sure all reports have required fields for UI display
-        const processedReports = updatedReports.map(report => ({
-          ...report,
-          // Add fallbacks for any missing fields that might cause rendering issues
-          date: report.start_date || new Date().toISOString(),
-        }));
-        setResultReports(processedReports);
+        .select();
+
+      if (error) {
+        toast.error(`Failed to generate report: ${error.message}`);
+        console.error("Error generating result report:", error);
+        return;
       }
+
+      toast.success("Result report generated successfully");
+      queryClient.invalidateQueries(['reports']);
+
+      // Reset state
+      setResultReportDialogOpen(false);
+      resetResultReportState();
       
-      return true;
+      console.log("Result report created:", data);
     } catch (error) {
-      console.error('Error generating result report:', error);
-      
-      // Show error message
-      setAlertDialogTitle("Error");
-      setAlertMessage("Failed to generate result report. Please try again.");
-      setAlertDialogOpen(true);
-      return false;
+      console.error("Error in generateResultReport:", error);
+      toast.error("An unexpected error occurred while generating the report");
     }
   };
   
@@ -978,6 +1053,95 @@ export function Dashboard() {
 
   // Add new state for metrics section visibility
   const [showMetricsSection, setShowMetricsSection] = useState(false);
+
+  // Add a new useEffect or function to prepare result reports for display
+
+  // Add this right after the declaration of resultReports state
+  const [processedResultReports, setProcessedResultReports] = useState<any[]>([]);
+
+  // Add this useEffect to process result reports when they change
+  useEffect(() => {
+    if (resultReports && resultReports.length > 0) {
+      console.log("Processing result reports for display:", resultReports);
+      
+      // Transform result reports to match the format expected by ReportsTable
+      const processed = resultReports.map(report => {
+        // Format the date range as a single date string for display
+        const dateDisplay = report.start_date === report.end_date 
+          ? report.start_date 
+          : `${report.start_date} - ${report.end_date}`;
+        
+        return {
+          ...report,
+          // Use the combined date range as the date field
+          date: dateDisplay,
+          // Add a display_date field for human-readable format (used in the UI)
+          display_date: dateDisplay,
+          // Move metrics_summary to metrics_data for compatibility
+          metrics_data: report.metrics_summary || {},
+          // Add placeholder fields that are expected for daily reports
+          today_notes: report.summary || '',
+          tomorrow_notes: report.next_goals || '',
+          general_comments: report.comments || '',
+          // Add a type flag to distinguish between report types
+          is_result_report: true
+        };
+      });
+      
+      console.log("Processed result reports:", processed);
+      setProcessedResultReports(processed);
+    } else {
+      setProcessedResultReports([]);
+    }
+  }, [resultReports]);
+
+  // And update the ReportsTable component call in the result-reports tab
+  // ... existing code ...
+
+  // And update the fetchResultReports function or where you load result reports
+  const loadResultReports = async () => {
+    try {
+      if (!user?.id) return;
+      
+      const { data, error } = await supabase
+        .from('result_reports')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+        
+      if (error) throw error;
+      
+      console.log("Fetched result reports:", data);
+      if (data) {
+        setResultReports(data);
+      }
+    } catch (error) {
+      console.error('Error loading result reports:', error);
+    }
+  };
+
+  // Call this function when the component mounts or when needed
+  useEffect(() => {
+    if (user?.id) {
+      loadResultReports();
+    }
+  }, [user]);
+
+  // And update the handleDeleteResultReport function
+  const handleDeleteResultReport = async (reportId) => {
+    try {
+      if (!reportId) return;
+      
+      // Set the report to delete in the confirmation dialog
+      setReportToDelete(reportId);
+      setDeleteConfirmOpen(true);
+      
+      // Note: The actual deletion will happen in confirmDeleteReport
+      // We need to update that function to handle both daily and result reports
+    } catch (error) {
+      console.error('Error preparing to delete result report:', error);
+    }
+  };
 
   return (
     <div className='min-h-screen bg-background'>
@@ -1156,12 +1320,12 @@ export function Dashboard() {
                     </Button>
                   </div>
                   <ReportsTable
-                    reports={resultReports}
+                    reports={processedResultReports}
                     objectives={objectives}
-                    onDeleteReport={handleDeleteReport}
-                    onEditReport={handleEditReport}
-                    onReviewReport={handleReviewReport}
-                    onToggleReview={handleToggleReview}
+                    onDeleteReport={handleDeleteResultReport}
+                    onEditReport={handleEditResultReport}
+                    onReviewReport={handleReviewResultReport}
+                    onToggleReview={handleToggleResultReview}
                   />
                 </div>
               </TabsContent>

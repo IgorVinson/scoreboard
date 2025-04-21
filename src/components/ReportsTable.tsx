@@ -17,7 +17,7 @@ import {
   FileText,
   Star,
 } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 
 export function ReportsTable({
   reports,
@@ -120,36 +120,102 @@ export function ReportsTable({
     // Check if the set exists and contains this objective
     const isExpanded = reportObjectives?.has(objectiveId) || false;
     
-    // Moved the console log here for better clarity in debugging
-    console.log(`Checking if ${objectiveId} for report ${reportId} is expanded:`, {
-      isExpanded,
-      reportHasAnyObjectives: !!reportObjectives,
-      expandedObjectivesForReport: reportObjectives ? Array.from(reportObjectives) : []
-    });
-    
     return isExpanded;
   };
 
-  // Helper function to get plan, actual, and deviation for a metric
-  const getMetricValues = (metric, report) => {
-    const metricData = report.metrics_data[metric.id];
-    const plan = metricData?.plan ?? '-';
-    const actual = metricData?.fact ?? '-';
-
-    let deviation = '-';
-    if (typeof plan === 'number' && typeof actual === 'number') {
-      if (plan === 0 && actual > 0) {
-        deviation = 'Infinity';
-      } else if (plan !== 0) {
-        deviation = (((actual - plan) / plan) * 100).toFixed(1);
+  const formatReportDate = (report: ReportType | undefined): string => {
+    try {
+      if (!report) {
+        console.log("Report is undefined in formatReportDate");
+        return "N/A";
       }
-    }
 
-    if (deviation === 'NaN') {
-      deviation = '-';
-    }
+      // Handle result reports (with date ranges)
+      if (report.is_result_report) {
+        // For result reports, the date field already contains a formatted range
+        return report.date || "N/A";
+      }
+      
+      // Handle daily reports (with single date)
+      if (!report.date) {
+        console.log("Report date is missing", report);
+        return "N/A";
+      }
 
-    return { plan, actual, deviation };
+      const parsedDate = parseISO(report.date);
+      return isValid(parsedDate) ? format(parsedDate, "MMM dd, yyyy") : "Invalid Date";
+    } catch (error) {
+      console.error("Error formatting report date:", error, report);
+      return "Date Error";
+    }
+  };
+
+  const getMetricValues = (report: ReportType | undefined, metricId: string): { plan: number, actual: number, deviation: number } => {
+    try {
+      if (!report) {
+        console.log("Report is undefined in getMetricValues");
+        return { plan: 0, actual: 0, deviation: 0 };
+      }
+
+      // Handle result reports which use metrics_summary
+      if (report.is_result_report) {
+        if (!report.metrics_summary) {
+          console.log("Result report missing metrics_summary", report);
+          return { plan: 0, actual: 0, deviation: 0 };
+        }
+
+        const metricData = report.metrics_summary[metricId];
+        if (!metricData) {
+          console.log(`Metric ${metricId} not found in result report metrics_summary`, report.metrics_summary);
+          return { plan: 0, actual: 0, deviation: 0 };
+        }
+
+        // Result reports use 'fact' instead of 'actual'
+        const plan = typeof metricData.plan === 'number' ? metricData.plan : 0;
+        const actual = typeof metricData.fact === 'number' ? metricData.fact : 0;
+        const deviation = typeof metricData.deviation === 'number' ? metricData.deviation : 
+                          (plan === 0 ? 0 : ((actual - plan) / plan) * 100);
+
+        return { plan, actual, deviation };
+      }
+      
+      // Handle daily reports which use metrics_data
+      if (!report.metrics_data) {
+        console.log("Daily report missing metrics_data", report);
+        return { plan: 0, actual: 0, deviation: 0 };
+      }
+
+      const metricData = report.metrics_data[metricId];
+      if (!metricData) {
+        console.log(`Metric ${metricId} not found in daily report metrics_data`, report.metrics_data);
+        return { plan: 0, actual: 0, deviation: 0 };
+      }
+
+      const plan = typeof metricData.plan === 'number' ? metricData.plan : 0;
+      const actual = typeof metricData.actual === 'number' ? metricData.actual : 0;
+      const deviation = plan === 0 ? 0 : ((actual - plan) / plan) * 100;
+
+      return { plan, actual, deviation };
+    } catch (error) {
+      console.error("Error getting metric values:", error, { report, metricId });
+      return { plan: 0, actual: 0, deviation: 0 };
+    }
+  };
+
+  const renderMetricValues = (report: ReportType | undefined, metric: ObjectiveMetricType): React.ReactNode => {
+    try {
+      if (!report) {
+        console.log("Report is undefined in renderMetricValues");
+        return null;
+      }
+      
+      // Just display a dash instead of values for the main row columns
+      return <div className="text-center">-</div>;
+      
+    } catch (error) {
+      console.error("Error rendering metric values:", error);
+      return <div className="text-sm">Error displaying metrics</div>;
+    }
   };
 
   // Render the objectives and metrics in a more structured way
@@ -185,63 +251,16 @@ export function ReportsTable({
             {/* Metrics */}
             {isMainObjectiveExpanded(report.id, objective.id) && (
               <div className='ml-6 mt-1 mb-2 border-l-2 pl-2'>
-                {objective.metrics.map(metric => (
-                  <div key={metric.id} className='text-sm py-1'>
-                    <span className='text-muted-foreground'>{metric.name}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  // New function to render metric values in a properly aligned way
-  const renderMetricValues = (report, column) => {
-    return (
-      <div className='flex flex-col space-y-1'>
-        {objectives.map(objective => (
-          <div key={objective.id} className='flex flex-col'>
-            {/* Placeholder for the objective row to maintain alignment */}
-            <div className='flex items-center h-6'></div>
-
-            {/* Metric values - only rendered when objective is expanded */}
-            {isMainObjectiveExpanded(report.id, objective.id) && (
-              <div className='ml-6 mt-1 mb-2'>
                 {objective.metrics.map(metric => {
-                  const { plan, actual, deviation } = getMetricValues(
-                    metric,
-                    report
-                  );
-                  let value;
-                  let className = 'text-sm py-1 text-center';
-
-                  if (column === 'plan') {
-                    value = plan;
-                  } else if (column === 'actual') {
-                    value = actual;
-                  } else if (column === 'deviation') {
-                    value = deviation;
-                    if (deviation !== '-') {
-                      if (deviation === 'Infinity') {
-                        className += ' text-green-500';
-                        value = 'Infinity%';
-                      } else {
-                        const deviationNum = parseFloat(deviation);
-                        className +=
-                          deviationNum >= 0
-                            ? ' text-green-500'
-                            : ' text-red-500';
-                        value = `${deviation}%`;
-                      }
-                    }
-                  }
-
+                  const { plan, actual, deviation } = getMetricValues(report, metric.id);
+                  const deviationColor = deviation > 0 ? 'text-green-600' : deviation < 0 ? 'text-red-600' : 'text-gray-500';
+                  
                   return (
-                    <div key={metric.id} className={className}>
-                      {value}
+                    <div key={metric.id} className='text-sm py-1 grid grid-cols-4 w-full'>
+                      <span className='text-muted-foreground'>{metric.name}</span>
+                      <span className='text-center'>{plan}</span>
+                      <span className='text-center'>{actual}</span>
+                      <span className={`text-center ${deviationColor}`}>{deviation.toFixed(1)}%</span>
                     </div>
                   );
                 })}
@@ -343,10 +362,8 @@ export function ReportsTable({
         ) : (
           reports.map((report, reportIndex) => {
             const isExpanded = expandedReports.has(report.id);
-            // Add null check before parsing date
-            const formattedDate = report.date 
-              ? format(parseISO(report.date), 'MM/dd/yyyy')
-              : 'No date';
+            const formattedDate = formatReportDate(report);
+            const isResultReport = report.is_result_report || false;
 
             return (
               <React.Fragment key={report.id}>
@@ -400,7 +417,14 @@ export function ReportsTable({
                           <FileText className='h-4 w-4 text-gray-400' />
                         )}
                       </Button>
-                      {formattedDate}
+                      <div>
+                        {formattedDate}
+                        {isResultReport && (
+                          <Badge variant="outline" className="ml-2 text-xs">
+                            {report.type || 'Result'}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </TableCell>
 
@@ -455,7 +479,7 @@ export function ReportsTable({
                         e.stopPropagation();
                         if (report.reviewed) {
                           // If already reviewed, just toggle it off
-                          onToggleReview(report.id);
+                          onToggleReview(isResultReport ? report : report.id);
                         } else {
                           // If not reviewed, open the review modal
                           onReviewReport(report);
@@ -501,6 +525,43 @@ export function ReportsTable({
                   <TableRow>
                     <TableCell colSpan={9} className='bg-muted/50 p-0'>
                       <div className='py-2 px-4'>
+                        {/* Metrics Table for Expanded View */}
+                        <div className='mb-4'>
+                          <h4 className='font-medium mb-2'>Metrics</h4>
+                          <table className='w-full text-sm border-collapse'>
+                            <thead>
+                              <tr className='bg-muted/50'>
+                                <th className='text-left border p-2'>Metric</th>
+                                <th className='text-center border p-2'>Plan</th>
+                                <th className='text-center border p-2'>Actual</th>
+                                <th className='text-center border p-2'>Deviation</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {objectives.flatMap(objective => 
+                                objective.metrics.map(metric => {
+                                  const { plan, actual, deviation } = getMetricValues(report, metric.id);
+                                  const deviationColor = deviation > 0 ? 'text-green-600' : deviation < 0 ? 'text-red-600' : 'text-gray-500';
+                                  
+                                  return (
+                                    <tr key={metric.id} className='border-b hover:bg-muted/30'>
+                                      <td className='border p-2'>
+                                        <div>
+                                          <div className='font-medium'>{metric.name}</div>
+                                          <div className='text-xs text-muted-foreground'>{objective.name}</div>
+                                        </div>
+                                      </td>
+                                      <td className='text-center border p-2'>{plan}</td>
+                                      <td className='text-center border p-2'>{actual}</td>
+                                      <td className={`text-center border p-2 ${deviationColor}`}>{deviation.toFixed(1)}%</td>
+                                    </tr>
+                                  );
+                                })
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                        
                         {/* Notes Sections */}
                         <div className='grid grid-cols-2 gap-4'>
                           <div>

@@ -70,6 +70,7 @@ interface ResultReportManagerProps {
   startDate: string;
   endDate: string;
   objectives: Objective[];
+  showMetricsSection?: boolean;
   onSaveReport?: (calculatedData: MetricsData) => void;
 }
 
@@ -78,6 +79,7 @@ export function ResultReportManager({
   startDate,
   endDate,
   objectives,
+  showMetricsSection = true,
   onSaveReport
 }: ResultReportManagerProps) {
   const [dailyReports, setDailyReports] = useState<DailyReport[]>([]);
@@ -205,18 +207,23 @@ export function ResultReportManager({
     return { value: formattedValue, className };
   };
   
-  // Load reports when date range changes
+  // Load reports when date range and showMetricsSection changes
   useEffect(() => {
-    if (startDate && endDate) {
+    if (startDate && endDate && showMetricsSection) {
       fetchDailyReports();
     } else {
-      // Clear state if dates are not set
+      // Clear state if dates are not set or metrics section is hidden
       setDailyReports([]);
       setCalculatedMetrics({});
       setHasCalculatedData(false);
       setError(null);
     }
-  }, [startDate, endDate, userId]);
+  }, [startDate, endDate, userId, showMetricsSection]);
+  
+  // Only render the component if showMetricsSection is true
+  if (!showMetricsSection) {
+    return null;
+  }
   
   return (
     <div className="space-y-4">
@@ -236,6 +243,13 @@ export function ResultReportManager({
       {hasCalculatedData && (
         <div className="text-sm text-muted-foreground mb-4">
           <p>Found {dailyReports.length} daily reports in this period.</p>
+        </div>
+      )}
+      
+      {isLoading && (
+        <div className="text-center p-8">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
+          <p className="mt-2 text-sm text-muted-foreground">Loading reports and calculating metrics...</p>
         </div>
       )}
       
