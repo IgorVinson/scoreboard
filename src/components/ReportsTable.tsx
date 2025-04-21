@@ -70,7 +70,8 @@ export function ReportsTable({
 
   // Helper function to get plan, actual, and deviation for a metric
   const getMetricValues = (metric, report) => {
-    const metricData = report.metrics_data[metric.id];
+    const metricsData = report.metrics_data || report.metrics_summary || {};
+    const metricData = metricsData[metric.id];
     const plan = metricData?.plan ?? '-';
     const actual = metricData?.fact ?? '-';
 
@@ -264,7 +265,34 @@ export function ReportsTable({
         ) : (
           reports.map((report, reportIndex) => {
             const isExpanded = expandedReports.has(report.id);
-            const formattedDate = format(parseISO(report.date), 'MM/dd/yyyy');
+            
+            // Handle both report types (daily and result reports) with more robust date validation
+            let formattedDate = 'No date';
+            
+            try {
+              if (report.date && typeof report.date === 'string') {
+                const dateObj = parseISO(report.date);
+                if (isNaN(dateObj.getTime())) {
+                  formattedDate = 'Invalid date';
+                } else {
+                  formattedDate = format(dateObj, 'MM/dd/yyyy');
+                }
+              } else if (report.start_date && report.end_date && 
+                        typeof report.start_date === 'string' && 
+                        typeof report.end_date === 'string') {
+                const startDateObj = parseISO(report.start_date);
+                const endDateObj = parseISO(report.end_date);
+                
+                if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+                  formattedDate = 'Invalid date range';
+                } else {
+                  formattedDate = `${format(startDateObj, 'MM/dd/yyyy')} - ${format(endDateObj, 'MM/dd/yyyy')}`;
+                }
+              }
+            } catch (error) {
+              console.error('Error formatting date:', error);
+              formattedDate = 'Date error';
+            }
 
             return (
               <React.Fragment key={report.id}>
@@ -336,7 +364,7 @@ export function ReportsTable({
                     >
                       <input
                         type='checkbox'
-                        checked={report.reviewed}
+                        checked={report.reviewed !== undefined ? report.reviewed : false}
                         className='h-4 w-4 cursor-pointer'
                         readOnly
                       />
@@ -373,37 +401,62 @@ export function ReportsTable({
                   <TableRow>
                     <TableCell colSpan={9} className='bg-muted/50 p-0'>
                       <div className='py-2 px-4'>
-                        {/* Notes Sections */}
+                        {/* Notes Sections - handle both report types */}
                         <div className='grid grid-cols-2 gap-4'>
-                          <div>
-                            <h4 className='font-medium mb-2'>
-                              This day's notes
-                            </h4>
-                            <div
-                              className='text-sm border rounded p-3'
-                              dangerouslySetInnerHTML={{
-                                __html: report.today_notes,
-                              }}
-                            />
-                          </div>
-                          <div>
-                            <h4 className='font-medium mb-2'>
-                              Next day's notes
-                            </h4>
-                            <div
-                              className='text-sm border rounded p-3'
-                              dangerouslySetInnerHTML={{
-                                __html: report.tomorrow_notes,
-                              }}
-                            />
-                          </div>
+                          {/* For daily reports */}
+                          {report.today_notes !== undefined && (
+                            <>
+                              <div>
+                                <h4 className='font-medium mb-2'>This day's notes</h4>
+                                <div
+                                  className='text-sm border rounded p-3'
+                                  dangerouslySetInnerHTML={{
+                                    __html: report.today_notes,
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <h4 className='font-medium mb-2'>Next day's notes</h4>
+                                <div
+                                  className='text-sm border rounded p-3'
+                                  dangerouslySetInnerHTML={{
+                                    __html: report.tomorrow_notes || '',
+                                  }}
+                                />
+                              </div>
+                            </>
+                          )}
+                          
+                          {/* For result reports */}
+                          {report.summary !== undefined && (
+                            <>
+                              <div>
+                                <h4 className='font-medium mb-2'>Summary</h4>
+                                <div
+                                  className='text-sm border rounded p-3'
+                                  dangerouslySetInnerHTML={{
+                                    __html: report.summary,
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <h4 className='font-medium mb-2'>Next Goals</h4>
+                                <div
+                                  className='text-sm border rounded p-3'
+                                  dangerouslySetInnerHTML={{
+                                    __html: report.next_goals || '',
+                                  }}
+                                />
+                              </div>
+                            </>
+                          )}
                         </div>
                         <div className='mt-4'>
                           <h4 className='font-medium mb-2'>Comments</h4>
                           <div
                             className='text-sm border rounded p-3'
                             dangerouslySetInnerHTML={{
-                              __html: report.general_comments,
+                              __html: report.general_comments || report.comments || '',
                             }}
                           />
                         </div>
