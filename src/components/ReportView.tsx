@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
-export function ReportsTable({
+export function DailyReportView({
   reports,
   objectives,
   onDeleteReport,
@@ -28,17 +28,10 @@ export function ReportsTable({
   onReviewReport,
 }) {
   const [expandedReports, setExpandedReports] = useState(new Set());
-  const [expandedMainObjectives, setExpandedMainObjectives] = useState(() => {
-    // Initialize with an empty Map
-    return new Map();
-  });
+  const [expandedMainObjectives, setExpandedMainObjectives] = useState(
+    new Map()
+  );
   const [activeTab, setActiveTab] = useState('overview-performance');
-
-  // Initial console log for debugging
-  useEffect(() => {
-    console.log('Initial reports:', reports);
-    console.log('Initial objectives:', objectives);
-  }, [reports, objectives]);
 
   const toggleReportExpansion = (reportId, event) => {
     // Always stop event propagation
@@ -68,66 +61,24 @@ export function ReportsTable({
   const toggleMainObjectiveExpansion = (reportId, objectiveId, event) => {
     // Stop propagation to prevent triggering the row expansion
     event.stopPropagation();
-    event.preventDefault();
-
-    console.log(`Toggling objective ${objectiveId} for report ${reportId}`);
-    console.log('Current state before update:', 
-      Array.from(expandedMainObjectives.entries()).map(([reportId, objectives]) => ({
-        reportId,
-        objectives: Array.from(objectives)
-      }))
-    );
 
     setExpandedMainObjectives(prev => {
-      // Create a deep copy of the previous map to avoid mutation issues
-      const newMap = new Map();
-      
-      // Copy all existing entries
-      prev.forEach((value, key) => {
-        newMap.set(key, new Set(value));
-      });
-      
-      // Get or create the set for this report
+      const newMap = new Map(prev);
       const reportObjectives = newMap.get(reportId) || new Set();
-      
-      // Toggle the objective
+
       if (reportObjectives.has(objectiveId)) {
         reportObjectives.delete(objectiveId);
-        console.log(`Collapsing objective ${objectiveId} for report ${reportId}`);
       } else {
         reportObjectives.add(objectiveId);
-        console.log(`Expanding objective ${objectiveId} for report ${reportId}`);
       }
-      
-      // Always set the (potentially) modified set back to the map
+
       newMap.set(reportId, reportObjectives);
-      
-      console.log('New state after update:', 
-        Array.from(newMap.entries()).map(([reportId, objectives]) => ({
-          reportId,
-          objectives: Array.from(objectives)
-        }))
-      );
-      
       return newMap;
     });
   };
 
   const isMainObjectiveExpanded = (reportId, objectiveId) => {
-    // Get the set of expanded objectives for this report
-    const reportObjectives = expandedMainObjectives.get(reportId);
-    
-    // Check if the set exists and contains this objective
-    const isExpanded = reportObjectives?.has(objectiveId) || false;
-    
-    // Moved the console log here for better clarity in debugging
-    console.log(`Checking if ${objectiveId} for report ${reportId} is expanded:`, {
-      isExpanded,
-      reportHasAnyObjectives: !!reportObjectives,
-      expandedObjectivesForReport: reportObjectives ? Array.from(reportObjectives) : []
-    });
-    
-    return isExpanded;
+    return expandedMainObjectives.get(reportId)?.has(objectiveId) || false;
   };
 
   // Helper function to get plan, actual, and deviation for a metric
@@ -253,70 +204,12 @@ export function ReportsTable({
     );
   };
 
-  // Modify the tabs array to remove the separate tabs and create a combined one
-  const tabs = [
-    {
-      name: 'Overview & Performance',
-      href: '#',
-      current: activeTab === 'overview-performance',
-    },
-    // ... keep other tabs if they exist ...
-  ];
-
-  // Update the tab content rendering logic
-  function renderTabContent() {
-    switch (activeTab) {
-      case 'overview-performance':
-        return (
-          <div>
-            {/* Overview content */}
-            <div className='mb-8'>
-              <h2 className='text-lg font-medium mb-4'>Overview</h2>
-              {/* Include all overview components here */}
-              <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
-                {/* Overview metrics and charts */}
-                {/* ... existing overview components ... */}
-              </div>
-            </div>
-
-            {/* Performance content */}
-            <div>
-              <h2 className='text-lg font-medium mb-4'>Performance</h2>
-              {/* Include all performance components here */}
-              <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
-                {/* Performance metrics and charts */}
-                {/* ... existing performance components ... */}
-              </div>
-            </div>
-          </div>
-        );
-      // ... other case statements for other tabs ...
-      default:
-        return null;
-    }
-  }
-
-  // Update the initial state or useEffect to set the default active tab
-  useEffect(() => {
-    setActiveTab('overview-performance');
-  }, []);
-
   // Add a debugging effect to monitor state changes
   useEffect(() => {
     const expandedCount = expandedReports.size;
     console.log(`Expanded reports count: ${expandedCount}`, 
       Array.from(expandedReports));
   }, [expandedReports]);
-
-  // Add debugging for expandedMainObjectives
-  useEffect(() => {
-    console.log('expandedMainObjectives state updated:', 
-      Array.from(expandedMainObjectives.entries()).map(([reportId, objectives]) => ({
-        reportId,
-        objectives: Array.from(objectives)
-      }))
-    );
-  }, [expandedMainObjectives]);
 
   return (
     <Table>
@@ -543,4 +436,4 @@ export function ReportsTable({
       </TableBody>
     </Table>
   );
-}
+} 

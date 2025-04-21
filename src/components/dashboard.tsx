@@ -326,7 +326,28 @@ export function Dashboard() {
   const [resultReportSummary, setResultReportSummary] = useState('');
   const [resultReportNextGoals, setResultReportNextGoals] = useState('');
   const [resultReportComments, setResultReportComments] = useState('');
-  const [resultReports, setResultReports] = useState<any[]>([]);
+  const [resultReports, setResultReports] = useState<Object[]>([
+    {
+      "id": "de5a751c-0daf-4540-874d-7b3282e5a4d2",
+      "user_id": "39007684-055b-47e0-9ca9-fd373626f2f6",
+      "date": "2025-04-21",
+      "metrics_data": {
+          "ac93c5b9-9499-474e-adda-a7b632556b07": {
+              "fact": 10,
+              "plan": 12
+          },
+          "c80b1f6f-a09d-4cb6-be1b-867a54daf1c6": {
+              "fact": 3,
+              "plan": 0
+          }
+      },
+      "today_notes": "<p>sdfsf</p><p>sdfsdfsd</p><p>adasdsa</p>",
+      "tomorrow_notes": "<p>dadsddertret</p>",
+      "general_comments": "<p>sfff</p>",
+      "created_at": "2025-04-19T04:43:20.015166+00:00",
+      "updated_at": "2025-04-19T05:31:32.682129+00:00"
+  }
+  ]);
   const [editingResultReport, setEditingResultReport] = useState<any>(null);
   
   // Helper functions
@@ -1032,22 +1053,6 @@ export function Dashboard() {
 
               <TabsContent value='reports' className='p-6'>
                 <div className='space-y-4'>
-                  <div className='flex justify-between items-center'>
-                    <h2 className='text-2xl font-bold'>Reports</h2>
-                    <Button 
-                      variant='outline'
-                      onClick={() => queryClient.invalidateQueries({ queryKey: queryKeys.dailyReports.all })}
-                      className='flex items-center gap-2'
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                        <path d="M21 2v6h-6"></path>
-                        <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
-                        <path d="M3 12a9 9 0 0 0 15 6.7l3-2.7"></path>
-                      </svg>
-                      Refresh
-                    </Button>
-                  </div>
-
                   <ReportsTable
                     reports={userReports}
                     objectives={objectives}
@@ -1060,6 +1065,31 @@ export function Dashboard() {
               </TabsContent>
 
               <TabsContent value='result-reports' className='p-6'>
+                <div className='space-y-4'>
+                <div className='flex justify-between items-center'>
+                    <h2 className='text-2xl font-bold'>Result Reports</h2>
+                    <Button
+                      variant='outline'
+                      onClick={() => setResultReportDialogOpen(true)}
+                      className='flex items-center gap-2'
+                    >
+                      <PlusCircle className='h-4 w-4' />
+                      Generate Report
+                    </Button>
+                  </div>
+                  <ReportsTable
+                    reports={resultReports}
+                    objectives={objectives}
+                    onDeleteReport={handleDeleteReport}
+                    onEditReport={handleEditReport}
+                    onReviewReport={handleReviewReport}
+                    onToggleReview={handleToggleReview}
+                  />
+                </div>
+              </TabsContent>
+
+
+              {/* <TabsContent value='result-reports' className='p-6'>
                 <div className='space-y-4'>
                   <div className='flex justify-between items-center'>
                     <h2 className='text-2xl font-bold'>Result Reports</h2>
@@ -1082,7 +1112,7 @@ export function Dashboard() {
                     onToggleReview={handleToggleResultReview}
                   />
                 </div>
-              </TabsContent>
+              </TabsContent> */}
 
               <TabsContent value='overview' className='p-6'>
                 <div className='grid gap-6'>
