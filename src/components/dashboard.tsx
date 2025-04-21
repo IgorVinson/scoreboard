@@ -556,12 +556,14 @@ export function Dashboard() {
   
   // Confirm and execute report deletion
   const confirmDeleteReport = async () => {
-    if (!reportToDelete) return;
-    
     try {
-      console.log('Deleting report:', reportToDelete);
+      if (!reportToDelete) {
+        setDeleteConfirmOpen(false);
+        return;
+      }
       
-      // First, check if it's a result report or daily report
+      // Determine if we're deleting a daily report or result report
+      // Note: You might need a different approach to distinguish between report types
       const isResultReport = resultReports.some(r => r.id === reportToDelete);
       
       if (isResultReport) {
@@ -571,36 +573,44 @@ export function Dashboard() {
           .delete()
           .eq('id', reportToDelete);
           
-        if (error) throw error;
+        if (error) {
+          toast({
+            title: "Error",
+            description: `Failed to delete result report: ${error.message}`,
+            variant: "destructive"
+          });
+          console.error("Error deleting result report:", error);
+          setDeleteConfirmOpen(false);
+          return;
+        }
         
-        // Refresh the result reports list
-        loadResultReports();
+        // Refresh result reports data
+        queryClient.invalidateQueries(['result_reports']);
+        toast({
+          title: "Success",
+          description: "Result report deleted successfully"
+        });
       } else {
-        // Delete from daily_reports using the existing mutation
+        // Delete from daily_reports table
         await deleteDailyReportMutation.mutateAsync(reportToDelete);
+        toast({
+          title: "Success", 
+          description: "Report deleted successfully"
+        });
       }
       
-      // Show success alert
-      setAlertDialogTitle("Success");
-      setAlertMessage("Report deleted successfully");
-      setAlertDialogOpen(true);
-      
-      // Close the confirmation dialog
-      setDeleteConfirmOpen(false);
+      // Reset state
       setReportToDelete(null);
-      return true;
+      setDeleteConfirmOpen(false);
+      
     } catch (error) {
-      console.error('Error deleting report:', error);
-      
-      // Show error alert
-      setAlertDialogTitle("Error");
-      setAlertMessage("Failed to delete report. Please try again.");
-      setAlertDialogOpen(true);
-      
-      // Close the confirmation dialog
+      console.error("Error confirming report deletion:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred during deletion",
+        variant: "destructive"
+      });
       setDeleteConfirmOpen(false);
-      setReportToDelete(null);
-      return false;
     }
   };
 
@@ -889,77 +899,84 @@ export function Dashboard() {
   
   const generateResultReport = async () => {
     try {
-      // Validate user ID
-      if (!user?.id) {
-        toast.error("User ID is required to generate a report");
-        console.error("Missing user ID for result report");
-        return;
-      }
-
-      // Validate date selection
-      if (!resultReportStartDate || !resultReportEndDate) {
-        toast.error("Please select both start and end dates");
-        console.error("Start or end date missing");
-        return;
-      }
-
-      // Validate summary
-      if (!resultReportSummary) {
-        toast.error("Please provide a summary for the report");
-        console.error("Missing result report summary");
-        return;
-      }
-
-      // Validate metrics data
-      if (!resultReportMetrics || Object.keys(resultReportMetrics).length === 0) {
-        toast.error("No metrics data available");
-        console.error("Missing metrics data for result report");
-        return;
-      }
-
-      // Format date range for display
-      const formattedStartDate = format(resultReportStartDate, "MMM dd, yyyy");
-      const formattedEndDate = format(resultReportEndDate, "MMM dd, yyyy");
-      const dateRange = `${formattedStartDate} - ${formattedEndDate}`;
-
-      // Format metrics data for result report
-      const formattedMetrics = {};
+      console.log("Starting result report generation...");
       
-      // Transform metrics data to the correct format for result reports
-      Object.keys(resultReportMetrics).forEach(metricId => {
-        const metricData = resultReportMetrics[metricId];
-        formattedMetrics[metricId] = {
-          plan: metricData.plan,
-          fact: metricData.actual, // In result reports, 'actual' is saved as 'fact'
-          deviation: metricData.deviation
-        };
-      });
-
-      // Create result report data
+      // Validation
+      if (!resultReportType || !resultReportStartDate || !resultReportEndDate || !resultReportSummary) {
+        console.error("Missing required fields for result report");
+        toast({
+          title: "Missing Information",
+          description: "Please fill in all required fields",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      if (!user?.id) {
+        toast({
+          title: "Error",
+          description: "User ID is required to generate a report",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Check if metrics data is available
+      if (!resultReportMetrics || Object.keys(resultReportMetrics).length === 0) {
+        console.error("No metrics data available for the result report");
+        toast({
+          title: "Missing Data",
+          description: "Please calculate metrics data before generating the report",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Log the metrics data we're using
+      console.log("Using metrics data:", resultReportMetrics);
+      
+      // Format date range for display
+      const dateRange = resultReportStartDate === resultReportEndDate 
+        ? resultReportStartDate 
+        : `${resultReportStartDate} - ${resultReportEndDate}`;
+      
+      // Prepare report data
       const resultReportData = {
         user_id: user.id,
-        date: dateRange, // Store the formatted date range
+        type: resultReportType,
+        start_date: resultReportStartDate,
+        end_date: resultReportEndDate,
         summary: resultReportSummary,
-        is_result_report: true,
-        metrics_summary: formattedMetrics, // Use metrics_summary for result reports
+        next_goals: resultReportNextGoals,
+        comments: resultReportComments,
+        metrics_summary: resultReportMetrics, // Use resultReportMetrics instead of formattedMetrics
+        reviewed: false
       };
 
       console.log("Generating result report with data:", resultReportData);
 
-      // Insert the result report into the database
+      // Insert the result report into the database - use result_reports table instead of reports
       const { data, error } = await supabase
-        .from('reports')
+        .from('result_reports')  // Changed from 'reports' to 'result_reports'
         .insert(resultReportData)
         .select();
 
       if (error) {
-        toast.error(`Failed to generate report: ${error.message}`);
+        toast({
+          title: "Error",
+          description: `Failed to generate report: ${error.message}`,
+          variant: "destructive"
+        });
         console.error("Error generating result report:", error);
         return;
       }
 
-      toast.success("Result report generated successfully");
-      queryClient.invalidateQueries(['reports']);
+      toast({
+        title: "Success",
+        description: "Result report generated successfully"
+      });
+      
+      queryClient.invalidateQueries(['result_reports']);
 
       // Reset state
       setResultReportDialogOpen(false);
@@ -968,7 +985,11 @@ export function Dashboard() {
       console.log("Result report created:", data);
     } catch (error) {
       console.error("Error in generateResultReport:", error);
-      toast.error("An unexpected error occurred while generating the report");
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred while generating the report",
+        variant: "destructive"
+      });
     }
   };
   
@@ -1104,12 +1125,19 @@ export function Dashboard() {
       if (!user?.id) return;
       
       const { data, error } = await supabase
-        .from('result_reports')
+        .from('result_reports')  // Make sure we're using the right table
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
         
-      if (error) throw error;
+      if (error) {
+        toast({
+          title: "Error",
+          description: `Failed to load result reports: ${error.message}`,
+          variant: "destructive"
+        });
+        throw error;
+      }
       
       console.log("Fetched result reports:", data);
       if (data) {
@@ -1137,9 +1165,13 @@ export function Dashboard() {
       setDeleteConfirmOpen(true);
       
       // Note: The actual deletion will happen in confirmDeleteReport
-      // We need to update that function to handle both daily and result reports
     } catch (error) {
-      console.error('Error preparing to delete result report:', error);
+      console.error("Error preparing to delete result report:", error);
+      toast({
+        title: "Error",
+        description: "Failed to prepare report deletion",
+        variant: "destructive"
+      });
     }
   };
 
@@ -1676,9 +1708,13 @@ export function Dashboard() {
                 objectives={objectives}
                 showMetricsSection={showMetricsSection || !!editingResultReport}
                 onSaveReport={(calculatedMetrics) => {
-                  console.log('Metrics saved:', calculatedMetrics);
-                  // Store the calculated metrics for the result report
-                  setResultReportMetrics(calculatedMetrics);
+                  console.log('Metrics saved from ResultReportManager:', calculatedMetrics);
+                  if (calculatedMetrics && Object.keys(calculatedMetrics).length > 0) {
+                    console.log('Setting resultReportMetrics with valid data:', calculatedMetrics);
+                    setResultReportMetrics(calculatedMetrics);
+                  } else {
+                    console.warn('Received empty metrics data from ResultReportManager');
+                  }
                 }}
               />
             )}
