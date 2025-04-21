@@ -63,7 +63,6 @@ import { Input } from '@/components/ui/input';
 import { ReportsTable } from '@/components/ReportsTable';
 import { SimpleOverview } from '@/components/SimpleOverview';
 import { format, parseISO, set } from 'date-fns';
-import { ResultReportsTable } from '@/components/ResultReportsTable';
 import { DatabaseExplorer } from '@/components/database-explorer';
 import {
   useObjectives,
@@ -96,6 +95,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/queries/queryKeys';
+import { ResultReportManager } from '@/components/result-report/MetricCalculator';
 
 // Extend the DailyReport type to include the 'reviewed' field for our app's usage
 interface ExtendedDailyReport extends Omit<DailyReport, 'id' | 'created_at' | 'updated_at'> {
@@ -326,6 +326,7 @@ export function Dashboard() {
   const [resultReportSummary, setResultReportSummary] = useState('');
   const [resultReportNextGoals, setResultReportNextGoals] = useState('');
   const [resultReportComments, setResultReportComments] = useState('');
+  const [resultReportMetrics, setResultReportMetrics] = useState<Record<string, { plan: number; fact: number }>>({});
   const [resultReports, setResultReports] = useState<Object[]>([
     {
       "id": "de5a751c-0daf-4540-874d-7b3282e5a4d2",
@@ -819,14 +820,81 @@ export function Dashboard() {
     console.log('Toggle result review');
   };
   
-  const generateResultReport = () => {
-    console.log('Generate result report');
-    setResultReportDialogOpen(false);
-  };
-  
-  const submitResultReportReview = () => {
-    console.log('Submit result report review');
-    setResultReportDialogOpen(false);
+  const generateResultReport = async () => {
+    try {
+      if (!user?.id) return;
+      
+      // Validate inputs
+      if (!resultReportStartDate || !resultReportEndDate) {
+        setAlertDialogTitle("Error");
+        setAlertMessage("Please select a start and end date for the report");
+        setAlertDialogOpen(true);
+        return;
+      }
+      
+      if (!resultReportSummary) {
+        setAlertDialogTitle("Error");
+        setAlertMessage("Please enter a summary for the report");
+        setAlertDialogOpen(true);
+        return;
+      }
+      
+      // Create result report data
+      const resultReportData = {
+        user_id: user.id,
+        type: resultReportType,
+        start_date: resultReportStartDate,
+        end_date: resultReportEndDate,
+        summary: resultReportSummary,
+        next_goals: resultReportNextGoals,
+        comments: resultReportComments,
+        metrics_summary: resultReportMetrics,
+        reviewed: false
+      };
+      
+      // Save to database
+      const { data, error } = await supabase
+        .from('result_reports')
+        .insert(resultReportData)
+        .select()
+        .single();
+        
+      if (error) throw error;
+      
+      console.log('Result report generated:', data);
+      
+      // Show success message
+      setAlertDialogTitle("Success");
+      setAlertMessage("Result report generated successfully");
+      setAlertDialogOpen(true);
+      
+      // Refresh result reports list - make sure to handle null values
+      const { data: updatedReports } = await supabase
+        .from('result_reports')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+        
+      if (updatedReports) {
+        // Make sure all reports have required fields for UI display
+        const processedReports = updatedReports.map(report => ({
+          ...report,
+          // Add fallbacks for any missing fields that might cause rendering issues
+          date: report.start_date || new Date().toISOString(),
+        }));
+        setResultReports(processedReports);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error generating result report:', error);
+      
+      // Show error message
+      setAlertDialogTitle("Error");
+      setAlertMessage("Failed to generate result report. Please try again.");
+      setAlertDialogOpen(true);
+      return false;
+    }
   };
   
   const resetResultReportState = () => {
@@ -837,6 +905,13 @@ export function Dashboard() {
     setResultReportSummary('');
     setResultReportNextGoals('');
     setResultReportComments('');
+    setResultReportMetrics({});
+    setShowMetricsSection(false);
+  };
+
+  const submitResultReportReview = () => {
+    console.log('Submit result report review');
+    setResultReportDialogOpen(false);
   };
 
   // Add some display of the metrics data to confirm it's working
@@ -900,6 +975,9 @@ export function Dashboard() {
       [metricId]: newValue,
     });
   };
+
+  // Add new state for metrics section visibility
+  const [showMetricsSection, setShowMetricsSection] = useState(false);
 
   return (
     <div className='min-h-screen bg-background'>
@@ -1087,32 +1165,6 @@ export function Dashboard() {
                   />
                 </div>
               </TabsContent>
-
-
-              {/* <TabsContent value='result-reports' className='p-6'>
-                <div className='space-y-4'>
-                  <div className='flex justify-between items-center'>
-                    <h2 className='text-2xl font-bold'>Result Reports</h2>
-                    <Button
-                      variant='outline'
-                      onClick={() => setResultReportDialogOpen(true)}
-                      className='flex items-center gap-2'
-                    >
-                      <PlusCircle className='h-4 w-4' />
-                      Generate Report
-                    </Button>
-                  </div>
-
-                  <ResultReportsTable
-                    reports={resultReports}
-                    objectives={objectives}
-                    onDeleteReport={handleDeleteResultReport}
-                    onEditReport={handleEditResultReport}
-                    onReviewReport={handleReviewResultReport}
-                    onToggleReview={handleToggleResultReview}
-                  />
-                </div>
-              </TabsContent> */}
 
               <TabsContent value='overview' className='p-6'>
                 <div className='grid gap-6'>
@@ -1436,6 +1488,36 @@ export function Dashboard() {
                 />
               </div>
             </div>
+            
+            {/* Calculate Metrics Button */}
+            {user && !editingResultReport && (
+              <div className="flex justify-end">
+                <Button 
+                  onClick={() => setShowMetricsSection(true)}
+                  disabled={!resultReportStartDate || !resultReportEndDate}
+                  variant="outline"
+                  size="sm"
+                >
+                  Calculate Metrics
+                </Button>
+              </div>
+            )}
+
+            {/* Metrics Calculator */}
+            {user && (
+              <ResultReportManager
+                userId={user.id}
+                startDate={resultReportStartDate || ""}
+                endDate={resultReportEndDate || ""}
+                objectives={objectives}
+                showMetricsSection={showMetricsSection || !!editingResultReport}
+                onSaveReport={(calculatedMetrics) => {
+                  console.log('Metrics saved:', calculatedMetrics);
+                  // Store the calculated metrics for the result report
+                  setResultReportMetrics(calculatedMetrics);
+                }}
+              />
+            )}
 
             {/* Report Notes */}
             <div className='space-y-4'>
@@ -1513,9 +1595,11 @@ export function Dashboard() {
             <Button
               variant='outline'
               onClick={() => {
-                setResultReportDialogOpen(false);
                 resetResultReportState();
                 setReviewMode(false);
+                setTimeout(() => {
+                  setResultReportDialogOpen(false);
+                }, 10);
               }}
             >
               Cancel
@@ -1524,7 +1608,17 @@ export function Dashboard() {
             {reviewMode ? (
               <Button onClick={submitResultReportReview}>Submit Review</Button>
             ) : (
-              <Button onClick={generateResultReport}>
+              <Button onClick={async () => {
+                try {
+                  await generateResultReport();
+                  resetResultReportState();
+                  setTimeout(() => {
+                    setResultReportDialogOpen(false);
+                  }, 10);
+                } catch (error) {
+                  console.error('Error generating report:', error);
+                }
+              }}>
                 {editingResultReport ? 'Update Report' : 'Generate Report'}
               </Button>
             )}

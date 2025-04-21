@@ -343,7 +343,10 @@ export function ReportsTable({
         ) : (
           reports.map((report, reportIndex) => {
             const isExpanded = expandedReports.has(report.id);
-            const formattedDate = format(parseISO(report.date), 'MM/dd/yyyy');
+            // Add null check before parsing date
+            const formattedDate = report.date 
+              ? format(parseISO(report.date), 'MM/dd/yyyy')
+              : 'No date';
 
             return (
               <React.Fragment key={report.id}>
