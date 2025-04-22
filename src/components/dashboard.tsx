@@ -923,12 +923,71 @@ export function Dashboard() {
         setAlertDialogOpen(true);
         return;
       }
+
+      // Validate date range
+      const startDate = new Date(resultReportStartDate);
+      const endDate = new Date(resultReportEndDate);
+      
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        setAlertDialogTitle("Invalid Date Format");
+        setAlertMessage("Please enter valid dates in the format YYYY-MM-DD");
+        setAlertDialogOpen(true);
+        return;
+      }
+      
+      if (startDate > endDate) {
+        setAlertDialogTitle("Invalid Date Range");
+        setAlertMessage("End date must be after or equal to start date");
+        setAlertDialogOpen(true);
+        return;
+      }
+      
+      // Check for maximum allowed date range
+      const maxAllowedDays = resultReportType === 'weekly' ? 7 : 31; // 1 week for weekly, 1 month for monthly
+      const dayDifference = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (dayDifference > maxAllowedDays) {
+        setAlertDialogTitle("Date Range Too Large");
+        setAlertMessage(`The maximum date range for a ${resultReportType} report is ${maxAllowedDays} days. Your selected range is ${dayDifference} days.`);
+        setAlertDialogOpen(true);
+        return;
+      }
       
       // Check if metrics data is available with better error message
       if (!resultReportMetrics || Object.keys(resultReportMetrics).length === 0) {
         console.error("No metrics data available for the result report");
         setAlertDialogTitle("Missing Metrics Data");
         setAlertMessage("Please ensure metrics data has been calculated. Make sure your date range includes days with reports.");
+        setAlertDialogOpen(true);
+        return;
+      }
+      
+      // Check if the metrics data size is too large
+      // This prevents potential issues with database limits
+      const metricsCount = Object.keys(resultReportMetrics).length;
+      if (metricsCount > 100) { // Set a reasonable limit
+        console.error("Too many metrics for a single report:", metricsCount);
+        setAlertDialogTitle("Too Many Metrics");
+        setAlertMessage(`Your report contains ${metricsCount} metrics, which exceeds our system limits. Please use a smaller date range or fewer metrics.`);
+        setAlertDialogOpen(true);
+        return;
+      }
+      
+      // Validate metrics data structure
+      try {
+        // JSON.stringify will throw an error if the structure is too complex or circular
+        const metricsString = JSON.stringify(resultReportMetrics);
+        if (metricsString.length > 500000) { // Check if the data is too large (500KB)
+          console.error("Metrics data size too large:", metricsString.length, "bytes");
+          setAlertDialogTitle("Data Size Limit Exceeded");
+          setAlertMessage("Your metrics data is too large. Please use a smaller date range or fewer metrics.");
+          setAlertDialogOpen(true);
+          return;
+        }
+      } catch (e) {
+        console.error("Invalid metrics data structure:", e);
+        setAlertDialogTitle("Invalid Metrics Data");
+        setAlertMessage("There's an issue with your metrics data structure. Please try again with a different date range.");
         setAlertDialogOpen(true);
         return;
       }
@@ -963,10 +1022,18 @@ export function Dashboard() {
         .select();
 
       if (error) {
-        setAlertDialogTitle("Report Creation Failed");
-        setAlertMessage(`Error: ${error.message}. Please try again or contact support.`);
-        setAlertDialogOpen(true);
         console.error("Error generating result report:", error);
+        
+        // Handle specific database constraints
+        if (error.code === '23514' && error.message.includes('valid_date_range')) {
+          setAlertDialogTitle("Invalid Date Range");
+          setAlertMessage("The database rejected this date range. Please try a different range that follows your organization's guidelines.");
+        } else {
+          setAlertDialogTitle("Report Creation Failed");
+          setAlertMessage(`Error: ${error.message}. Please try again or contact support.`);
+        }
+        
+        setAlertDialogOpen(true);
         return;
       }
 
@@ -1656,7 +1723,21 @@ export function Dashboard() {
                     resultReportType === 'weekly' ? 'default' : 'outline'
                   }
                   size='sm'
-                  onClick={() => setResultReportType('weekly')}
+                  onClick={() => {
+                    setResultReportType('weekly');
+                    // If current range is longer than 7 days, adjust end date
+                    if (resultReportStartDate && resultReportEndDate) {
+                      const start = new Date(resultReportStartDate);
+                      const end = new Date(resultReportEndDate);
+                      const dayDiff = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                      if (dayDiff > 7) {
+                        // Set end date to start date + 6 days (7 day total)
+                        const newEnd = new Date(start);
+                        newEnd.setDate(newEnd.getDate() + 6);
+                        setResultReportEndDate(newEnd.toISOString().split('T')[0]);
+                      }
+                    }
+                  }}
                   disabled={!!editingResultReport}
                 >
                   Weekly Report
@@ -1681,7 +1762,32 @@ export function Dashboard() {
                 <Input
                   type='date'
                   value={resultReportStartDate}
-                  onChange={e => setResultReportStartDate(e.target.value)}
+                  onChange={e => {
+                    const newStartDate = e.target.value;
+                    setResultReportStartDate(newStartDate);
+                    
+                    // If end date is set, validate the range
+                    if (resultReportEndDate) {
+                      const start = new Date(newStartDate);
+                      const end = new Date(resultReportEndDate);
+                      
+                      // If start date is after end date, set end date to start date
+                      if (start > end) {
+                        setResultReportEndDate(newStartDate);
+                      } else {
+                        // Check if range exceeds the maximum allowed days
+                        const dayDiff = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                        const maxDays = resultReportType === 'weekly' ? 7 : 31;
+                        
+                        if (dayDiff > maxDays) {
+                          // Adjust end date to maintain valid range
+                          const newEnd = new Date(start);
+                          newEnd.setDate(newEnd.getDate() + maxDays - 1);
+                          setResultReportEndDate(newEnd.toISOString().split('T')[0]);
+                        }
+                      }
+                    }
+                  }}
                   disabled={!!editingResultReport}
                 />
               </div>
@@ -1690,9 +1796,50 @@ export function Dashboard() {
                 <Input
                   type='date'
                   value={resultReportEndDate}
-                  onChange={e => setResultReportEndDate(e.target.value)}
+                  onChange={e => {
+                    const newEndDate = e.target.value;
+                    
+                    // If start date is set, validate the range
+                    if (resultReportStartDate) {
+                      const start = new Date(resultReportStartDate);
+                      const end = new Date(newEndDate);
+                      
+                      // If end date is before start date, don't update
+                      if (end < start) {
+                        setAlertDialogTitle("Invalid Date Range");
+                        setAlertMessage("End date cannot be before start date.");
+                        setAlertDialogOpen(true);
+                        return;
+                      }
+                      
+                      // Check if range exceeds the maximum allowed days
+                      const dayDiff = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                      const maxDays = resultReportType === 'weekly' ? 7 : 31;
+                      
+                      if (dayDiff > maxDays) {
+                        setAlertDialogTitle("Date Range Too Large");
+                        setAlertMessage(`The maximum date range for a ${resultReportType} report is ${maxDays} days.`);
+                        setAlertDialogOpen(true);
+                        
+                        // Set end date to maximum allowed from start date
+                        const maxEnd = new Date(start);
+                        maxEnd.setDate(maxEnd.getDate() + maxDays - 1);
+                        setResultReportEndDate(maxEnd.toISOString().split('T')[0]);
+                        return;
+                      }
+                    }
+                    
+                    setResultReportEndDate(newEndDate);
+                  }}
                   disabled={!!editingResultReport}
                 />
+              </div>
+              <div className='col-span-2'>
+                <p className='text-xs text-muted-foreground mt-1'>
+                  {resultReportType === 'weekly' 
+                    ? 'Weekly reports are limited to a maximum of 7 days.'
+                    : 'Monthly reports are limited to a maximum of 31 days.'}
+                </p>
               </div>
             </div>
             
