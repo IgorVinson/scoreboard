@@ -323,7 +323,7 @@ export function ReportsTable({
                   </TableCell>
 
                   <TableCell>
-                    <div className='flex items-center space-x-2'>
+                    <div className='flex items-center justify-center space-x-2'>
                       <Button
                         variant='ghost'
                         size='sm'
@@ -332,14 +332,17 @@ export function ReportsTable({
                       >
                         <Trash2 className='h-4 w-4 text-destructive' />
                       </Button>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-8 w-8 p-0'
-                        onClick={() => onEditReport(report)}
-                      >
-                        <Edit className='h-4 w-4 text-muted-foreground' />
-                      </Button>
+                      {/* Only show Edit button for daily reports, not for result reports */}
+                      {!report.is_result_report && (
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          className='h-8 w-8 p-0'
+                          onClick={() => onEditReport(report)}
+                        >
+                          <Edit className='h-4 w-4 text-muted-foreground' />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
 
