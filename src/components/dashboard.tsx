@@ -584,8 +584,13 @@ export function Dashboard() {
           return;
         }
         
+        // Update local state immediately
+        setResultReports(prevReports => prevReports.filter(r => r.id !== reportToDelete));
+        setProcessedResultReports(prevReports => prevReports.filter(r => r.id !== reportToDelete));
+        
         // Refresh result reports data
-        queryClient.invalidateQueries(['result_reports']);
+        queryClient.invalidateQueries({ queryKey: ['result_reports'] });
+        
         toast({
           title: "Success",
           description: "Result report deleted successfully"
@@ -1037,13 +1042,39 @@ export function Dashboard() {
         return;
       }
 
+      // Update local state immediately
+      if (data && data.length > 0) {
+        const newReport = data[0];
+        // Add to result reports
+        setResultReports(prevReports => [newReport, ...prevReports]);
+        
+        // Process and add to processed reports for display
+        const dateDisplay = newReport.start_date === newReport.end_date 
+          ? newReport.start_date 
+          : `${newReport.start_date} - ${newReport.end_date}`;
+        
+        const processedReport = {
+          ...newReport,
+          date: dateDisplay,
+          display_date: dateDisplay,
+          metrics_data: newReport.metrics_summary || {},
+          today_notes: newReport.summary || '',
+          tomorrow_notes: newReport.next_goals || '',
+          general_comments: newReport.comments || '',
+          is_result_report: true
+        };
+        
+        setProcessedResultReports(prevReports => [processedReport, ...prevReports]);
+      }
+
       // Enhanced success message with report details
       const reportPeriod = resultReportType.charAt(0).toUpperCase() + resultReportType.slice(1);
       setAlertDialogTitle("Report Created Successfully");
       setAlertMessage(`Your ${reportPeriod} report for ${dateRange} has been saved. You can view it in the Result Reports tab.`);
       setAlertDialogOpen(true);
       
-      queryClient.invalidateQueries(['result_reports']);
+      // Properly invalidate the query cache
+      queryClient.invalidateQueries({ queryKey: ['result_reports'] });
 
       // Only reset state and close dialog on success
       setResultReportDialogOpen(false);
@@ -1226,6 +1257,13 @@ export function Dashboard() {
     }
   };
 
+  // Call the load function more aggressively
+  const refreshResultReports = () => {
+    if (user?.id) {
+      loadResultReports();
+    }
+  };
+
   // Call this function when the component mounts or when needed
   useEffect(() => {
     if (user?.id) {
@@ -1252,6 +1290,36 @@ export function Dashboard() {
       });
     }
   };
+
+  // Call this function when the component mounts or when needed
+  useEffect(() => {
+    if (user?.id) {
+      loadResultReports();
+      
+      // Add event listener to refresh data when tab gets focus
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+          loadResultReports();
+        }
+      };
+      
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+    }
+  }, [user]);
+  
+  // Add state to track active tab
+  const [activeTab, setActiveTab] = useState('deep-overview');
+  
+  // Refresh reports when switching to the result-reports tab
+  useEffect(() => {
+    if (activeTab === 'result-reports' && user?.id) {
+      loadResultReports();
+    }
+  }, [activeTab, user?.id]);
 
   return (
     <div className='min-h-screen bg-background'>
@@ -1382,7 +1450,12 @@ export function Dashboard() {
 
           {/* Tabs */}
           <Card>
-            <Tabs defaultValue='deep-overview' className='w-full'>
+            <Tabs 
+              defaultValue='deep-overview' 
+              className='w-full'
+              value={activeTab}
+              onValueChange={(value) => setActiveTab(value)}
+            >
               <div className='border-b px-4'>
                 <TabsList className='my-2'>
                   <TabsTrigger value='deep-overview'>Performance</TabsTrigger>
