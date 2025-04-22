@@ -563,8 +563,13 @@ export function Dashboard() {
       }
       
       // Determine if we're deleting a daily report or result report
-      // Note: You might need a different approach to distinguish between report types
-      const isResultReport = resultReports.some(r => r.id === reportToDelete);
+      // Use a more reliable way to check if it's a result report
+      const isResultReport = resultReports.some(r => {
+        if (typeof r === 'object' && r !== null) {
+          return r.id === reportToDelete;
+        }
+        return false;
+      });
       
       if (isResultReport) {
         // Delete from result_reports table
@@ -585,8 +590,18 @@ export function Dashboard() {
         }
         
         // Update local state immediately
-        setResultReports(prevReports => prevReports.filter(r => r.id !== reportToDelete));
-        setProcessedResultReports(prevReports => prevReports.filter(r => r.id !== reportToDelete));
+        setResultReports(prevReports => 
+          prevReports.filter(r => {
+            if (typeof r === 'object' && r !== null) {
+              return r.id !== reportToDelete;
+            }
+            return true;
+          })
+        );
+        
+        setProcessedResultReports(prevReports => 
+          prevReports.filter(r => r.id !== reportToDelete)
+        );
         
         // Refresh result reports data
         queryClient.invalidateQueries({ queryKey: ['result_reports'] });
@@ -1196,24 +1211,58 @@ export function Dashboard() {
       
       // Transform result reports to match the format expected by ReportsTable
       const processed = resultReports.map(report => {
-        // Format the date range as a single date string for display
-        const dateDisplay = report.start_date === report.end_date 
-          ? report.start_date 
-          : `${report.start_date} - ${report.end_date}`;
+        // Get the report object safely
+        const typedReport = report as any;
+        
+        // Store the original ISO dates for the table to parse
+        const startDate = typedReport.start_date || '';
+        const endDate = typedReport.end_date || '';
+        
+        // Format the compact date display (MM.DD.YY format)
+        const formatDateCompact = (dateStr: string) => {
+          if (!dateStr) return '';
+          try {
+            const date = new Date(dateStr);
+            if (isNaN(date.getTime())) return 'Invalid date';
+            return date.toLocaleDateString('en-US', {
+              month: '2-digit',
+              day: '2-digit',
+              year: '2-digit'
+            }).replace(/\//g, '.');
+          } catch (error) {
+            console.error("Error formatting date:", error);
+            return 'Invalid date';
+          }
+        };
+        
+        // Create formatted date strings for display
+        const startFormatted = formatDateCompact(startDate);
+        const endFormatted = formatDateCompact(endDate);
+        
+        // Get report type with capitalization
+        const reportType = typedReport.type 
+          ? typedReport.type.charAt(0).toUpperCase() + typedReport.type.slice(1) 
+          : 'Report';
+        
+        // Create the display string
+        const displayDate = startDate === endDate
+          ? `${startFormatted} (${reportType})`
+          : `${startFormatted}-${endFormatted} (${reportType})`;
         
         return {
-          ...report,
-          // Use the combined date range as the date field
-          date: dateDisplay,
-          // Add a display_date field for human-readable format (used in the UI)
-          display_date: dateDisplay,
-          // Move metrics_summary to metrics_data for compatibility
-          metrics_data: report.metrics_summary || {},
-          // Add placeholder fields that are expected for daily reports
-          today_notes: report.summary || '',
-          tomorrow_notes: report.next_goals || '',
-          general_comments: report.comments || '',
-          // Add a type flag to distinguish between report types
+          ...typedReport,
+          // Store both the original dates (for parsing) and the display format
+          date: startDate, // Keep the original ISO date for parsing
+          start_date: startDate,
+          end_date: endDate,
+          // Add display fields
+          display_date: displayDate,
+          report_type: reportType,
+          // Add formatted fields for table rendering
+          metrics_data: typedReport.metrics_summary || {},
+          today_notes: typedReport.summary || '',
+          tomorrow_notes: typedReport.next_goals || '',
+          general_comments: typedReport.comments || '',
           is_result_report: true
         };
       });

@@ -266,32 +266,29 @@ export function ReportsTable({
           reports.map((report, reportIndex) => {
             const isExpanded = expandedReports.has(report.id);
             
-            // Handle both report types (daily and result reports) with more robust date validation
-            let formattedDate = 'No date';
+            // Get the date to display, handling both regular reports and result reports
+            let formattedDate;
             
-            try {
-              if (report.date && typeof report.date === 'string') {
-                const dateObj = parseISO(report.date);
-                if (isNaN(dateObj.getTime())) {
-                  formattedDate = 'Invalid date';
+            if (report.is_result_report && report.display_date) {
+              // For result reports, use the pre-formatted display_date
+              formattedDate = report.display_date;
+            } else {
+              // For regular reports, use date-fns to format the date
+              try {
+                if (report.date && typeof report.date === 'string') {
+                  const dateObj = parseISO(report.date);
+                  if (!isNaN(dateObj.getTime())) {
+                    formattedDate = format(dateObj, 'MM/dd/yyyy');
+                  } else {
+                    formattedDate = 'Invalid date';
+                  }
                 } else {
-                  formattedDate = format(dateObj, 'MM/dd/yyyy');
+                  formattedDate = 'No date';
                 }
-              } else if (report.start_date && report.end_date && 
-                        typeof report.start_date === 'string' && 
-                        typeof report.end_date === 'string') {
-                const startDateObj = parseISO(report.start_date);
-                const endDateObj = parseISO(report.end_date);
-                
-                if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
-                  formattedDate = 'Invalid date range';
-                } else {
-                  formattedDate = `${format(startDateObj, 'MM/dd/yyyy')} - ${format(endDateObj, 'MM/dd/yyyy')}`;
-                }
+              } catch (error) {
+                console.error('Error formatting date:', error);
+                formattedDate = 'Date error';
               }
-            } catch (error) {
-              console.error('Error formatting date:', error);
-              formattedDate = 'Date error';
             }
 
             return (
