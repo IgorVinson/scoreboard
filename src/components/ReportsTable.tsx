@@ -192,48 +192,34 @@ export function ReportsTable({
     );
   };
 
-  // Modify the tabs array to remove the separate tabs and create a combined one
-  const tabs = [
-    {
-      name: 'Overview & Performance',
-      href: '#',
-      current: activeTab === 'overview-performance',
-    },
-    // ... keep other tabs if they exist ...
-  ];
+  // Function to collect metrics for the chart
+  const collectMetricsForChart = () => {
+    const planMetrics = [];
+    const factMetrics = [];
+    const objectiveNames = [];
 
-  // Update the tab content rendering logic
-  function renderTabContent() {
-    switch (activeTab) {
-      case 'overview-performance':
-        return (
-          <div>
-            {/* Overview content */}
-            <div className='mb-8'>
-              <h2 className='text-lg font-medium mb-4'>Overview</h2>
-              {/* Include all overview components here */}
-              <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
-                {/* Overview metrics and charts */}
-                {/* ... existing overview components ... */}
-              </div>
-            </div>
-
-            {/* Performance content */}
-            <div>
-              <h2 className='text-lg font-medium mb-4'>Performance</h2>
-              {/* Include all performance components here */}
-              <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
-                {/* Performance metrics and charts */}
-                {/* ... existing performance components ... */}
-              </div>
-            </div>
-          </div>
-        );
-      // ... other case statements for other tabs ...
-      default:
-        return null;
-    }
-  }
+    objectives.forEach(objective => {
+      objectiveNames.push(objective.name);
+      
+      // Calculate total plan and actual values for this objective
+      let totalPlan = 0;
+      let totalFact = 0;
+      
+      objective.metrics.forEach(metric => {
+        // Sum up values from all reports for this metric
+        reports.forEach(report => {
+          const { plan, actual } = getMetricValues(metric, report);
+          if (typeof plan === 'number') totalPlan += plan;
+          if (typeof actual === 'number') totalFact += actual;
+        });
+      });
+      
+      planMetrics.push(totalPlan);
+      factMetrics.push(totalFact);
+    });
+    
+    return { planMetrics, factMetrics, objectiveNames };
+  };
 
   // Update the initial state or useEffect to set the default active tab
   useEffect(() => {
@@ -241,234 +227,282 @@ export function ReportsTable({
   }, []);
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Date</TableHead>
-          <TableHead>Objectives/Metrics</TableHead>
-          <TableHead className='text-center'>Plan</TableHead>
-          <TableHead className='text-center'>Actual</TableHead>
-          <TableHead className='text-center'>Deviation</TableHead>
-          <TableHead className='text-center'>Actions</TableHead>
-          <TableHead className='text-center'>Reviewed</TableHead>
-          <TableHead className='text-center'>Quantity</TableHead>
-          <TableHead className='text-center'>Quality</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {reports.length === 0 ? (
+    <div className='space-y-4'>
+      <Table className='border rounded-md'>
+        <TableHeader>
           <TableRow>
-            <TableCell colSpan={9} className='text-center'>
-              No reports found
-            </TableCell>
+            <TableHead>Date</TableHead>
+            <TableHead>Objectives/Metrics</TableHead>
+            <TableHead className='text-center'>Plan</TableHead>
+            <TableHead className='text-center'>Actual</TableHead>
+            <TableHead className='text-center'>Deviation</TableHead>
+            <TableHead className='text-center'>Review</TableHead>
+            <TableHead className='text-center'>Actions</TableHead>
           </TableRow>
-        ) : (
-          reports.map((report, reportIndex) => {
-            const isExpanded = expandedReports.has(report.id);
-            
-            // Get the date to display, handling both regular reports and result reports
-            let formattedDate;
-            
-            if (report.is_result_report && report.display_date) {
-              // For result reports, use the pre-formatted display_date
-              formattedDate = report.display_date;
-            } else {
-              // For regular reports, use date-fns to format the date
-              try {
-                if (report.date && typeof report.date === 'string') {
-                  const dateObj = parseISO(report.date);
-                  if (!isNaN(dateObj.getTime())) {
-                    formattedDate = format(dateObj, 'MM/dd/yyyy');
+        </TableHeader>
+        <TableBody>
+          {reports.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={7} className='text-center py-6'>
+                No reports found. Create a report to get started.
+              </TableCell>
+            </TableRow>
+          ) : (
+            reports.map((report, reportIndex) => {
+              const isExpanded = expandedReports.has(report.id);
+              
+              // Get the date to display, handling both regular reports and result reports
+              let formattedDate;
+              
+              if (report.is_result_report && report.display_date) {
+                // For result reports, use the pre-formatted display_date
+                formattedDate = report.display_date;
+              } else {
+                // For regular reports, use date-fns to format the date
+                try {
+                  if (report.date && typeof report.date === 'string') {
+                    const dateObj = parseISO(report.date);
+                    if (!isNaN(dateObj.getTime())) {
+                      formattedDate = format(dateObj, 'MM/dd/yyyy');
+                    } else {
+                      formattedDate = 'Invalid date';
+                    }
                   } else {
-                    formattedDate = 'Invalid date';
+                    formattedDate = 'No date';
                   }
-                } else {
-                  formattedDate = 'No date';
+                } catch (error) {
+                  console.error('Error formatting date:', error);
+                  formattedDate = 'Date error';
                 }
-              } catch (error) {
-                console.error('Error formatting date:', error);
-                formattedDate = 'Date error';
               }
-            }
 
-            return (
-              <React.Fragment key={report.id}>
-                <TableRow>
-                  <TableCell>
-                    <div className='flex items-center'>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-6 w-6 p-0 mr-2'
-                        onClick={() => toggleReportExpansion(report.id)}
-                      >
-                        <FileText className='h-4 w-4 text-gray-400' />
-                      </Button>
-                      {formattedDate}
-                    </div>
-                  </TableCell>
-
-                  {/* Objectives and Metrics Column */}
-                  <TableCell>{renderObjectivesAndMetrics(report)}</TableCell>
-
-                  {/* Plan Column */}
-                  <TableCell>{renderMetricValues(report, 'plan')}</TableCell>
-
-                  {/* Actual Column */}
-                  <TableCell>{renderMetricValues(report, 'actual')}</TableCell>
-
-                  {/* Deviation Column */}
-                  <TableCell>
-                    {renderMetricValues(report, 'deviation')}
-                  </TableCell>
-
-                  <TableCell>
-                    <div className='flex items-center justify-center space-x-2'>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-8 w-8 p-0'
-                        onClick={() => onDeleteReport(report.id)}
-                      >
-                        <Trash2 className='h-4 w-4 text-destructive' />
-                      </Button>
-                      {/* Only show Edit button for daily reports, not for result reports */}
-                      {!report.is_result_report && (
+              return (
+                <React.Fragment key={report.id}>
+                  <TableRow
+                    className='cursor-pointer hover:bg-muted/50'
+                    onClick={() => toggleReportExpansion(report.id)}
+                  >
+                    <TableCell>
+                      <div className='flex items-center space-x-2'>
                         <Button
                           variant='ghost'
                           size='sm'
-                          className='h-8 w-8 p-0'
-                          onClick={() => onEditReport(report)}
+                          className='h-6 w-6 p-0'
                         >
-                          <Edit className='h-4 w-4 text-muted-foreground' />
+                          {isExpanded ? (
+                            <ChevronDown className='h-4 w-4' />
+                          ) : (
+                            <ChevronRight className='h-4 w-4' />
+                          )}
                         </Button>
+                        <span>
+                          {formattedDate}
+                          {report.type === 'result' && (
+                            <Badge className='ml-2' variant='outline'>
+                              {report.report_type === 'weekly'
+                                ? 'Weekly'
+                                : 'Monthly'}
+                            </Badge>
+                          )}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {isExpanded ? (
+                        renderObjectivesAndMetrics(report)
+                      ) : (
+                        <span className='text-muted-foreground text-sm'>
+                          {objectives.length} objectives,{' '}
+                          {objectives.reduce(
+                            (acc, obj) => acc + obj.metrics.length,
+                            0
+                          )}{' '}
+                          metrics
+                        </span>
                       )}
-                    </div>
-                  </TableCell>
-
-                  {/* Modified Reviewed column */}
-                  <TableCell className='text-center'>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      className='h-8 w-8 p-0 rounded-full'
-                      onClick={() => {
-                        if (report.reviewed) {
-                          // If already reviewed, just toggle it off
+                    </TableCell>
+                    <TableCell className='text-center'>
+                      {isExpanded
+                        ? renderMetricValues(report, 'plan')
+                        : countTotalValue(report, 'plan')}
+                    </TableCell>
+                    <TableCell className='text-center'>
+                      {isExpanded
+                        ? renderMetricValues(report, 'actual')
+                        : countTotalValue(report, 'actual')}
+                    </TableCell>
+                    <TableCell className='text-center'>
+                      {isExpanded
+                        ? renderMetricValues(report, 'deviation')
+                        : calculateTotalDeviation(report)}
+                    </TableCell>
+                    <TableCell className='text-center'>
+                      <Badge
+                        variant={report.reviewed ? 'success' : 'outline'}
+                        className='cursor-pointer'
+                        onClick={e => {
+                          e.stopPropagation(); // Prevent expanding the row
                           onToggleReview(report.id);
-                        } else {
-                          // If not reviewed, open the review modal
-                          onReviewReport(report);
-                        }
-                      }}
-                    >
-                      <input
-                        type='checkbox'
-                        checked={report.reviewed !== undefined ? report.reviewed : false}
-                        className='h-4 w-4 cursor-pointer'
-                        readOnly
-                      />
-                    </Button>
-                  </TableCell>
-
-                  {/* Quantity Column */}
-                  <TableCell className='text-center'>
-                    {report.quantity_rating !== undefined ? (
-                      <div className='flex items-center justify-center'>
-                        <Star className='h-4 w-4 text-amber-500 mr-1' />
-                        <span>{report.quantity_rating}/5</span>
-                      </div>
-                    ) : (
-                      <span className='text-muted-foreground'>—</span>
-                    )}
-                  </TableCell>
-
-                  {/* Quality Column */}
-                  <TableCell className='text-center'>
-                    {report.quality_rating !== undefined ? (
-                      <div className='flex items-center justify-center'>
-                        <Star className='h-4 w-4 text-amber-500 mr-1' />
-                        <span>{report.quality_rating}/5</span>
-                      </div>
-                    ) : (
-                      <span className='text-muted-foreground'>—</span>
-                    )}
-                  </TableCell>
-                </TableRow>
-
-                {/* Expanded content */}
-                {isExpanded && (
-                  <TableRow>
-                    <TableCell colSpan={9} className='bg-muted/50 p-0'>
-                      <div className='py-2 px-4'>
-                        {/* Notes Sections - handle both report types */}
-                        <div className='grid grid-cols-2 gap-4'>
-                          {/* For daily reports */}
-                          {report.today_notes !== undefined && (
-                            <>
-                              <div>
-                                <h4 className='font-medium mb-2'>This day's notes</h4>
-                                <div
-                                  className='text-sm border rounded p-3'
-                                  dangerouslySetInnerHTML={{
-                                    __html: report.today_notes,
-                                  }}
-                                />
-                              </div>
-                              <div>
-                                <h4 className='font-medium mb-2'>Next day's notes</h4>
-                                <div
-                                  className='text-sm border rounded p-3'
-                                  dangerouslySetInnerHTML={{
-                                    __html: report.tomorrow_notes || '',
-                                  }}
-                                />
-                              </div>
-                            </>
-                          )}
-                          
-                          {/* For result reports */}
-                          {report.summary !== undefined && (
-                            <>
-                              <div>
-                                <h4 className='font-medium mb-2'>Summary</h4>
-                                <div
-                                  className='text-sm border rounded p-3'
-                                  dangerouslySetInnerHTML={{
-                                    __html: report.summary,
-                                  }}
-                                />
-                              </div>
-                              <div>
-                                <h4 className='font-medium mb-2'>Next Goals</h4>
-                                <div
-                                  className='text-sm border rounded p-3'
-                                  dangerouslySetInnerHTML={{
-                                    __html: report.next_goals || '',
-                                  }}
-                                />
-                              </div>
-                            </>
-                          )}
+                        }}
+                      >
+                        {report.reviewed ? 'Reviewed' : 'Not Reviewed'}
+                      </Badge>
+                      {report.quality_rating && report.quantity_rating && (
+                        <div className='mt-1 flex items-center justify-center gap-1 text-xs text-muted-foreground'>
+                          <Star className='h-3 w-3 fill-yellow-400 text-yellow-400' />
+                          <span>
+                            {((report.quality_rating + report.quantity_rating) /
+                              2).toFixed(1)}
+                          </span>
                         </div>
-                        <div className='mt-4'>
-                          <h4 className='font-medium mb-2'>Comments</h4>
-                          <div
-                            className='text-sm border rounded p-3'
-                            dangerouslySetInnerHTML={{
-                              __html: report.general_comments || report.comments || '',
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className='flex items-center justify-center space-x-2'>
+                        {/* Only show edit button for daily reports */}
+                        {report.type !== 'result' && (
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            className='h-7 w-7 p-0'
+                            onClick={e => {
+                              e.stopPropagation();
+                              onEditReport(report);
                             }}
-                          />
-                        </div>
+                          >
+                            <Edit className='h-4 w-4' />
+                          </Button>
+                        )}
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          className='h-7 w-7 p-0'
+                          onClick={e => {
+                            e.stopPropagation();
+                            if (report.reviewed) {
+                              onReviewReport(report);
+                            } else {
+                              onReviewReport(report);
+                            }
+                          }}
+                        >
+                          <FileText className='h-4 w-4' />
+                        </Button>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          className='h-7 w-7 p-0 text-destructive'
+                          onClick={e => {
+                            e.stopPropagation();
+                            onDeleteReport(report.id);
+                          }}
+                        >
+                          <Trash2 className='h-4 w-4' />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
-                )}
-              </React.Fragment>
-            );
-          })
-        )}
-      </TableBody>
-    </Table>
+                  {isExpanded && (
+                    <TableRow>
+                      <TableCell colSpan={7} className='p-4 bg-muted/30'>
+                        <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+                          <div>
+                            <h4 className='text-sm font-medium mb-2'>
+                              Today's Notes
+                            </h4>
+                            <div
+                              className='text-sm text-muted-foreground border rounded-md p-3 h-[100px] overflow-y-auto'
+                              dangerouslySetInnerHTML={{
+                                __html: report.today_notes || '<p>No notes</p>',
+                              }}
+                            ></div>
+                          </div>
+                          <div>
+                            <h4 className='text-sm font-medium mb-2'>
+                              Tomorrow's Plan
+                            </h4>
+                            <div
+                              className='text-sm text-muted-foreground border rounded-md p-3 h-[100px] overflow-y-auto'
+                              dangerouslySetInnerHTML={{
+                                __html:
+                                  report.tomorrow_notes || '<p>No plan</p>',
+                              }}
+                            ></div>
+                          </div>
+                          <div>
+                            <h4 className='text-sm font-medium mb-2'>
+                              General Comments
+                            </h4>
+                            <div
+                              className='text-sm text-muted-foreground border rounded-md p-3 h-[100px] overflow-y-auto'
+                              dangerouslySetInnerHTML={{
+                                __html:
+                                  report.general_comments ||
+                                  '<p>No comments</p>',
+                              }}
+                            ></div>
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </React.Fragment>
+              );
+            })
+          )}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+// Helper functions to calculate totals
+function countTotalValue(report, type) {
+  let total = 0;
+  let count = 0;
+  
+  const metricsData = report.metrics_data || report.metrics_summary || {};
+  
+  Object.values(metricsData).forEach((data: any) => {
+    if (data && typeof data[type === 'plan' ? 'plan' : 'fact'] === 'number') {
+      total += data[type === 'plan' ? 'plan' : 'fact'];
+      count++;
+    }
+  });
+  
+  return count > 0 ? total.toFixed(1) : '-';
+}
+
+function calculateTotalDeviation(report) {
+  let totalPlan = 0;
+  let totalActual = 0;
+  let count = 0;
+  
+  const metricsData = report.metrics_data || report.metrics_summary || {};
+  
+  Object.values(metricsData).forEach((data: any) => {
+    if (
+      data &&
+      typeof data.plan === 'number' &&
+      typeof data.fact === 'number'
+    ) {
+      totalPlan += data.plan;
+      totalActual += data.fact;
+      count++;
+    }
+  });
+  
+  if (count === 0 || totalPlan === 0) return '-';
+  
+  const deviation = ((totalActual - totalPlan) / totalPlan) * 100;
+  
+  // Apply styling based on deviation value
+  let className = deviation >= 0 ? 'text-green-500' : 'text-red-500';
+  
+  return (
+    <span className={className}>
+      {deviation > 0 ? '+' : ''}
+      {deviation.toFixed(1)}%
+    </span>
   );
 }

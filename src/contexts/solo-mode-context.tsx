@@ -60,6 +60,15 @@ export const SoloModeProvider: React.FC<{ children: React.ReactNode }> = ({
           const pref = await getUserPreference('virtual_manager');
           if (pref) {
             setIsVirtualManager(pref.value === true);
+          } else {
+            // If no preference exists in database yet, try to load from localStorage as fallback
+            const stored = localStorage.getItem(`virtual_manager_${user?.id}`);
+            if (stored !== null) {
+              const storedValue = stored === 'true';
+              setIsVirtualManager(storedValue);
+              // Save this value to the database for future
+              await setUserPreference('virtual_manager', storedValue);
+            }
           }
           lastFetch.current = now;
         } catch (error) {
@@ -69,7 +78,7 @@ export const SoloModeProvider: React.FC<{ children: React.ReactNode }> = ({
     };
     
     loadVirtualManagerPref();
-  }, [user, isSoloMode, getUserPreference]);
+  }, [user, isSoloMode, getUserPreference, setUserPreference]);
 
   // Toggle between regular user and virtual manager in solo mode
   const toggleVirtualManager = async () => {
@@ -78,12 +87,15 @@ export const SoloModeProvider: React.FC<{ children: React.ReactNode }> = ({
     const newValue = !isVirtualManager;
     setIsVirtualManager(newValue);
     
+    // Update both database and localStorage for redundancy
     try {
       await setUserPreference('virtual_manager', newValue);
+      // Also store in localStorage as a fallback
+      localStorage.setItem(`virtual_manager_${user?.id}`, newValue.toString());
     } catch (error) {
       console.error('Error saving virtual manager preference:', error);
-      // Revert UI if save fails
-      setIsVirtualManager(!newValue);
+      // Still save to localStorage even if database save fails
+      localStorage.setItem(`virtual_manager_${user?.id}`, newValue.toString());
     }
   };
 

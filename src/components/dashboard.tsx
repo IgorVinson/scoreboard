@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar } from '@/components/ui/calendar';
+import ChartBlock from '@/components/ChartBlock';
 import {
   Table,
   TableBody,
@@ -97,6 +98,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/queries/queryKeys';
 import { ResultReportManager } from '@/components/result-report/MetricCalculator';
 import { toast } from '@/components/ui/use-toast';
+import { ObjectivesMetricsTable, Objective } from '@/components/ObjectivesMetricsTable';
+import { ResultReportsTable } from '@/components/ResultReportsTable';
 
 // Extend the DailyReport type to include the 'reviewed' field for our app's usage
 interface ExtendedDailyReport extends Omit<DailyReport, 'id' | 'created_at' | 'updated_at'> {
@@ -106,6 +109,7 @@ interface ExtendedDailyReport extends Omit<DailyReport, 'id' | 'created_at' | 'u
 interface StarRatingProps {
   rating: number;
   onRatingChange: (rating: number) => void;
+  maxRating?: number;
 }
 
 interface MetricValues {
@@ -124,27 +128,12 @@ interface Report {
   reviewed: boolean;
 }
 
-interface Metric {
-  id: string;
-  name: string;
-  plan?: number;
-  planPeriod?: string;
-}
-
-interface Objective {
-  id: string;
-  name: string;
-  description?: string;
-  metrics: Metric[];
-  isExpanded?: boolean;
-}
-
-const StarRating: React.FC<StarRatingProps> = ({ rating, onRatingChange }) => {
+const StarRating: React.FC<StarRatingProps> = ({ rating, onRatingChange, maxRating = 5 }) => {
   const [hoverRating, setHoverRating] = useState(0);
 
   return (
     <div className='flex space-x-1'>
-      {[...Array(5)].map((_, i) => {
+      {[...Array(maxRating)].map((_, i) => {
         const starValue = i + 1;
         return (
           <button
@@ -194,6 +183,13 @@ export function Dashboard() {
   const updateDailyNoteMutation = useUpdateDailyNote();
   const createDailyNoteMutation = useCreateDailyNote();
   
+  const {
+    metrics,
+    plans,
+    dailyReports,
+    getPlansByUser,
+    getDailyReportsByUser,
+  } = useData();
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [selectedIndicator, setSelectedIndicator] = useState('All Indicators');
   const [selectedPeriod, setSelectedPeriod] = useState('Daily');
@@ -853,7 +849,7 @@ export function Dashboard() {
   };
   
   const handleEditResultReport = (report: Report) => {
-    setEditingReport(report);
+    setEditingResultReport(report);
     if (report.type === 'result') {
       // For result reports, populate form data with result report values
       setResultReportForm({
@@ -1497,14 +1493,13 @@ export function Dashboard() {
             </Card>
           </div>
 
+        {/* Chart Block */ }
+          <ChartBlock reports={reports} objectives={objectives}/>
+          
+          
           {/* Tabs */}
           <Card>
-            <Tabs 
-              defaultValue='deep-overview' 
-              className='w-full'
-              value={activeTab}
-              onValueChange={(value) => setActiveTab(value)}
-            >
+            <Tabs defaultValue='deep-overview' className='w-full'>
               <div className='border-b px-4'>
                 <TabsList className='my-2'>
                   <TabsTrigger value='deep-overview'>Performance</TabsTrigger>
@@ -1527,8 +1522,12 @@ export function Dashboard() {
 
               <TabsContent value='reports' className='p-6'>
                 <div className='space-y-4'>
+                  <div className='flex justify-between items-center'>
+                    <h2 className='text-2xl font-bold'>Reports</h2>
+                  </div>
+
                   <ReportsTable
-                    reports={userReports}
+                    reports={reports}
                     objectives={objectives}
                     onDeleteReport={handleDeleteReport}
                     onEditReport={handleEditReport}
@@ -1540,7 +1539,7 @@ export function Dashboard() {
 
               <TabsContent value='result-reports' className='p-6'>
                 <div className='space-y-4'>
-                <div className='flex justify-between items-center'>
+                  <div className='flex justify-between items-center'>
                     <h2 className='text-2xl font-bold'>Result Reports</h2>
                     <Button
                       variant='outline'
@@ -1551,8 +1550,9 @@ export function Dashboard() {
                       Generate Report
                     </Button>
                   </div>
-                  <ReportsTable
-                    reports={processedResultReports}
+
+                  <ResultReportsTable
+                    reports={resultReports}
                     objectives={objectives}
                     onDeleteReport={handleDeleteResultReport}
                     onEditReport={handleEditResultReport}
@@ -1574,57 +1574,47 @@ export function Dashboard() {
           <Card className=''>
             <div className='p-6'>
               <h3 className='text-lg font-semibold mb-4'>Daily Notes</h3>
-              
-              {isLoadingNotes ? (
-                <div className="flex items-center justify-center p-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                  <span className="ml-3">Loading notes...</span>
+              <div className='grid gap-6 md:grid-cols-2'>
+                <div>
+                  <h4 className='font-medium mb-3 text-sm text-muted-foreground'>
+                    Today's Notes
+                  </h4>
+                  <NotesEditor
+                    id='today-notes'
+                    content={todayNotes}
+                    onChange={handleTodayNotesChange}
+                    placeholder='What did you accomplish today?'
+                  />
                 </div>
-              ) : (
-                <>
-                  <div className='grid gap-6 md:grid-cols-2'>
-                    <div>
-                      <h4 className='font-medium mb-3 text-sm text-muted-foreground'>
-                        Today's Notes
-                      </h4>
-                      <NotesEditor
-                        id='today-notes'
-                        content={todayNotes}
-                        onChange={handleTodayNotesChange}
-                        placeholder='What did you accomplish today?'
-                      />
-                    </div>
-                    <div>
-                      <h4 className='font-medium mb-3 text-sm text-muted-foreground'>
-                        Tomorrow's Plan
-                      </h4>
-                      <NotesEditor
-                        id='tomorrow-notes'
-                        content={tomorrowNotes}
-                        onChange={handleTomorrowNotesChange}
-                        placeholder='What do you plan to work on tomorrow?'
-                      />
-                    </div>
-                  </div>
-                  <div className='mt-6'>
-                    <h4 className='font-medium mb-3 text-sm text-muted-foreground'>
-                      General Comments
-                    </h4>
-                    <NotesEditor
-                      id='general-comments'
-                      content={generalComments}
-                      onChange={handleGeneralCommentsChange}
-                      placeholder='Any other thoughts or comments...'
-                    />
-                  </div>
-                  <div className='mt-6 flex justify-end'>
-                    <Button onClick={handleOpenReport}>
-                      <ClipboardList className='h-4 w-4 mr-2' />
-                      Close Day
-                    </Button>
-                  </div>
-                </>
-              )}
+                <div>
+                  <h4 className='font-medium mb-3 text-sm text-muted-foreground'>
+                    Tomorrow's Plan
+                  </h4>
+                  <NotesEditor
+                    id='tomorrow-notes'
+                    content={tomorrowNotes}
+                    onChange={handleTomorrowNotesChange}
+                    placeholder='What do you plan to work on tomorrow?'
+                  />
+                </div>
+              </div>
+              <div className='mt-6'>
+                <h4 className='font-medium mb-3 text-sm text-muted-foreground'>
+                  General Comments
+                </h4>
+                <NotesEditor
+                  id='general-comments'
+                  content={generalComments}
+                  onChange={handleGeneralCommentsChange}
+                  placeholder='Any other thoughts or comments...'
+                />
+              </div>
+              <div className='mt-6 flex justify-end'>
+                <Button onClick={handleOpenReport}>
+                  <ClipboardList className='h-4 w-4 mr-2' />
+                  Close Day
+                </Button>
+              </div>
             </div>
           </Card>
         </div>
@@ -1634,11 +1624,10 @@ export function Dashboard() {
       <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
         <DialogContent className='sm:max-w-[800px] max-h-[90vh]'>
           <DialogHeader>
-            <DialogTitle>{editingReport ? 'Edit Daily Report' : 'Close Day Report'}</DialogTitle>
+            <DialogTitle>Close Day Report</DialogTitle>
             <DialogDescription>
-              {editingReport 
-                ? 'Update your daily report by modifying the values and notes below.' 
-                : 'Create a daily report by filling in metric values and reviewing your notes.'}
+              Create a daily report by filling in metric values and reviewing
+              your notes.
             </DialogDescription>
           </DialogHeader>
 
@@ -1651,7 +1640,6 @@ export function Dashboard() {
                 value={reportDate}
                 onChange={handleDateChange}
                 className='w-[200px]'
-                disabled={editingReport !== null || reviewMode}
               />
             </div>
 
@@ -1689,7 +1677,7 @@ export function Dashboard() {
                         </TableCell>
                       </TableRow>
                       {objective.isExpanded &&
-                        objective.metrics.map((metric: Metric) => (
+                        objective.metrics.map(metric => (
                           <TableRow key={metric.id}>
                             <TableCell className='pl-8'>
                               {metric.name}
@@ -1702,10 +1690,15 @@ export function Dashboard() {
                                 type='number'
                                 value={metricValues[metric.id] || ''}
                                 onChange={e => {
-                                  handleMetricValueChange(metric.id, e.target.value);
+                                  const newValue = e.target.value
+                                    ? parseFloat(e.target.value)
+                                    : '';
+                                  setMetricValues({
+                                    ...metricValues,
+                                    [metric.id]: newValue,
+                                  });
                                 }}
                                 className='w-20'
-                                disabled={reviewMode}
                               />
                             </TableCell>
                           </TableRow>
@@ -1729,7 +1722,6 @@ export function Dashboard() {
                     content={reportTodayNotes}
                     onChange={setReportTodayNotes}
                     placeholder='What did you accomplish today?'
-                    disabled={reviewMode}
                   />
                 </div>
                 <div>
@@ -1741,7 +1733,6 @@ export function Dashboard() {
                     content={reportTomorrowNotes}
                     onChange={setReportTomorrowNotes}
                     placeholder='What do you plan to work on tomorrow?'
-                    disabled={reviewMode}
                   />
                 </div>
                 <div>
@@ -1753,7 +1744,6 @@ export function Dashboard() {
                     content={reportGeneralComments}
                     onChange={setReportGeneralComments}
                     placeholder='Any other thoughts or comments...'
-                    disabled={reviewMode}
                   />
                 </div>
               </div>
@@ -1845,21 +1835,7 @@ export function Dashboard() {
                     resultReportType === 'weekly' ? 'default' : 'outline'
                   }
                   size='sm'
-                  onClick={() => {
-                    setResultReportType('weekly');
-                    // If current range is longer than 7 days, adjust end date
-                    if (resultReportStartDate && resultReportEndDate) {
-                      const start = new Date(resultReportStartDate);
-                      const end = new Date(resultReportEndDate);
-                      const dayDiff = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-                      if (dayDiff > 7) {
-                        // Set end date to start date + 6 days (7 day total)
-                        const newEnd = new Date(start);
-                        newEnd.setDate(newEnd.getDate() + 6);
-                        setResultReportEndDate(newEnd.toISOString().split('T')[0]);
-                      }
-                    }
-                  }}
+                  onClick={() => setResultReportType('weekly')}
                   disabled={!!editingResultReport}
                 >
                   Weekly Report
@@ -1884,32 +1860,7 @@ export function Dashboard() {
                 <Input
                   type='date'
                   value={resultReportStartDate}
-                  onChange={e => {
-                    const newStartDate = e.target.value;
-                    setResultReportStartDate(newStartDate);
-                    
-                    // If end date is set, validate the range
-                    if (resultReportEndDate) {
-                      const start = new Date(newStartDate);
-                      const end = new Date(resultReportEndDate);
-                      
-                      // If start date is after end date, set end date to start date
-                      if (start > end) {
-                        setResultReportEndDate(newStartDate);
-                      } else {
-                        // Check if range exceeds the maximum allowed days
-                        const dayDiff = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-                        const maxDays = resultReportType === 'weekly' ? 7 : 31;
-                        
-                        if (dayDiff > maxDays) {
-                          // Adjust end date to maintain valid range
-                          const newEnd = new Date(start);
-                          newEnd.setDate(newEnd.getDate() + maxDays - 1);
-                          setResultReportEndDate(newEnd.toISOString().split('T')[0]);
-                        }
-                      }
-                    }
-                  }}
+                  onChange={e => setResultReportStartDate(e.target.value)}
                   disabled={!!editingResultReport}
                 />
               </div>
@@ -1918,53 +1869,12 @@ export function Dashboard() {
                 <Input
                   type='date'
                   value={resultReportEndDate}
-                  onChange={e => {
-                    const newEndDate = e.target.value;
-                    
-                    // If start date is set, validate the range
-                    if (resultReportStartDate) {
-                      const start = new Date(resultReportStartDate);
-                      const end = new Date(newEndDate);
-                      
-                      // If end date is before start date, don't update
-                      if (end < start) {
-                        setAlertDialogTitle("Invalid Date Range");
-                        setAlertMessage("End date cannot be before start date.");
-                        setAlertDialogOpen(true);
-                        return;
-                      }
-                      
-                      // Check if range exceeds the maximum allowed days
-                      const dayDiff = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-                      const maxDays = resultReportType === 'weekly' ? 7 : 31;
-                      
-                      if (dayDiff > maxDays) {
-                        setAlertDialogTitle("Date Range Too Large");
-                        setAlertMessage(`The maximum date range for a ${resultReportType} report is ${maxDays} days.`);
-                        setAlertDialogOpen(true);
-                        
-                        // Set end date to maximum allowed from start date
-                        const maxEnd = new Date(start);
-                        maxEnd.setDate(maxEnd.getDate() + maxDays - 1);
-                        setResultReportEndDate(maxEnd.toISOString().split('T')[0]);
-                        return;
-                      }
-                    }
-                    
-                    setResultReportEndDate(newEndDate);
-                  }}
+                  onChange={e => setResultReportEndDate(e.target.value)}
                   disabled={!!editingResultReport}
                 />
               </div>
-              <div className='col-span-2'>
-                <p className='text-xs text-muted-foreground mt-1'>
-                  {resultReportType === 'weekly' 
-                    ? 'Weekly reports are limited to a maximum of 7 days.'
-                    : 'Monthly reports are limited to a maximum of 31 days.'}
-                </p>
-              </div>
             </div>
-            
+
             {/* Metrics Calculator - now shows automatically when dates are selected */}
             {user && (
               <ResultReportManager
@@ -2061,11 +1971,9 @@ export function Dashboard() {
             <Button
               variant='outline'
               onClick={() => {
+                setResultReportDialogOpen(false);
                 resetResultReportState();
                 setReviewMode(false);
-                setTimeout(() => {
-                  setResultReportDialogOpen(false);
-                }, 10);
               }}
             >
               Cancel
@@ -2074,20 +1982,7 @@ export function Dashboard() {
             {reviewMode ? (
               <Button onClick={submitResultReportReview}>Submit Review</Button>
             ) : (
-              <Button onClick={async () => {
-                try {
-                  // Only reset state and close dialog if report generation was successful
-                  const success = await generateResultReport();
-                  if (success) {
-                    resetResultReportState();
-                    setTimeout(() => {
-                      setResultReportDialogOpen(false);
-                    }, 10);
-                  }
-                } catch (error) {
-                  console.error('Error generating report:', error);
-                }
-              }}>
+              <Button onClick={generateResultReport}>
                 {editingResultReport ? 'Update Report' : 'Generate Report'}
               </Button>
             )}
@@ -2171,7 +2066,7 @@ export function Dashboard() {
                         </TableCell>
                       </TableRow>
                       {objective.isExpanded &&
-                        objective.metrics.map((metric: Metric) => (
+                        objective.metrics.map(metric => (
                           <TableRow key={metric.id}>
                             <TableCell className='pl-8'>
                               {metric.name}
@@ -2184,10 +2079,15 @@ export function Dashboard() {
                                 type='number'
                                 value={metricValues[metric.id] || ''}
                                 onChange={e => {
-                                  handleMetricValueChange(metric.id, e.target.value);
+                                  const newValue = e.target.value
+                                    ? parseFloat(e.target.value)
+                                    : '';
+                                  setMetricValues({
+                                    ...metricValues,
+                                    [metric.id]: newValue,
+                                  });
                                 }}
                                 className='w-20'
-                                disabled={reviewMode}
                               />
                             </TableCell>
                           </TableRow>

@@ -218,6 +218,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return dailyReports.filter(report => report.user_id === userId);
   };
 
+  // Refresh data function that clears the cache
+  const refreshData = async () => {
+    cache.current = {}; // Clear the cache
+    await loadData(); // Reload all data
+  };
+
   const value: DataContextType = {
     companies,
     teams,
@@ -261,28 +267,25 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await loadData();
       return report;
     },
-    // Daily Notes functions
     getDailyNotes: async () => {
-      if (!user) return { today_notes: '', tomorrow_notes: '', general_comments: '' };
-      return await supabaseService.getDailyNotes(user.id);
+      if (!user) return null;
+      return supabaseService.getDailyNotes(user.id);
     },
     saveDailyNotes: async (notes) => {
       if (!user) return null;
-      const result = await supabaseService.saveDailyNotes(user.id, notes);
-      return result;
+      return supabaseService.saveDailyNotes(user.id, notes);
     },
-    // User Preferences functions
     getUserPreference: async (key) => {
       if (!user) return null;
-      return await supabaseService.getUserPreference(user.id, key);
+      return supabaseService.getUserPreference(user.id, key);
     },
     setUserPreference: async (key, value) => {
       if (!user) return null;
-      return await supabaseService.setUserPreference(user.id, key, value);
+      return supabaseService.setUserPreference(user.id, key, value);
     },
-    refreshData: loadData,
     getPlansByUser,
-    getDailyReportsByUser
+    getDailyReportsByUser,
+    refreshData,
   };
 
   return (

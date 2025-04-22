@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { syncAuthUserToLocalStorage } from '@/lib/local-storage';
+import { generateSampleData } from '@/lib/sample-data';
 
 interface AuthContextType {
   user: User | null;
@@ -28,6 +30,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(newSession);
       setUser(newSession?.user ?? null);
       lastUpdate.current = now;
+      
+      // Sync auth user with local storage if logged in
+      if (newSession?.user) {
+        const localUser = syncAuthUserToLocalStorage(newSession.user);
+        // Generate sample data for the user
+        generateSampleData(newSession.user.id);
+      }
     }
   }, []);
 
@@ -88,6 +97,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (signInError) throw signInError;
+      
+      // Generate sample data for the user after successful sign-in
+      if (data.user) {
+        generateSampleData(data.user.id);
+      }
     } catch (error) {
       console.error('Error signing in:', error);
       throw error;
@@ -109,6 +123,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (signUpError) throw signUpError;
+      
+      // Note: We don't generate sample data here because the user needs to verify their email first
     } catch (error) {
       console.error('Error signing up:', error);
       throw error;
@@ -127,6 +143,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) throw error;
+      
+      // Note: Sample data will be generated in the onAuthStateChange handler after redirect
     } catch (error) {
       console.error('Error signing in with Google:', error);
       throw error;

@@ -38,6 +38,7 @@ import {
   ArrowRight,
   Target,
   Loader2,
+  Calendar as CalendarIcon,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Objective, Metric, Plan } from '@/lib/types';
@@ -70,6 +71,22 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/auth-context';
 import { useQueryClient } from '@tanstack/react-query';
+import {
+  Calendar,
+  CalendarCell,
+  CalendarGrid,
+  CalendarHeadCell,
+  CalendarHeader,
+  CalendarMonthHeader,
+  CalendarNextButton,
+  CalendarPrevButton,
+  CalendarViewButton,
+} from '@/components/ui/calendar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 
 // Local extended interface for a simplified metric with UI specific properties
 export interface UIMetric {
@@ -491,73 +508,18 @@ export function DeepOverviewTable({
   };
 
   // Handle confirmed delete
-  const handleConfirmedDelete = async () => {
+  const handleConfirmedDelete = () => {
     if (!itemToDelete) return;
 
     let updatedObjectives = [...objectives];
 
     if (itemToDelete.type === 'objective') {
-      // Get all metrics for this objective
-      const objectiveToDelete = objectives.find(obj => obj.id === itemToDelete.objectiveId);
-      if (!objectiveToDelete) {
-        setDeleteConfirmOpen(false);
-        setItemToDelete(null);
-        return;
-      }
-
-      // Use operation-specific loading
-      showLoadingIndicator('deleting-objective', true);
-      
-      // Apply optimistic update to UI immediately
+      // Filter out the deleted objective
       updatedObjectives = updatedObjectives.filter(
         obj => obj.id !== itemToDelete.objectiveId
       );
-      
-      // Update state through parent component before async operations
-      onObjectivesChange(updatedObjectives);
-      
-      // Close the confirmation dialog immediately
-      setDeleteConfirmOpen(false);
-      setItemToDelete(null);
-      
-      try {
-        // First delete all metrics associated with this objective
-        const metricIds = objectiveToDelete.metrics.map(metric => metric.id);
-        
-        // Delete metrics one by one
-        for (const metricId of metricIds) {
-          await deleteMetricMutation.mutateAsync(metricId);
-        }
-        
-        // Then delete the objective
-        await deleteObjectiveMutation.mutateAsync(itemToDelete.objectiveId);
-        
-        console.log('Successfully deleted objective and its metrics from database');
-        
-        // Force refresh of plans data to ensure UI is in sync with database
-        if (user?.id) {
-          queryClient.invalidateQueries({ 
-            queryKey: ['plans', 'by-user', user.id]
-          });
-        } else {
-          queryClient.invalidateQueries({ queryKey: ['plans'] });
-        }
-        // Reset the cache ref to force a reload of plans
-        processedCacheRef.current = null;
-      } catch (error) {
-        console.error('Error deleting objective or its metrics:', error);
-        alert('Failed to delete: ' + (error instanceof Error ? error.message : String(error)));
-        
-        // On error, restore the deleted objective by refetching all metrics
-        refreshData();
-      } finally {
-        showLoadingIndicator('deleting-objective', false);
-      }
     } else if (itemToDelete.type === 'metric' && itemToDelete.metricId) {
-      // Use operation-specific loading
-      showLoadingIndicator('deleting-metric', true);
-      
-      // Apply optimistic update to UI immediately
+      // Filter out the deleted metric from the specific objective
       updatedObjectives = updatedObjectives.map(obj => {
         if (obj.id === itemToDelete.objectiveId) {
           return {
@@ -567,54 +529,12 @@ export function DeepOverviewTable({
         }
         return obj;
       });
-      
-      // Update state through parent component before async operations
-      onObjectivesChange(updatedObjectives);
-      
-      // Close the confirmation dialog immediately
-      setDeleteConfirmOpen(false);
-      setItemToDelete(null);
-      
-      // Find any associated plans to delete them properly
-      const metricToDelete = itemToDelete.metricId;
-      const metricPlans = userPlans?.filter(plan => plan.metric_id === metricToDelete) || [];
-      
-      try {
-        // First delete any associated plans
-        if (metricPlans.length > 0) {
-          console.log(`Found ${metricPlans.length} plans for metric ${metricToDelete}, deleting them first`);
-          
-          // Delete plans one by one to ensure they're all removed
-          for (const plan of metricPlans) {
-            await deletePlanMutation.mutateAsync(plan.id);
-          }
-        }
-        
-        // Then delete the metric
-        await deleteMetricMutation.mutateAsync(metricToDelete);
-        
-        console.log('Successfully deleted metric and its plans from database');
-        
-        // Force refresh of plans data to ensure UI is in sync with database
-        if (user?.id) {
-          queryClient.invalidateQueries({ 
-            queryKey: ['plans', 'by-user', user.id]
-          });
-        } else {
-          queryClient.invalidateQueries({ queryKey: ['plans'] });
-        }
-        // Reset the cache ref to force a reload of plans
-        processedCacheRef.current = null;
-      } catch (error) {
-        console.error('Error deleting metric or its plans:', error);
-        alert('Failed to delete: ' + (error instanceof Error ? error.message : String(error)));
-        
-        // On error, restore the deleted metric by refetching all metrics
-        refreshData();
-      } finally {
-        showLoadingIndicator('deleting-metric', false);
-      }
     }
+
+    // Update state and localStorage through parent component
+    onObjectivesChange(updatedObjectives);
+    setDeleteConfirmOpen(false);
+    setItemToDelete(null);
   };
 
   // Move objective up or down
@@ -940,45 +860,30 @@ export function DeepOverviewTable({
 
   // Update the openPlansDialog function
   const openPlansDialog = () => {
-    // Ensure we have the latest plan data by forcing a refresh
-    forceReloadPlans();
-    
-    // Set a brief delay to allow the reload to complete
-    setTimeout(() => {
-      // Initialize metric plans with all metrics and their existing plans
-      const initialMetricPlans: Record<
-        string,
-        {
-          selected: boolean;
-          value: number | undefined;
-          period: 'until_week_end' | 'until_month_end';
-          planId?: string;
-        }
-      > = {};
-  
-      // Gather current metrics and their plans
-      console.log('Opening plans dialog - metrics count:', 
-        objectives.reduce((count, obj) => count + obj.metrics.length, 0));
-      
-      objectives.forEach(objective => {
-        objective.metrics.forEach(metric => {
-          initialMetricPlans[metric.id] = {
-            selected: metric.plan !== undefined,
-            value: metric.plan,
-            period:
-              (metric.planPeriod as 'until_week_end' | 'until_month_end') ||
-              'until_week_end',
-            planId: metric.planId,
-          };
-          
-          // Debug
-          console.log(`Metric in dialog: ${metric.name} (${metric.id}) - has plan: ${metric.plan !== undefined}`);
-        });
+    // Initialize metric plans with all metrics and their existing plans
+    const initialMetricPlans: Record<
+      string,
+      {
+        selected: boolean;
+        value: number | undefined;
+        period: 'until_week_end' | 'until_month_end';
+      }
+    > = {};
+
+    objectives.forEach(objective => {
+      objective.metrics.forEach(metric => {
+        initialMetricPlans[metric.id] = {
+          selected: metric.plan !== undefined,
+          value: metric.plan,
+          period:
+            (metric.planPeriod as 'until_week_end' | 'until_month_end') ||
+            'until_week_end',
+        };
       });
-  
-      setMetricPlans(initialMetricPlans);
-      setPlansDialogOpen(true);
-    }, 300); // Small delay to ensure data is fresh
+    });
+
+    setMetricPlans(initialMetricPlans);
+    setPlansDialogOpen(true);
   };
 
   // Update the getPlanPeriodText function
@@ -991,70 +896,38 @@ export function DeepOverviewTable({
     }
   };
 
-  // Update the handleMetricSelectionChange function to handle database deletion
+  // Update the handleMetricSelectionChange function
   const handleMetricSelectionChange = (metricId: string, selected: boolean) => {
-    const currentPlanState = metricPlans[metricId];
-    
-    // Update the local dialog state immediately
+    if (!selected) {
+      // If deselecting, update the objectives to remove the plan for this metric
+      const updatedObjectives = objectives.map(objective => {
+        const updatedMetrics = objective.metrics.map(metric => {
+          if (metric.id === metricId) {
+            // Remove plan and planPeriod
+            const { plan, planPeriod, ...rest } = metric;
+            return rest;
+          }
+          return metric;
+        });
+
+        return {
+          ...objective,
+          metrics: updatedMetrics,
+        };
+      });
+
+      // Update objectives through the parent component
+      onObjectivesChange(updatedObjectives);
+    }
+
+    // Update the local state
     setMetricPlans(prev => ({
       ...prev,
       [metricId]: {
         ...prev[metricId],
         selected,
-        // Don't clear value/period here, let the DB operation handle it
       },
     }));
-    
-    if (!selected && currentPlanState?.planId) {
-      // If deselecting a metric with an existing plan in the database, delete it
-      showLoadingIndicator('deleting-plan', true);
-      
-      deletePlanMutation.mutate(currentPlanState.planId, {
-        onSuccess: () => {
-          console.log('Successfully deleted plan from database');
-          
-          // Update the local objectives state to remove plan details
-          const updatedObjectives = objectives.map(objective => {
-            const updatedMetrics = objective.metrics.map(metric => {
-              if (metric.id === metricId) {
-                // Remove plan, planPeriod, and planId
-                const { plan, planPeriod, planId, ...rest } = metric;
-                return { ...rest, plan: undefined, planPeriod: undefined, planId: undefined };
-              }
-              return metric;
-            });
-
-            return { ...objective, metrics: updatedMetrics };
-          });
-
-          // Update objectives through the parent component
-          onObjectivesChange(updatedObjectives);
-
-          // Also update the dialog state to clear value/period after successful DB delete
-          setMetricPlans(prev => ({
-            ...prev,
-            [metricId]: {
-              ...prev[metricId],
-              value: undefined,
-              period: 'until_week_end', // Reset period to default
-              planId: undefined,
-            },
-          }));
-          
-          showLoadingIndicator('deleting-plan', false);
-        },
-        onError: (error: unknown) => {
-          console.error('Error deleting plan:', error);
-          alert('Failed to delete plan: ' + (error instanceof Error ? error.message : String(error)));
-          // Revert dialog state if deletion failed
-          setMetricPlans(prev => ({
-            ...prev,
-            [metricId]: currentPlanState, // Revert to previous state
-          }));
-          showLoadingIndicator('deleting-plan', false);
-        }
-      });
-    }
   };
 
   // Update the handleMetricPeriodChange function
@@ -1123,36 +996,10 @@ export function DeepOverviewTable({
   };
 
   // Add function to save plans
-  const handleSavePlans = async () => {
-    if (!user) {
-      alert('You need to be logged in to save plans');
-      return;
-    }
-
-    // Use operation-specific loading
-    showLoadingIndicator('saving-plans', true);
-
+  const handleSavePlans = () => {
     // Get selected metrics with their plans
     const selectedMetricPlans = Object.entries(metricPlans)
-      .filter(([metricId, data]) => {
-        // Skip if not selected or no value
-        if (!data.selected || data.value === undefined) return false;
-        
-        // Verify this metric still exists in the objectives
-        let metricExists = false;
-        for (const objective of objectives) {
-          if (objective.metrics.some(m => m.id === metricId)) {
-            metricExists = true;
-            break;
-          }
-        }
-        
-        if (!metricExists) {
-          console.log(`Skipping plan for metric ${metricId} as it no longer exists`);
-        }
-        
-        return metricExists;
-      })
+      .filter(([_, data]) => data.selected && data.value !== undefined)
       .map(([metricId, data]) => ({
         metricId,
         planValue: data.value as number,
@@ -1348,16 +1195,7 @@ export function DeepOverviewTable({
     // Filter reports within the date range
     const relevantReports = reports.filter(report => {
       // Parse the report date string to a Date object
-      // Ensure consistent date format parsing - use YYYY-MM-DD format
-      const dateParts = report.date.split('-');
-      if (dateParts.length !== 3) return false;
-      
-      const year = parseInt(dateParts[0], 10);
-      const month = parseInt(dateParts[1], 10) - 1; // Month is 0-indexed
-      const day = parseInt(dateParts[2], 10);
-      
-      // Create the date using the parsed components to avoid timezone issues
-      const reportDate = new Date(year, month, day);
+      const reportDate = new Date(report.date + 'T00:00:00'); // Add time component to ensure proper parsing
       reportDate.setHours(0, 0, 0, 0);
 
       return reportDate >= startDate && reportDate <= today;
