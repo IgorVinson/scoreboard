@@ -39,8 +39,8 @@ const Header: React.FC = () => {
                             </li>
                         ))}
                         <li>
-                            <Link href="#cta" className="text-black bg-primary hover:bg-primary-accent px-8 py-3 rounded-full transition-colors">
-                                Download
+                            <Link href="http://localhost:5173" className="text-black bg-primary hover:bg-primary-accent px-8 py-3 rounded-full transition-colors">
+                                Get Started
                             </Link>
                         </li>
                     </ul>
