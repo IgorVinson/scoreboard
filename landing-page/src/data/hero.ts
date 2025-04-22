@@ -1,5 +1,5 @@
 export const heroDetails = {
-    heading: 'Smart, Secure, Simple Financial Management',
-    subheading: 'From effortless budgeting to real-time investment insights, Finwise puts you in control of your money like never before',
+    heading: 'Track, Achieve, Excel: Your Performance Dashboard',
+    subheading: 'From daily metric tracking to comprehensive weekly reports, Scoreboard empowers you to set goals, monitor progress, and celebrate achievements with ease',
     centerImageSrc: '/images/hero-mockup.webp',
 }

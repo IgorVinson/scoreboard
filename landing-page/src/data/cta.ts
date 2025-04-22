@@ -1,6 +1,6 @@
 export const ctaDetails = {
-    heading: 'Join Over 1 Million Users To Transform Your Finances',
-    subheading: 'Your journey to financial freedom starts here. Download Finwise today and take the first step towards a brighter financial future!',
+    heading: 'Join Thousands of Users Tracking Their Goals',
+    subheading: 'Your journey to achieving your objectives starts here. Download Scoreboard today and take the first step towards measurable progress!',
     appStoreUrl: '#',
     googlePlayUrl: '#'
 }

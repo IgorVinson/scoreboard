@@ -1,9 +1,9 @@
 export const siteDetails = {
-    siteName: 'Finwise',
-    siteUrl: 'https://finwise-omega.vercel.app/',
+    siteName: 'Scoreboard',
+    siteUrl: 'https://scoreboard-app.vercel.app/',
     metadata: {
-        title: 'Finwise - Next.js and Tailwind CSS Landing Page Template',
-        description: 'Finwise empowers businesses with cutting-edge technology solutions to drive success and efficiency.',
+        title: 'Scoreboard - Objective Achievement System',
+        description: 'Scoreboard helps you track metrics, set goals, and monitor your progress with daily reports and achievement tracking.',
     },
     language: 'en-us',
     locale: 'en-US',
