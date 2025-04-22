@@ -901,34 +901,35 @@ export function Dashboard() {
     try {
       console.log("Starting result report generation...");
       
-      // Validation
-      if (!resultReportType || !resultReportStartDate || !resultReportEndDate || !resultReportSummary) {
-        console.error("Missing required fields for result report");
-        toast({
-          title: "Missing Information",
-          description: "Please fill in all required fields",
-          variant: "destructive"
-        });
+      // Build a list of missing fields for better error messaging
+      const missingFields = [];
+      if (!resultReportType) missingFields.push("Report Type");
+      if (!resultReportStartDate) missingFields.push("Start Date");
+      if (!resultReportEndDate) missingFields.push("End Date");
+      if (!resultReportSummary) missingFields.push("Period Summary");
+      
+      // Validation with improved error message
+      if (missingFields.length > 0) {
+        console.error("Missing required fields for result report:", missingFields);
+        setAlertDialogTitle("Incomplete Report");
+        setAlertMessage(`Please fill in all required fields: ${missingFields.join(", ")}`);
+        setAlertDialogOpen(true);
         return;
       }
       
       if (!user?.id) {
-        toast({
-          title: "Error",
-          description: "User ID is required to generate a report",
-          variant: "destructive"
-        });
+        setAlertDialogTitle("Authentication Error");
+        setAlertMessage("You must be logged in to generate a report");
+        setAlertDialogOpen(true);
         return;
       }
       
-      // Check if metrics data is available
+      // Check if metrics data is available with better error message
       if (!resultReportMetrics || Object.keys(resultReportMetrics).length === 0) {
         console.error("No metrics data available for the result report");
-        toast({
-          title: "Missing Data",
-          description: "Please calculate metrics data before generating the report",
-          variant: "destructive"
-        });
+        setAlertDialogTitle("Missing Metrics Data");
+        setAlertMessage("Please ensure metrics data has been calculated. Make sure your date range includes days with reports.");
+        setAlertDialogOpen(true);
         return;
       }
       
@@ -949,47 +950,50 @@ export function Dashboard() {
         summary: resultReportSummary,
         next_goals: resultReportNextGoals,
         comments: resultReportComments,
-        metrics_summary: resultReportMetrics, // Use resultReportMetrics instead of formattedMetrics
+        metrics_summary: resultReportMetrics,
         reviewed: false
       };
 
       console.log("Generating result report with data:", resultReportData);
 
-      // Insert the result report into the database - use result_reports table instead of reports
+      // Insert the result report into the database
       const { data, error } = await supabase
-        .from('result_reports')  // Changed from 'reports' to 'result_reports'
+        .from('result_reports')
         .insert(resultReportData)
         .select();
 
       if (error) {
-        toast({
-          title: "Error",
-          description: `Failed to generate report: ${error.message}`,
-          variant: "destructive"
-        });
+        setAlertDialogTitle("Report Creation Failed");
+        setAlertMessage(`Error: ${error.message}. Please try again or contact support.`);
+        setAlertDialogOpen(true);
         console.error("Error generating result report:", error);
         return;
       }
 
-      toast({
-        title: "Success",
-        description: "Result report generated successfully"
-      });
+      // Enhanced success message with report details
+      const reportPeriod = resultReportType.charAt(0).toUpperCase() + resultReportType.slice(1);
+      setAlertDialogTitle("Report Created Successfully");
+      setAlertMessage(`Your ${reportPeriod} report for ${dateRange} has been saved. You can view it in the Result Reports tab.`);
+      setAlertDialogOpen(true);
       
       queryClient.invalidateQueries(['result_reports']);
 
-      // Reset state
+      // Only reset state and close dialog on success
       setResultReportDialogOpen(false);
       resetResultReportState();
       
       console.log("Result report created:", data);
+      
+      // Return success status for the button handler
+      return true;
     } catch (error) {
       console.error("Error in generateResultReport:", error);
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred while generating the report",
-        variant: "destructive"
-      });
+      setAlertDialogTitle("Unexpected Error");
+      setAlertMessage("Something went wrong while generating your report. Please try again or contact support.");
+      setAlertDialogOpen(true);
+      
+      // Return failure status
+      return false;
     }
   };
   
@@ -1074,6 +1078,13 @@ export function Dashboard() {
 
   // Add new state for metrics section visibility
   const [showMetricsSection, setShowMetricsSection] = useState(false);
+  
+  // Auto-show metrics section when both dates are selected
+  useEffect(() => {
+    if (resultReportStartDate && resultReportEndDate) {
+      setShowMetricsSection(true);
+    }
+  }, [resultReportStartDate, resultReportEndDate]);
 
   // Add a new useEffect or function to prepare result reports for display
 
@@ -1685,21 +1696,7 @@ export function Dashboard() {
               </div>
             </div>
             
-            {/* Calculate Metrics Button */}
-            {user && !editingResultReport && (
-              <div className="flex justify-end">
-                <Button 
-                  onClick={() => setShowMetricsSection(true)}
-                  disabled={!resultReportStartDate || !resultReportEndDate}
-                  variant="outline"
-                  size="sm"
-                >
-                  Calculate Metrics
-                </Button>
-              </div>
-            )}
-
-            {/* Metrics Calculator */}
+            {/* Metrics Calculator - now shows automatically when dates are selected */}
             {user && (
               <ResultReportManager
                 userId={user.id}
@@ -1810,11 +1807,14 @@ export function Dashboard() {
             ) : (
               <Button onClick={async () => {
                 try {
-                  await generateResultReport();
-                  resetResultReportState();
-                  setTimeout(() => {
-                    setResultReportDialogOpen(false);
-                  }, 10);
+                  // Only reset state and close dialog if report generation was successful
+                  const success = await generateResultReport();
+                  if (success) {
+                    resetResultReportState();
+                    setTimeout(() => {
+                      setResultReportDialogOpen(false);
+                    }, 10);
+                  }
                 } catch (error) {
                   console.error('Error generating report:', error);
                 }
