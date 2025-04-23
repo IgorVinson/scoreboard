@@ -1,5 +1,8 @@
+'use client'
+import { useState } from "react";
 import clsx from "clsx";
 import { BsFillCheckCircleFill } from "react-icons/bs";
+import { loadStripe } from "@stripe/stripe-js";
 
 import { IPricing } from "@/types";
 
@@ -9,7 +12,50 @@ interface Props {
 }
 
 const PricingColumn: React.FC<Props> = ({ tier, highlight }: Props) => {
-    const { name, price, features } = tier;
+    const { name, price, features, priceId } = tier;
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleSubscription = async () => {
+        // Don't process if no priceId (like for Enterprise/Custom pricing) or already loading
+        if (!priceId || isLoading) {
+            // For Enterprise/Custom pricing, you might want to redirect to a contact form
+            if (!priceId) {
+                window.location.href = "/contact"; // Redirect to contact page for custom pricing
+            }
+            return;
+        }
+
+        try {
+            setIsLoading(true);
+            
+            // Make API request to your backend to create checkout session
+            const response = await fetch('/api/create-checkout-session', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    priceId,
+                    // Add user ID or email if available from auth context
+                    // userId: currentUser?.id,
+                    // userEmail: currentUser?.email,
+                }),
+            });
+
+            const { sessionId } = await response.json();
+            
+            // Redirect to Stripe Checkout
+            const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
+            if (stripe) {
+                await stripe.redirectToCheckout({ sessionId });
+            }
+        } catch (error) {
+            console.error('Error initiating checkout:', error);
+            // You could show an error toast/notification here
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     return (
         <div className={clsx("w-full max-w-sm mx-auto bg-white rounded-xl border border-gray-200 lg:max-w-full", { "shadow-lg": highlight })}>
@@ -21,8 +67,15 @@ const PricingColumn: React.FC<Props> = ({ tier, highlight }: Props) => {
                     </span>
                     {typeof price === 'number' && <span className="text-lg font-normal text-gray-600">/mo</span>}
                 </p>
-                <button className={clsx("w-full py-3 px-4 rounded-full transition-colors", { "bg-primary hover:bg-primary-accent": highlight, "bg-hero-background hover:bg-gray-200": !highlight })}>
-                    Get Started
+                <button 
+                    className={clsx("w-full py-3 px-4 rounded-full transition-colors", { 
+                        "bg-primary hover:bg-primary-accent": highlight, 
+                        "bg-hero-background hover:bg-gray-200": !highlight 
+                    })}
+                    onClick={handleSubscription}
+                    disabled={isLoading}
+                >
+                    {isLoading ? "Processing..." : "Get Started"}
                 </button>
             </div>
             <div className="p-6 mt-1">
