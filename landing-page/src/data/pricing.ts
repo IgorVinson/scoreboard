@@ -4,7 +4,7 @@ export const tiers: IPricing[] = [
     {
         name: 'Starter',
         price: 2.99,
-        priceId: 'price_1RGqMcLHxokF8KKdrBXGhxlg',
+        priceId: 'price_1RH3nfLHxokF8KKdp3O3jMBF',
         features: [
             'Basic cloud integration',
             'Up to 5 team members',
@@ -15,7 +15,7 @@ export const tiers: IPricing[] = [
     {
         name: 'Pro',
         price: 3.99,
-        priceId: 'price_1RGqK8LHxokF8KKdEvBtvq32',
+        priceId: 'price_1RH3nfLHxokF8KKdBYxWgNqj',
         features: [
             'Advanced cloud integration',
             'Up to 20 team members',
