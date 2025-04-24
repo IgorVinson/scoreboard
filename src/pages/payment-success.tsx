@@ -63,15 +63,30 @@ export default function PaymentSuccess() {
         // Get full subscription details to access period end
         const subscription = await getSubscription(subscriptionId);
         
-        // Calculate subscription end date from the current period end
-        // Stripe returns timestamps in seconds, we need to convert to milliseconds
-        const subscriptionEndsAt = new Date(subscription.current_period_end * 1000).toISOString();
+        // Safely extract the current_period_end value with validation
+        const currentPeriodEnd = (subscription as any).current_period_end;
+        
+        // Make sure we have a valid timestamp before creating a Date
+        let subscriptionEndsAt;
+        if (currentPeriodEnd && typeof currentPeriodEnd === 'number') {
+          try {
+            subscriptionEndsAt = new Date(currentPeriodEnd * 1000).toISOString();
+          } catch (error) {
+            console.error('Error converting period end to date:', error);
+            // Use a fallback date (1 year from now) if conversion fails
+            subscriptionEndsAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+          }
+        } else {
+          // Fallback to a default value if current_period_end is missing
+          console.warn('Missing current_period_end in subscription data, using fallback date');
+          subscriptionEndsAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+        }
         
         console.log('Subscription details:', {
           customerId,
           subscriptionId,
           status: subscription.status,
-          currentPeriodEnd: subscription.current_period_end,
+          currentPeriodEnd,
           subscriptionEndsAt
         });
         

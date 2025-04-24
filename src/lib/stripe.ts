@@ -45,7 +45,7 @@ export async function createCheckoutSession({
         },
       ],
       mode: 'subscription',
-      success_url: `${window.location.origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${window.location.origin}/payment-success?session_id={CHECKOUT_SESSION_ID}&timestamp=${Date.now()}`,
       cancel_url: `${window.location.origin}/`,
       // Pass the client reference id for tracking which user initiated the checkout
       client_reference_id: userId,

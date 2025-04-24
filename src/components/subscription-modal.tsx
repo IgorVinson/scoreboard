@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -19,9 +19,21 @@ interface SubscriptionModalProps {
 
 export function SubscriptionModal({ open, onOpenChange }: SubscriptionModalProps) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [redirectPath, setRedirectPath] = useState<string | null>(null);
   const [shouldRedirect, setShouldRedirect] = useState(false);
-  const {  signOut } = useAuth();
+  const { signOut } = useAuth();
+  
+  // Check if we've returned from Stripe
+  const sessionId = searchParams.get('session_id');
+  
+  // If we have a session_id in the URL, redirect to payment success page
+  useEffect(() => {
+    if (sessionId) {
+      // Immediately navigate to the payment success page
+      navigate(`/payment-success?session_id=${sessionId}`, { replace: true });
+    }
+  }, [sessionId, navigate]);
   
   // Get the redirect path from session storage if it exists
   useEffect(() => {
@@ -51,6 +63,19 @@ export function SubscriptionModal({ open, onOpenChange }: SubscriptionModalProps
       params.append('source', 'app_modal');
       params.append('intent', 'subscribe');
       
+      // Store current path in session storage so payment-success.tsx can redirect back
+      if (redirectPath) {
+        sessionStorage.setItem('redirectAfterSubscription', redirectPath);
+      } else {
+        // If no redirect path is set, store the current location
+        const currentPath = window.location.pathname + window.location.search;
+        sessionStorage.setItem('redirectAfterSubscription', currentPath);
+      }
+      
+      // Add current timestamp to prevent cache issues
+      params.append('_', Date.now().toString());
+      
+      // Navigate to checkout page
       navigate(`/checkout?${params.toString()}`);
     } else if (tier.name === 'Enterprise') {
       // Handle Enterprise tier differently - could redirect to a contact form
