@@ -8,7 +8,7 @@ if (!process.env.STRIPE_SECRET_KEY) {
   process.exit(1);
 }
 
-console.log('Stripe key available:', process.env.STRIPE_SECRET_KEY.substring(0, 7) + '...');
+console.log('Stripe key available:', process.env.STRIPE_SECRET_KEY ? 'Yes (key obscured for security)' : 'No');
 
 // Initialize Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
