@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { tiers } from '../../landing-page/src/data/pricing';
 import { IPricing } from '../../landing-page/src/types';
+import { useAuth } from '@/contexts/auth-context';
 
 interface SubscriptionModalProps {
   open: boolean;
@@ -19,6 +20,8 @@ interface SubscriptionModalProps {
 export function SubscriptionModal({ open, onOpenChange }: SubscriptionModalProps) {
   const navigate = useNavigate();
   const [redirectPath, setRedirectPath] = useState<string | null>(null);
+  const [shouldRedirect, setShouldRedirect] = useState(false);
+  const {  signOut } = useAuth();
   
   // Get the redirect path from session storage if it exists
   useEffect(() => {
@@ -27,6 +30,16 @@ export function SubscriptionModal({ open, onOpenChange }: SubscriptionModalProps
       setRedirectPath(path);
     }
   }, []);
+  
+  // Handle redirection to login after modal closes
+  useEffect(() => {
+    if (!open && shouldRedirect) {
+      // Reset the redirect flag
+      setShouldRedirect(false);
+      // Navigate to login
+      signOut();
+    }
+  }, [open, shouldRedirect, navigate]);
   
   // Handle subscription flow - redirect to checkout
   const handleSubscribe = (tier: IPricing) => {
@@ -45,8 +58,26 @@ export function SubscriptionModal({ open, onOpenChange }: SubscriptionModalProps
     }
   };
   
+  // Custom onOpenChange handler
+  const handleOpenChange = (newOpen: boolean) => {
+    // Update the modal state first
+    onOpenChange(newOpen);
+    
+    // If the modal is being closed, sign out and clear session data
+    if (!newOpen) {
+      // Clear all session data that might cause auto-login
+      sessionStorage.removeItem('redirectAfterSubscription');
+      sessionStorage.removeItem('subscriptionParams');
+      
+      // Small delay to ensure modal closes first
+      setTimeout(() => {
+        signOut();
+      }, 100);
+    }
+  };
+  
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[950px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-center">Subscription Required</DialogTitle>
@@ -76,7 +107,7 @@ export function SubscriptionModal({ open, onOpenChange }: SubscriptionModalProps
               </p>
               
               <ul className="space-y-2 mb-6">
-                {tier.features.map((feature, featureIndex) => (
+                {tier.features.map((feature: string, featureIndex: number) => (
                   <li key={featureIndex} className="flex items-center">
                     <svg className="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
