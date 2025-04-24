@@ -3,7 +3,8 @@ import { IPricing } from "@/types";
 export const tiers: IPricing[] = [
     {
         name: 'Starter',
-        price: 29,
+        price: 2.99,
+        priceId: 'price_1RHCtKLHxokF8KKdJnmgS5yX',
         features: [
             'Basic cloud integration',
             'Up to 5 team members',
@@ -13,7 +14,8 @@ export const tiers: IPricing[] = [
     },
     {
         name: 'Pro',
-        price: 99,
+        price: 3.99,
+        priceId: 'price_1RHCtRLHxokF8KKdsoVVfhSC',
         features: [
             'Advanced cloud integration',
             'Up to 20 team members',

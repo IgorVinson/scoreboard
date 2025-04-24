@@ -1,3 +1,5 @@
+'use client'
+import { useState } from "react";
 import clsx from "clsx";
 import { BsFillCheckCircleFill } from "react-icons/bs";
 
@@ -8,8 +10,52 @@ interface Props {
     highlight?: boolean;
 }
 
+// Dashboard app URLs
+const DASHBOARD_BASE_URL = process.env.NEXT_PUBLIC_DASHBOARD_URL || 'http://localhost:5173';
+const DASHBOARD_LOGIN_URL = `${DASHBOARD_BASE_URL}/login`;
+
 const PricingColumn: React.FC<Props> = ({ tier, highlight }: Props) => {
-    const { name, price, features } = tier;
+    const { name, price, features, priceId } = tier;
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const handleSubscription = async () => {
+        // Reset any previous errors
+        setError(null);
+        
+        // Don't process if no priceId (like for Enterprise/Custom pricing) or already loading
+        if (!priceId || isLoading) {
+            // For Enterprise/Custom pricing, you might want to redirect to a contact form
+            if (!priceId) {
+                window.location.href = "/contact"; // Redirect to contact page for custom pricing
+            }
+            return;
+        }
+
+        try {
+            setIsLoading(true);
+            
+            // Instead of creating a checkout session directly,
+            // redirect to the dashboard login page with plan info as URL parameters
+            const loginUrl = new URL(DASHBOARD_LOGIN_URL);
+            
+            // Add plan information as URL parameters
+            loginUrl.searchParams.append('planId', priceId);
+            loginUrl.searchParams.append('planName', name);
+            loginUrl.searchParams.append('planPrice', price.toString());
+            loginUrl.searchParams.append('source', 'pricing_page');
+            loginUrl.searchParams.append('intent', 'subscribe');
+            
+            // Redirect to dashboard login page
+            console.log(`Redirecting to dashboard login: ${loginUrl.toString()}`);
+            window.location.href = loginUrl.toString();
+            
+        } catch (error) {
+            console.error('Error during redirect:', error);
+            setError(error instanceof Error ? error.message : "An unknown error occurred");
+            setIsLoading(false);
+        }
+    };
 
     return (
         <div className={clsx("w-full max-w-sm mx-auto bg-white rounded-xl border border-gray-200 lg:max-w-full", { "shadow-lg": highlight })}>
@@ -21,8 +67,20 @@ const PricingColumn: React.FC<Props> = ({ tier, highlight }: Props) => {
                     </span>
                     {typeof price === 'number' && <span className="text-lg font-normal text-gray-600">/mo</span>}
                 </p>
-                <button className={clsx("w-full py-3 px-4 rounded-full transition-colors", { "bg-primary hover:bg-primary-accent": highlight, "bg-hero-background hover:bg-gray-200": !highlight })}>
-                    Get Started
+                {error && (
+                    <div className="mb-4 text-red-500 text-sm p-2 bg-red-50 rounded-md">
+                        {error}
+                    </div>
+                )}
+                <button 
+                    className={clsx("w-full py-3 px-4 rounded-full transition-colors", { 
+                        "bg-primary hover:bg-primary-accent": highlight, 
+                        "bg-hero-background hover:bg-gray-200": !highlight 
+                    })}
+                    onClick={handleSubscription}
+                    disabled={isLoading}
+                >
+                    {isLoading ? "Redirecting..." : "Get Started"}
                 </button>
             </div>
             <div className="p-6 mt-1">
