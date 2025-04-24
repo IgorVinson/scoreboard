@@ -30,6 +30,75 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       lastUpdate.current = now;
     }
   }, []);
+  
+  // Function to ensure a user record exists in the database
+  const ensureUserInDatabase = useCallback(async (authUser: User) => {
+    if (!authUser || !authUser.id) {
+      console.log('No auth user to create DB record for');
+      return;
+    }
+
+    try {
+      console.log('Checking if user exists in database:', authUser.id);
+      
+      // Check if user exists in database
+      const { data, error } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', authUser.id)
+        .single();
+      
+      // If user already exists, we're done
+      if (!error && data) {
+        console.log('User found in database, no action needed');
+        return;
+      }
+      
+      // If user doesn't exist, create them
+      if (error && error.code === 'PGRST116') {
+        console.log('User not found in database, creating new record');
+        
+        // Extract name from metadata
+        const name = authUser.user_metadata?.name || 
+                   authUser.user_metadata?.full_name || 
+                   '';
+                   
+        // Create user record
+        const { error: insertError, data: insertData } = await supabase
+          .from('users')
+          .insert({
+            id: authUser.id,
+            email: authUser.email,
+            name: name
+          })
+          .select();
+        
+        if (insertError) {
+          console.error('Error creating user record:', insertError);
+          
+          // Try a simplified insert as fallback
+          const { error: simpleInsertError } = await supabase
+            .from('users')
+            .insert({
+              id: authUser.id,
+              email: authUser.email || 'no-email'
+            });
+            
+          if (simpleInsertError) {
+            console.error('Even simplified insert failed:', simpleInsertError);
+          } else {
+            console.log('Created basic user record with minimal fields');
+          }
+        } else {
+          console.log('Successfully created user record:', insertData);
+        }
+      } else if (error) {
+        console.error('Unexpected error checking user:', error);
+      }
+    } catch (e) {
+      console.error('Exception in database user check:', e);
+    }
+  }, []);
 
   useEffect(() => {
     // Get initial session
@@ -38,6 +107,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (mounted) {
         updateSession(session);
+        
+        // Create database record if user is logged in
+        if (session?.user) {
+          ensureUserInDatabase(session.user)
+            .catch(err => console.error('Failed to ensure user in DB:', err));
+        }
+        
         setLoading(false);
       }
     });
@@ -48,6 +124,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (mounted) {
         updateSession(session);
+        
+        // Create database record when auth state changes
+        if (session?.user) {
+          ensureUserInDatabase(session.user)
+            .catch(err => console.error('Failed to ensure user in DB on auth change:', err));
+        }
+        
         setLoading(false);
       }
     });
@@ -56,7 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [updateSession]);
+  }, [updateSession, ensureUserInDatabase]);
 
   // Configure session persistence with debounce
   const debouncedSetSession = useCallback(async () => {
@@ -93,6 +176,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (data && data.user && data.session) {
         setUser(data.user);
         setSession(data.session);
+        
+        // Ensure database record exists
+        await ensureUserInDatabase(data.user);
       }
 
       return data;
@@ -117,6 +203,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (signUpError) throw signUpError;
+      
+      // If signup created a user and auto-confirmed (like in development)
+      if (data && data.user) {
+        await ensureUserInDatabase(data.user);
+      }
     } catch (error) {
       console.error('Error signing up:', error);
       throw error;
@@ -128,7 +219,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { error, data } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${window.location.origin}/auth-callback`,
           // Configure session duration to 3 days
           sessionTime: 60 * 60 * 24 * 3, // 3 days in seconds
         },

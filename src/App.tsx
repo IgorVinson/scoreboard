@@ -143,7 +143,7 @@ function AppContent() {
         {/* Public routes */}
         <Route path="/landing" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/auth-callback" element={<AuthCallback />} />
         <Route path="/payment-redirect" element={<PaymentRedirect />} />
         <Route path="/subscription" element={<SubscriptionPage />} />
         

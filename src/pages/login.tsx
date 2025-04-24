@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { supabase } from '@/lib/supabase';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -35,10 +36,60 @@ export default function Login() {
   // Handle redirection after successful login
   useEffect(() => {
     if (user) {
-      // Determine where to redirect based on user subscription status and stored params
-      checkSubscriptionAndRedirect();
+      // First make sure the user record exists in the database
+      ensureUserInDatabase(user)
+        .then(() => {
+          // Then determine where to redirect based on subscription status
+          checkSubscriptionAndRedirect();
+        })
+        .catch(error => {
+          console.error('Error ensuring user in database:', error);
+          // Still try to redirect even if database check fails
+          checkSubscriptionAndRedirect();
+        });
     }
   }, [user]);
+  
+  // Function to ensure user exists in database
+  const ensureUserInDatabase = async (authUser: any) => {
+    if (!authUser) return;
+    
+    try {
+      // Check if user exists in database
+      const { data, error } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', authUser.id)
+        .single();
+      
+      // If user exists, we're done
+      if (!error && data) {
+        console.log('User exists in database');
+        return;
+      }
+      
+      // If user doesn't exist, create them
+      if (error) {
+        console.log('Creating user record in database');
+        
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert({
+            id: authUser.id,
+            email: authUser.email,
+            name: authUser.user_metadata?.name || ''
+          });
+        
+        if (insertError) {
+          console.error('Failed to create user in database:', insertError);
+        } else {
+          console.log('Successfully created user in database');
+        }
+      }
+    } catch (error) {
+      console.error('Error checking user in database:', error);
+    }
+  };
   
   const checkSubscriptionAndRedirect = () => {
     // Get stored subscription parameters
