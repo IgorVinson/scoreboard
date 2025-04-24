@@ -30,6 +30,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   
   console.log('ProtectedRoute - User:', user?.id, 'Loading:', loading);
   
+  // Check if we're returning from a payment (session_id in URL)
+  const isReturningFromPayment = window.location.href.includes('session_id=');
+  
   useEffect(() => {
     // Add a short delay to ensure auth state is properly checked
     const timer = setTimeout(() => {
@@ -43,6 +46,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     console.log('Subscription check effect - User:', user?.id);
     if (!user) return;
+    
+    // Skip subscription check if returning from payment
+    if (isReturningFromPayment) {
+      console.log('Skipping subscription check - returning from payment');
+      setCheckingSubscription(false);
+      return;
+    }
     
     const checkSubscription = async () => {
       try {
@@ -81,7 +91,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     };
     
     checkSubscription();
-  }, [user]);
+  }, [user, isReturningFromPayment]);
 
   // Show loading while checking authentication or subscription
   if (loading || checkingAuth || (user && checkingSubscription)) {
@@ -104,7 +114,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return (
     <>
       {children}
-      {showSubscriptionModal && (
+      {showSubscriptionModal && !isReturningFromPayment && (
         <SubscriptionModal 
           open={showSubscriptionModal}
           onOpenChange={(isOpen: boolean) => {

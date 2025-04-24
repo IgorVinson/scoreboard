@@ -23,9 +23,20 @@ export default function PaymentSuccess() {
       // Clear it so it's not used again
       sessionStorage.removeItem('redirectAfterSubscription');
     }
-  }, []);
+    
+    // Show success UI immediately since we're on the success page
+    // This prevents redirecting to subscription modal
+    if (sessionId) {
+      setStatus('success');
+    }
+    
+    // This is delayed verification which will update the database
+    verifyPaymentInBackground();
+    
+  }, [sessionId]);
   
-  useEffect(() => {
+  // Background verification function (doesn't block UI)
+  const verifyPaymentInBackground = async () => {
     // If no session ID, navigate to dashboard
     if (!sessionId) {
       navigate('/');
@@ -38,84 +49,95 @@ export default function PaymentSuccess() {
       return;
     }
     
-    const verifyPayment = async () => {
-      try {
-        // Get the checkout session from Stripe
-        const session = await getCheckoutSession(sessionId);
-        
-        if (!session) {
-          throw new Error('Payment session not found');
-        }
-        
-        // Verify that the payment is complete
-        if (session.payment_status !== 'paid') {
-          throw new Error('Payment not complete');
-        }
-        
-        // Get subscription details
-        const subscriptionId = session.subscription as string;
-        const customerId = session.customer as string;
-        
-        if (!subscriptionId) {
-          throw new Error('Subscription ID not found in session');
-        }
+    try {
+      // Get the checkout session from Stripe
+      const session = await getCheckoutSession(sessionId);
+      
+      if (!session) {
+        console.error('Payment session not found');
+        setError('Payment session not found');
+        setStatus('error');
+        return;
+      }
+      
+      // Verify that the payment is complete
+      if (session.payment_status !== 'paid') {
+        console.error('Payment not complete');
+        setError('Payment not complete');
+        setStatus('error');
+        return;
+      }
+      
+      // Get subscription details
+      const subscriptionId = session.subscription as string;
+      const customerId = session.customer as string;
+      
+      if (!subscriptionId) {
+        console.error('Subscription ID not found in session');
+        setError('Subscription ID not found in session');
+        setStatus('error');
+        return;
+      }
 
-        // Get full subscription details to access period end
-        const subscription = await getSubscription(subscriptionId);
-        
-        // Safely extract the current_period_end value with validation
-        const currentPeriodEnd = (subscription as any).current_period_end;
-        
-        // Make sure we have a valid timestamp before creating a Date
-        let subscriptionEndsAt;
-        if (currentPeriodEnd && typeof currentPeriodEnd === 'number') {
-          try {
-            subscriptionEndsAt = new Date(currentPeriodEnd * 1000).toISOString();
-          } catch (error) {
-            console.error('Error converting period end to date:', error);
-            // Use a fallback date (1 year from now) if conversion fails
-            subscriptionEndsAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-          }
-        } else {
-          // Fallback to a default value if current_period_end is missing
-          console.warn('Missing current_period_end in subscription data, using fallback date');
+      // Get full subscription details to access period end
+      const subscription = await getSubscription(subscriptionId);
+      
+      // Safely extract the current_period_end value with validation
+      const currentPeriodEnd = (subscription as any).current_period_end;
+      
+      // Make sure we have a valid timestamp before creating a Date
+      let subscriptionEndsAt;
+      if (currentPeriodEnd && typeof currentPeriodEnd === 'number') {
+        try {
+          subscriptionEndsAt = new Date(currentPeriodEnd * 1000).toISOString();
+        } catch (error) {
+          console.error('Error converting period end to date:', error);
+          // Use a fallback date (1 year from now) if conversion fails
           subscriptionEndsAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
         }
-        
-        console.log('Subscription details:', {
-          customerId,
-          subscriptionId,
-          status: subscription.status,
-          currentPeriodEnd,
-          subscriptionEndsAt
-        });
-        
-        // Update user in database with subscription information
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({
-            stripe_customer_id: customerId,
-            stripe_subscription_id: subscriptionId,
-            subscription_status: subscription.status,
-            subscription_ends_at: subscriptionEndsAt,
-          })
-          .eq('id', user.id);
-        
-        if (updateError) {
-          throw updateError;
-        }
-        
-        // Success!
-        setStatus('success');
-      } catch (error) {
-        console.error('Error verifying payment:', error);
-        setError(error instanceof Error ? error.message : 'An unknown error occurred');
-        setStatus('error');
+      } else {
+        // Fallback to a default value if current_period_end is missing
+        console.warn('Missing current_period_end in subscription data, using fallback date');
+        subscriptionEndsAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
       }
-    };
-    
-    verifyPayment();
-  }, [sessionId, user, navigate]);
+      
+      console.log('Subscription details:', {
+        customerId,
+        subscriptionId,
+        status: subscription.status,
+        currentPeriodEnd,
+        subscriptionEndsAt
+      });
+      
+      // Update user in database with subscription information
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          stripe_customer_id: customerId,
+          stripe_subscription_id: subscriptionId,
+          subscription_status: subscription.status,
+          subscription_ends_at: subscriptionEndsAt,
+        })
+        .eq('id', user.id);
+      
+      if (updateError) {
+        console.error('Error updating user subscription data:', updateError);
+        setError('Error updating user subscription data');
+        setStatus('error');
+        return;
+      }
+      
+      // Confirm successful database update
+      console.log('Successfully updated user subscription in database');
+      
+      // Success!
+      setStatus('success');
+    } catch (error) {
+      console.error('Error verifying payment:', error);
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
+      setStatus('error');
+    }
+  };
   
   // Render loading state
   if (status === 'loading') {
