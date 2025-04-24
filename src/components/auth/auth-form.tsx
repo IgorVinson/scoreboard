@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
+import { useNavigate } from 'react-router-dom';
 
 interface AuthFormProps {
   mode: 'signin' | 'signup';
@@ -22,15 +23,25 @@ interface AuthFormProps {
 }
 
 export function AuthForm({ mode, onToggleMode }: AuthFormProps) {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     name: '',
   });
-  const { signIn, signUp, signInWithGoogle } = useAuth();
+  const { signIn, signUp, signInWithGoogle, user } = useAuth();
   const { toast } = useToast();
   const [showVerificationAlert, setShowVerificationAlert] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+
+  // Watch for user state changes and navigate after authentication
+  useEffect(() => {
+    if (isAuthenticating && user) {
+      navigate('/', { replace: true });
+      setIsAuthenticating(false);
+    }
+  }, [user, navigate, isAuthenticating]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +50,8 @@ export function AuthForm({ mode, onToggleMode }: AuthFormProps) {
     try {
       if (mode === 'signin') {
         await signIn(formData.email, formData.password);
+        setIsAuthenticating(true);
+        // Don't navigate here - wait for auth state to update
       } else {
         await signUp(formData.email, formData.password, formData.name);
         setShowVerificationAlert(true);
@@ -50,6 +63,7 @@ export function AuthForm({ mode, onToggleMode }: AuthFormProps) {
         description:
           error instanceof Error ? error.message : 'Authentication failed',
       });
+      setIsAuthenticating(false);
     } finally {
       setLoading(false);
     }
@@ -57,15 +71,25 @@ export function AuthForm({ mode, onToggleMode }: AuthFormProps) {
 
   const handleGoogleSignIn = async () => {
     try {
+      setIsAuthenticating(true);
       await signInWithGoogle();
+      // Google OAuth will handle the redirect
     } catch (error) {
       toast({
         variant: 'destructive',
         title: 'Error',
         description: 'Failed to sign in with Google',
       });
+      setIsAuthenticating(false);
     }
   };
+
+  // If user is already authenticated, navigate to home
+  useEffect(() => {
+    if (user) {
+      navigate('/', { replace: true });
+    }
+  }, [user, navigate]);
 
   if (showVerificationAlert) {
     return (

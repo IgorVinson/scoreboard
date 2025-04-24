@@ -88,6 +88,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (signInError) throw signInError;
+
+      // Explicitly update user and session state to ensure immediate update
+      if (data && data.user && data.session) {
+        setUser(data.user);
+        setSession(data.session);
+      }
+
+      return data;
     } catch (error) {
       console.error('Error signing in:', error);
       throw error;
@@ -117,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = async () => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { error, data } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
@@ -127,6 +135,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) throw error;
+      
+      // For OAuth providers, return the data object
+      return data;
     } catch (error) {
       console.error('Error signing in with Google:', error);
       throw error;

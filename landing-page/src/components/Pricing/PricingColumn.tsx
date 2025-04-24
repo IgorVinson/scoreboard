@@ -2,7 +2,6 @@
 import { useState } from "react";
 import clsx from "clsx";
 import { BsFillCheckCircleFill } from "react-icons/bs";
-import { loadStripe } from "@stripe/stripe-js";
 
 import { IPricing } from "@/types";
 
@@ -10,6 +9,10 @@ interface Props {
     tier: IPricing;
     highlight?: boolean;
 }
+
+// Dashboard app URLs
+const DASHBOARD_BASE_URL = process.env.NEXT_PUBLIC_DASHBOARD_URL || 'http://localhost:5173';
+const DASHBOARD_LOGIN_URL = `${DASHBOARD_BASE_URL}/login`;
 
 const PricingColumn: React.FC<Props> = ({ tier, highlight }: Props) => {
     const { name, price, features, priceId } = tier;
@@ -32,53 +35,24 @@ const PricingColumn: React.FC<Props> = ({ tier, highlight }: Props) => {
         try {
             setIsLoading(true);
             
-            console.log("Creating checkout session with priceId:", priceId);
+            // Instead of creating a checkout session directly,
+            // redirect to the dashboard login page with plan info as URL parameters
+            const loginUrl = new URL(DASHBOARD_LOGIN_URL);
             
-            // Make API request to your backend to create checkout session
-            const response = await fetch('/api/create-checkout-session', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    priceId,
-                    // Add user ID or email if available from auth context
-                    // userId: currentUser?.id,
-                    // userEmail: currentUser?.email,
-                }),
-            });
-
-            // Check if the response is ok (status in the range 200-299)
-            if (!response.ok) {
-                const errorData = await response.json();
-                console.error("API error response:", errorData);
-                throw new Error(errorData.error || `Server responded with status ${response.status}`);
-            }
-
-            const data = await response.json();
-            console.log("API response data:", data);
+            // Add plan information as URL parameters
+            loginUrl.searchParams.append('planId', priceId);
+            loginUrl.searchParams.append('planName', name);
+            loginUrl.searchParams.append('planPrice', price.toString());
+            loginUrl.searchParams.append('source', 'pricing_page');
+            loginUrl.searchParams.append('intent', 'subscribe');
             
-            if (!data.sessionId) {
-                throw new Error("No session ID returned from the server");
-            }
+            // Redirect to dashboard login page
+            console.log(`Redirecting to dashboard login: ${loginUrl.toString()}`);
+            window.location.href = loginUrl.toString();
             
-            // Redirect to Stripe Checkout
-            const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
-            if (!stripe) {
-                throw new Error("Failed to initialize Stripe");
-            }
-            
-            const { error: redirectError } = await stripe.redirectToCheckout({ 
-                sessionId: data.sessionId 
-            });
-            
-            if (redirectError) {
-                throw redirectError;
-            }
         } catch (error) {
-            console.error('Error initiating checkout:', error);
+            console.error('Error during redirect:', error);
             setError(error instanceof Error ? error.message : "An unknown error occurred");
-        } finally {
             setIsLoading(false);
         }
     };
@@ -106,7 +80,7 @@ const PricingColumn: React.FC<Props> = ({ tier, highlight }: Props) => {
                     onClick={handleSubscription}
                     disabled={isLoading}
                 >
-                    {isLoading ? "Processing..." : "Get Started"}
+                    {isLoading ? "Redirecting..." : "Get Started"}
                 </button>
             </div>
             <div className="p-6 mt-1">
