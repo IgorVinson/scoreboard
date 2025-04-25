@@ -673,13 +673,8 @@ export function Dashboard() {
   const [currentMissingIndex, setCurrentMissingIndex] = useState(0);
 
   const [indicators, setIndicators] = useState<any[]>([]);
-  const [teamMembers, setTeamMembers] = useState([]);
   const [allIndicators, setAllIndicators] = useState(['All Indicators']);
-  const [timePeriods, setTimePeriods] = useState([
-    'Daily',
-    'Weekly',
-    'Monthly',
-  ]);
+
 
   const [reports, setReports] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -1377,22 +1372,9 @@ export function Dashboard() {
         <div className='container flex h-16 items-center justify-between px-4'>
           <div className='flex items-center gap-6'>
             <BarChart3 className='h-6 w-6' />
-            <h1 className='text-xl font-semibold'>Performance Dashboard</h1>
-            {isSoloMode && <VirtualManagerToggle />}
+            <h1 className='text-xl font-semibold'>Goalometer</h1>
           </div>
           <div className='flex items-center gap-4'>
-            <div className='flex items-center space-x-2'>
-              <span className='text-sm font-medium'>Strict Mode</span>
-              <Button
-                variant={strictModeEnabled ? 'default' : 'outline'}
-                size='sm'
-                className='h-8'
-                onClick={toggleStrictMode}
-              >
-                {strictModeEnabled ? 'On' : 'Off'}
-              </Button>
-            </div>
-            <ModeToggle />
             <Button
               variant='ghost'
               size='icon'
@@ -1455,48 +1437,6 @@ export function Dashboard() {
       {/* Main Content */}
       <main className='container px-4 py-8'>
         <div className='grid gap-8'>
-          {/* Overview Cards */}
-          <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
-            <Card className='p-6'>
-              <div className='flex items-center gap-4'>
-                <Users className='h-8 w-8 text-primary' />
-                <div>
-                  <p className='text-sm text-muted-foreground'>Team Members</p>
-                  <h3 className='text-2xl font-semibold'>3</h3>
-                </div>
-              </div>
-            </Card>
-            <Card className='p-6'>
-              <div className='flex items-center gap-4'>
-                <Target className='h-8 w-8 text-primary' />
-                <div>
-                  <p className='text-sm text-muted-foreground'>Active Plans</p>
-                  <h3 className='text-2xl font-semibold'>5</h3>
-                </div>
-              </div>
-            </Card>
-            <Card className='p-6'>
-              <div className='flex items-center gap-4'>
-                <ClipboardList className='h-8 w-8 text-primary' />
-                <div>
-                  <p className='text-sm text-muted-foreground'>Reports Today</p>
-                  <h3 className='text-2xl font-semibold'>2</h3>
-                </div>
-              </div>
-            </Card>
-            <Card className='p-6'>
-              <div className='flex items-center gap-4'>
-                <TrendingUp className='h-8 w-8 text-primary' />
-                <div>
-                  <p className='text-sm text-muted-foreground'>
-                    Average Performance
-                  </p>
-                  <h3 className='text-2xl font-semibold'>89%</h3>
-                </div>
-              </div>
-            </Card>
-          </div>
-
           {/* Tabs */}
           <Card>
             <Tabs 
@@ -1507,7 +1447,7 @@ export function Dashboard() {
             >
               <div className='border-b px-4'>
                 <TabsList className='my-2'>
-                  <TabsTrigger value='deep-overview'>Performance</TabsTrigger>
+                  <TabsTrigger value='deep-overview'>Objectives</TabsTrigger>
                   <TabsTrigger value='reports'>Daily Reports</TabsTrigger>
                   <TabsTrigger value='result-reports'>
                     Result Reports
@@ -1541,7 +1481,6 @@ export function Dashboard() {
               <TabsContent value='result-reports' className='p-6'>
                 <div className='space-y-4'>
                 <div className='flex justify-between items-center'>
-                    <h2 className='text-2xl font-bold'>Result Reports</h2>
                     <Button
                       variant='outline'
                       onClick={() => setResultReportDialogOpen(true)}

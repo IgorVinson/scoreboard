@@ -1536,9 +1536,7 @@ export function DeepOverviewTable({
   return (
     <div>
       <div className='flex justify-between items-center mb-4'>
-        <h3 className='text-lg font-semibold'>
-          Objectives & Metrics Performance
-        </h3>
+
         <div className='flex items-center gap-2'>
           <div className='flex border rounded-md overflow-hidden'>
             <Button
