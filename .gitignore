@@ -29,4 +29,4 @@ ResultFlowMoodboard.pdf
 .env
 .env.*
 !.env.example
-supabase/.temp
+supabase/.temp.env.local
