@@ -1486,7 +1486,7 @@ export function Dashboard() {
 
               <TabsContent value='result-reports' className='p-2 sm:p-6'>
                 <div className='space-y-2 sm:space-y-4'>
-                  <div className='flex justify-between items-center mb-4 overflow-auto'>
+                  <div className='flex justify-between items-center mb-4'>
                     <Button
                       variant='outline'
                       onClick={() => setResultReportDialogOpen(true)}
@@ -1594,7 +1594,7 @@ export function Dashboard() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className='grid gap-4 sm:gap-6 py-2 sm:py-4 overflow-y-auto max-h-[calc(90vh-180px)]'>
+          <div className='grid gap-4 sm:gap-6 py-2 sm:py-4 overflow-x-hidden max-h-[calc(90vh-180px)]'>
             {/* Date Selection */}
             <div className='grid gap-2'>
               <label className='text-sm font-medium'>Report Date</label>
@@ -1712,6 +1712,28 @@ export function Dashboard() {
                     disabled={reviewMode}
                   />
                 </div>
+
+                <DialogFooter className='flex-row gap-3 sm:gap-2 mt-4 sm:mt-0'>
+            <Button
+              variant='outline'
+              onClick={() => {
+                setReportDialogOpen(false);
+                setEditingReport(null);
+                setReviewMode(false);
+              }}
+              className='w-full sm:w-auto h-11 text-base'
+            >
+              Cancel
+            </Button>
+            {reviewMode ? (
+              <Button onClick={handleSubmitReview} className='w-full sm:w-auto h-11 text-base'>Submit Review</Button>
+            ) : editingReport ? (
+              <Button onClick={handleUpdateReport} className='w-full sm:w-auto h-11 text-base'>Update Report</Button>
+            ) : (
+              <Button onClick={handleCreateReport} className='w-full sm:w-auto h-11 text-base'>Create Report</Button>
+            )}
+          </DialogFooter>
+
               </div>
             </div>
 
@@ -1746,26 +1768,6 @@ export function Dashboard() {
             )}
           </div>
 
-          <DialogFooter className='flex-col sm:flex-row gap-3 sm:gap-2 mt-4 sm:mt-0'>
-            <Button
-              variant='outline'
-              onClick={() => {
-                setReportDialogOpen(false);
-                setEditingReport(null);
-                setReviewMode(false);
-              }}
-              className='w-full sm:w-auto h-11 text-base'
-            >
-              Cancel
-            </Button>
-            {reviewMode ? (
-              <Button onClick={handleSubmitReview} className='w-full sm:w-auto h-11 text-base'>Submit Review</Button>
-            ) : editingReport ? (
-              <Button onClick={handleUpdateReport} className='w-full sm:w-auto h-11 text-base'>Update Report</Button>
-            ) : (
-              <Button onClick={handleCreateReport} className='w-full sm:w-auto h-11 text-base'>Create Report</Button>
-            )}
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1792,7 +1794,7 @@ export function Dashboard() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className='grid gap-4 sm:gap-6 py-2 sm:py-4 overflow-y-auto max-h-[calc(90vh-180px)]'>
+          <div className='grid gap-4 sm:gap-6 py-2 sm:py-4 overflow-x-hidden max-h-[calc(90vh-180px)]'>
             {/* Report Type Selection */}
             <div className='grid gap-2'>
               <label className='text-sm font-medium'>Report Type</label>
@@ -1988,6 +1990,44 @@ export function Dashboard() {
                   disabled={reviewMode}
                 />
               </div>
+              <DialogFooter className='flex-row gap-3 sm:gap-2 mt-4 sm:mt-0'>
+              <Button
+              variant='outline'
+              onClick={() => {
+                resetResultReportState();
+                setReviewMode(false);
+                setTimeout(() => {
+                  setResultReportDialogOpen(false);
+                }, 10);
+              }}
+              className='w-full sm:w-auto h-11 text-base'
+            >
+              Cancel
+            </Button>
+            {reviewMode ? (
+              <Button onClick={submitResultReportReview} className='w-full sm:w-auto h-11 text-base'>Submit Review</Button>
+            ) : (
+              <Button onClick={async () => {
+                try {
+                  // Only reset state and close dialog if report generation was successful
+                  const success = await generateResultReport();
+                  if (success) {
+                    resetResultReportState();
+                    setTimeout(() => {
+                      setResultReportDialogOpen(false);
+                    }, 10);
+                  }
+                } catch (error) {
+                  console.error('Error generating report:', error);
+                }
+              }}
+              className='w-full sm:w-auto h-11 text-base'
+              >
+                {editingResultReport ? 'Update Report' : 'Generate Report'}
+              </Button>
+            )}
+            </DialogFooter>
+
             </div>
 
             {/* Review section (only shown in review mode) */}
@@ -2022,44 +2062,7 @@ export function Dashboard() {
             )}
           </div>
 
-          <DialogFooter className='flex-col sm:flex-row gap-3 sm:gap-2 mt-4 sm:mt-0'>
-            <Button
-              variant='outline'
-              onClick={() => {
-                resetResultReportState();
-                setReviewMode(false);
-                setTimeout(() => {
-                  setResultReportDialogOpen(false);
-                }, 10);
-              }}
-              className='w-full sm:w-auto h-11 text-base'
-            >
-              Cancel
-            </Button>
 
-            {reviewMode ? (
-              <Button onClick={submitResultReportReview} className='w-full sm:w-auto h-11 text-base'>Submit Review</Button>
-            ) : (
-              <Button onClick={async () => {
-                try {
-                  // Only reset state and close dialog if report generation was successful
-                  const success = await generateResultReport();
-                  if (success) {
-                    resetResultReportState();
-                    setTimeout(() => {
-                      setResultReportDialogOpen(false);
-                    }, 10);
-                  }
-                } catch (error) {
-                  console.error('Error generating report:', error);
-                }
-              }}
-              className='w-full sm:w-auto h-11 text-base'
-              >
-                {editingResultReport ? 'Update Report' : 'Generate Report'}
-              </Button>
-            )}
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
