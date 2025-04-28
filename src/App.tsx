@@ -28,7 +28,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const navigate = useNavigate();
   
-  console.log('ProtectedRoute - User:', user?.id, 'Loading:', loading);
+  // console.log('ProtectedRoute - User:', user?.id, 'Loading:', loading);
   
   useEffect(() => {
     // Add a short delay to ensure auth state is properly checked

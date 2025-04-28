@@ -1502,7 +1502,8 @@ export function Dashboard() {
 
 
           {/* Chart Block */ }
-           <ChartBlock reports={reports} objectives={objectives}/>
+           <ChartBlock reports={userReports} objectives={objectives}/>
+
  
           {/* Tabs */}
           <Card>

@@ -58,11 +58,13 @@ import {
           reports.flatMap(report => Object.keys(report.metrics_data))
         )
       );
+
       
      
     // Данні для графіка
 
     const uniqueDates = [...new Set(reports.map(report => report.date))].sort();
+    
     const planData = uniqueDates.map(date =>
        reports
       .filter(report => report.date === date)
