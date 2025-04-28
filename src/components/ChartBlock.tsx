@@ -162,9 +162,11 @@ import {
       </div>
 
       {/* Графік */}
-      <div style={{ height: '300px' }}>
+      <div style={{ overflowX: 'auto', width: '100%' }}>
+      <div style={{ minWidth: '300px', height: '300px' }}>
         <Line data={data} options={options} />
       </div>
+</div>
     </div>
     );
   };
