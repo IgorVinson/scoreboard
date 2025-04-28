@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar } from '@/components/ui/calendar';
+import ChartBlock from "@/components/ChartBlock";
+
 import {
   Table,
   TableBody,
@@ -97,6 +99,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/queries/queryKeys';
 import { ResultReportManager } from '@/components/result-report/MetricCalculator';
 import { toast } from '@/components/ui/use-toast';
+
 
 // Extend the DailyReport type to include the 'reviewed' field for our app's usage
 interface ExtendedDailyReport extends Omit<DailyReport, 'id' | 'created_at' | 'updated_at'> {
@@ -1439,8 +1442,60 @@ export function Dashboard() {
       </header>
 
       {/* Main Content */}
+
+      <main className='container px-4 py-8'>
+        <div className='grid gap-8'>
+          {/* Overview Cards */}
+          <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
+            <Card className='p-6'>
+              <div className='flex items-center gap-4'>
+                <Users className='h-8 w-8 text-primary' />
+                <div>
+                  <p className='text-sm text-muted-foreground'>Team Members</p>
+                  <h3 className='text-2xl font-semibold'>3</h3>
+                </div>
+              </div>
+            </Card>
+            <Card className='p-6'>
+              <div className='flex items-center gap-4'>
+                <Target className='h-8 w-8 text-primary' />
+                <div>
+                  <p className='text-sm text-muted-foreground'>Active Plans</p>
+                  <h3 className='text-2xl font-semibold'>5</h3>
+                </div>
+              </div>
+            </Card>
+            <Card className='p-6'>
+              <div className='flex items-center gap-4'>
+                <ClipboardList className='h-8 w-8 text-primary' />
+                <div>
+                  <p className='text-sm text-muted-foreground'>Reports Today</p>
+                  <h3 className='text-2xl font-semibold'>2</h3>
+                </div>
+              </div>
+            </Card>
+            <Card className='p-6'>
+              <div className='flex items-center gap-4'>
+                <TrendingUp className='h-8 w-8 text-primary' />
+                <div>
+                  <p className='text-sm text-muted-foreground'>
+                    Average Performance
+                  </p>
+                  <h3 className='text-2xl font-semibold'>89%</h3>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+
+          {/* Chart Block */ }
+           <ChartBlock reports={userReports} objectives={objectives}/>
+
+ 
+
       <main className='container px-2 sm:px-4 py-4 sm:py-8'>
         <div className='flex flex-col gap-4 sm:gap-8'>
+
           {/* Tabs */}
           <Card>
             <Tabs 
