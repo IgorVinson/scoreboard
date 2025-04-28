@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar } from '@/components/ui/calendar';
+import ChartBlock from "@/components/ChartBlock";
+
 import {
   Table,
   TableBody,
@@ -97,6 +99,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/queries/queryKeys';
 import { ResultReportManager } from '@/components/result-report/MetricCalculator';
 import { toast } from '@/components/ui/use-toast';
+
 
 // Extend the DailyReport type to include the 'reviewed' field for our app's usage
 interface ExtendedDailyReport extends Omit<DailyReport, 'id' | 'created_at' | 'updated_at'> {
@@ -1497,6 +1500,10 @@ export function Dashboard() {
             </Card>
           </div>
 
+
+          {/* Chart Block */ }
+           <ChartBlock reports={reports} objectives={objectives}/>
+ 
           {/* Tabs */}
           <Card>
             <Tabs 
