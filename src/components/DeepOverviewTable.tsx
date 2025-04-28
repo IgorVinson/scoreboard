@@ -1506,20 +1506,6 @@ export function DeepOverviewTable({
     });
   }, [queryClient, refetchMetrics, showLoadingIndicator]);
 
-  // Add function to log plans for debugging
-  const logPlansData = useCallback(() => {
-    console.log('Current plans in UI state:');
-    objectives.forEach(obj => {
-      obj.metrics.forEach(metric => {
-        if (metric.plan !== undefined) {
-          console.log(`Metric: ${metric.name} (${metric.id}) - Plan: ${metric.plan} (${metric.planPeriod})`);
-        }
-      });
-    });
-    
-    console.log('Plans from database:', userPlans);
-  }, [objectives, userPlans]);
-
   // Add loading indicator for plans
   if (plansLoading && !isLoadingMetrics && !optimisticLoading) {
     return (
@@ -1535,10 +1521,7 @@ export function DeepOverviewTable({
 
   return (
     <div>
-      <div className='flex justify-between items-center mb-4'>
-        <h3 className='text-lg font-semibold'>
-          Objectives & Metrics Performance
-        </h3>
+      <div className='flex justify-between items-center mb-4 overflow-auto'>
         <div className='flex items-center gap-2'>
           <div className='flex border rounded-md overflow-hidden'>
             <Button
@@ -1574,29 +1557,6 @@ export function DeepOverviewTable({
           >
             <Target className='h-4 w-4' />{' '}
             {hasAnyPlans() ? 'Change Plans' : 'Add Plans'}
-          </Button>
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={forceReloadPlans}
-            className='flex items-center gap-1'
-            disabled={isAnyOperationLoading}
-          >
-            {loadingOperations['reloading-plans'] ? (
-              <Loader2 className='h-4 w-4 animate-spin' />
-            ) : (
-              <Loader2 className='h-4 w-4' />
-            )}
-            Refresh Plans
-          </Button>
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={logPlansData}
-            className='flex items-center gap-1'
-          >
-            <Target className='h-4 w-4' />
-            Log Plans
           </Button>
           <Button
             variant='outline'

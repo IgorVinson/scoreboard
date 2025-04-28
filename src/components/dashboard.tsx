@@ -146,20 +146,21 @@ const StarRating: React.FC<StarRatingProps> = ({ rating, onRatingChange }) => {
   const [hoverRating, setHoverRating] = useState(0);
 
   return (
-    <div className='flex space-x-1'>
+    <div className='flex space-x-2'>
       {[...Array(5)].map((_, i) => {
         const starValue = i + 1;
         return (
           <button
             key={i}
             type='button'
-            className='focus:outline-none p-1'
+            className='focus:outline-none p-2 touch-manipulation'
             onClick={() => onRatingChange(starValue)}
             onMouseEnter={() => setHoverRating(starValue)}
             onMouseLeave={() => setHoverRating(0)}
+            aria-label={`Rate ${starValue} out of 5 stars`}
           >
             <Star
-              className={`h-6 w-6 ${
+              className={`h-7 w-7 sm:h-6 sm:w-6 ${
                 (hoverRating || rating) >= starValue
                   ? 'text-amber-500 fill-amber-500'
                   : 'text-gray-300'
@@ -676,13 +677,8 @@ export function Dashboard() {
   const [currentMissingIndex, setCurrentMissingIndex] = useState(0);
 
   const [indicators, setIndicators] = useState<any[]>([]);
-  const [teamMembers, setTeamMembers] = useState([]);
   const [allIndicators, setAllIndicators] = useState(['All Indicators']);
-  const [timePeriods, setTimePeriods] = useState([
-    'Daily',
-    'Weekly',
-    'Monthly',
-  ]);
+
 
   const [reports, setReports] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -1373,29 +1369,19 @@ export function Dashboard() {
     }
   }, [activeTab, user?.id]);
 
+  // Define mobile-optimized scrollable container styles as utility classes
+  const scrollableContainerStyles = 'overflow-x-auto pb-2 -mx-2 px-2 overscroll-none overflow-y-hidden touch-pan-x scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent';
+
   return (
     <div className='min-h-screen bg-background'>
       {/* Header */}
       <header className='border-b'>
         <div className='container flex h-16 items-center justify-between px-4'>
-          <div className='flex items-center gap-6'>
-            <BarChart3 className='h-6 w-6' />
-            <h1 className='text-xl font-semibold'>Performance Dashboard</h1>
-            {isSoloMode && <VirtualManagerToggle />}
+          <div className='flex items-center gap-2 sm:gap-6'>
+            <BarChart3 className='h-5 w-5 sm:h-6 sm:w-6' />
+            <h1 className='text-lg sm:text-xl font-semibold'>Goalometer</h1>
           </div>
-          <div className='flex items-center gap-4'>
-            <div className='flex items-center space-x-2'>
-              <span className='text-sm font-medium'>Strict Mode</span>
-              <Button
-                variant={strictModeEnabled ? 'default' : 'outline'}
-                size='sm'
-                className='h-8'
-                onClick={toggleStrictMode}
-              >
-                {strictModeEnabled ? 'On' : 'Off'}
-              </Button>
-            </div>
-            <ModeToggle />
+          <div className='flex items-center gap-2 sm:gap-4'>
             <Button
               variant='ghost'
               size='icon'
@@ -1410,11 +1396,11 @@ export function Dashboard() {
               }}
             >
               {theme === 'light' ? (
-                <Sun className='h-5 w-5' />
+                <Sun className='h-4 w-4 sm:h-5 sm:w-5' />
               ) : theme === 'dark' ? (
-                <Moon className='h-5 w-5' />
+                <Moon className='h-4 w-4 sm:h-5 sm:w-5' />
               ) : (
-                <Monitor className='h-5 w-5' />
+                <Monitor className='h-4 w-4 sm:h-5 sm:w-5' />
               )}
             </Button>
 
@@ -1422,9 +1408,9 @@ export function Dashboard() {
               <DropdownMenuTrigger asChild>
                 <Button
                   variant='ghost'
-                  className='relative h-9 w-9 rounded-full'
+                  className='relative h-8 w-8 sm:h-9 sm:w-9 rounded-full'
                 >
-                  <Avatar className='h-9 w-9'>
+                  <Avatar className='h-8 w-8 sm:h-9 sm:w-9'>
                     <AvatarFallback>
                       {getInitials(
                         user?.user_metadata?.name || user?.email || 'U'
@@ -1456,6 +1442,7 @@ export function Dashboard() {
       </header>
 
       {/* Main Content */}
+
       <main className='container px-4 py-8'>
         <div className='grid gap-8'>
           {/* Overview Cards */}
@@ -1505,6 +1492,10 @@ export function Dashboard() {
            <ChartBlock reports={userReports} objectives={objectives}/>
 
  
+
+      <main className='container px-2 sm:px-4 py-4 sm:py-8'>
+        <div className='flex flex-col gap-4 sm:gap-8'>
+
           {/* Tabs */}
           <Card>
             <Tabs 
@@ -1513,18 +1504,16 @@ export function Dashboard() {
               value={activeTab}
               onValueChange={(value) => setActiveTab(value)}
             >
-              <div className='border-b px-4'>
-                <TabsList className='my-2'>
-                  <TabsTrigger value='deep-overview'>Performance</TabsTrigger>
-                  <TabsTrigger value='reports'>Daily Reports</TabsTrigger>
-                  <TabsTrigger value='result-reports'>
-                    Result Reports
-                  </TabsTrigger>
+              <div className='border-b px-2 sm:px-4 overflow-x-auto'>
+                <TabsList className='my-2 w-full h-auto flex flex-wrap justify-start'>
+                  <TabsTrigger value='deep-overview' className='h-10 px-3 py-2'>Objectives</TabsTrigger>
+                  <TabsTrigger value='reports' className='h-10 px-3 py-2'>Daily Reports</TabsTrigger>
+                  <TabsTrigger value='result-reports' className='h-10 px-3 py-2'>Results</TabsTrigger>
                 </TabsList>
               </div>
 
-              <TabsContent value='deep-overview' className='p-6'>
-                <div className='grid gap-6'>
+              <TabsContent value='deep-overview' className='p-2 sm:p-6'>
+                <div className='gap-4 sm:gap-6'>
                   <DeepOverviewTable
                     objectives={objectives}
                     onObjectivesChange={handleObjectivesChange}
@@ -1533,45 +1522,52 @@ export function Dashboard() {
                 </div>
               </TabsContent>
 
-              <TabsContent value='reports' className='p-6'>
-                <div className='space-y-4'>
-                  <ReportsTable
-                    reports={userReports}
-                    objectives={objectives}
-                    onDeleteReport={handleDeleteReport}
-                    onEditReport={handleEditReport}
-                    onReviewReport={handleReviewReport}
-                    onToggleReview={handleToggleReview}
-                  />
+              <TabsContent value='reports' className='p-2 sm:p-6 w-'>
+                <div className='space-y-2 sm:space-y-4'>
+                  <div className={scrollableContainerStyles}>
+                    <div className='min-w-[800px]'>
+                      <ReportsTable
+                        reports={userReports}
+                        objectives={objectives}
+                        onDeleteReport={handleDeleteReport}
+                        onEditReport={handleEditReport}
+                        onReviewReport={handleReviewReport}
+                        onToggleReview={handleToggleReview}
+                      />
+                    </div>
+                  </div>
                 </div>
               </TabsContent>
 
-              <TabsContent value='result-reports' className='p-6'>
-                <div className='space-y-4'>
-                <div className='flex justify-between items-center'>
-                    <h2 className='text-2xl font-bold'>Result Reports</h2>
+              <TabsContent value='result-reports' className='p-2 sm:p-6'>
+                <div className='space-y-2 sm:space-y-4'>
+                  <div className='flex justify-between items-center mb-4'>
                     <Button
                       variant='outline'
                       onClick={() => setResultReportDialogOpen(true)}
-                      className='flex items-center gap-2'
+                      className='flex items-center gap-2 h-10 px-4'
                     >
                       <PlusCircle className='h-4 w-4' />
                       Generate Report
                     </Button>
                   </div>
-                  <ReportsTable
-                    reports={processedResultReports}
-                    objectives={objectives}
-                    onDeleteReport={handleDeleteResultReport}
-                    onEditReport={handleEditResultReport}
-                    onReviewReport={handleReviewResultReport}
-                    onToggleReview={handleToggleResultReview}
-                  />
+                  <div className={scrollableContainerStyles}>
+                    <div className='min-w-[800px]'>
+                      <ReportsTable
+                        reports={processedResultReports}
+                        objectives={objectives}
+                        onDeleteReport={handleDeleteResultReport}
+                        onEditReport={handleEditResultReport}
+                        onReviewReport={handleReviewResultReport}
+                        onToggleReview={handleToggleResultReview}
+                      />
+                    </div>
+                  </div>
                 </div>
               </TabsContent>
 
-              <TabsContent value='overview' className='p-6'>
-                <div className='grid gap-6'>
+              <TabsContent value='overview' className='p-2 sm:p-6'>
+                <div className='grid gap-4 sm:gap-6'>
                   <SimpleOverview objectives={objectives} />
                 </div>
               </TabsContent>
@@ -1580,19 +1576,19 @@ export function Dashboard() {
 
           {/* Notes Editor */}
           <Card className=''>
-            <div className='p-6'>
-              <h3 className='text-lg font-semibold mb-4'>Daily Notes</h3>
+            <div className='p-4 sm:p-6'>
+              <h3 className='text-base sm:text-lg font-semibold mb-4'>Daily Notes</h3>
               
               {isLoadingNotes ? (
-                <div className="flex items-center justify-center p-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <div className="flex items-center justify-center p-4 sm:p-8">
+                  <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-primary"></div>
                   <span className="ml-3">Loading notes...</span>
                 </div>
               ) : (
                 <>
-                  <div className='grid gap-6 md:grid-cols-2'>
+                  <div className='grid gap-4 sm:gap-6 md:grid-cols-2'>
                     <div>
-                      <h4 className='font-medium mb-3 text-sm text-muted-foreground'>
+                      <h4 className='font-medium mb-2 text-sm text-muted-foreground'>
                         Today's Notes
                       </h4>
                       <NotesEditor
@@ -1602,8 +1598,8 @@ export function Dashboard() {
                         placeholder='What did you accomplish today?'
                       />
                     </div>
-                    <div>
-                      <h4 className='font-medium mb-3 text-sm text-muted-foreground'>
+                    <div className='mt-2 md:mt-0'>
+                      <h4 className='font-medium mb-2 text-sm text-muted-foreground'>
                         Tomorrow's Plan
                       </h4>
                       <NotesEditor
@@ -1614,8 +1610,8 @@ export function Dashboard() {
                       />
                     </div>
                   </div>
-                  <div className='mt-6'>
-                    <h4 className='font-medium mb-3 text-sm text-muted-foreground'>
+                  <div className='mt-4 sm:mt-6'>
+                    <h4 className='font-medium mb-2 text-sm text-muted-foreground'>
                       General Comments
                     </h4>
                     <NotesEditor
@@ -1625,8 +1621,11 @@ export function Dashboard() {
                       placeholder='Any other thoughts or comments...'
                     />
                   </div>
-                  <div className='mt-6 flex justify-end'>
-                    <Button onClick={handleOpenReport}>
+                  <div className='mt-4 sm:mt-6 flex justify-end'>
+                    <Button 
+                      onClick={handleOpenReport}
+                      className='h-10 px-4'
+                    >
                       <ClipboardList className='h-4 w-4 mr-2' />
                       Close Day
                     </Button>
@@ -1640,9 +1639,9 @@ export function Dashboard() {
 
       {/* Add the Report Dialog */}
       <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
-        <DialogContent className='sm:max-w-[800px] max-h-[90vh]'>
-          <DialogHeader>
-            <DialogTitle>{editingReport ? 'Edit Daily Report' : 'Close Day Report'}</DialogTitle>
+        <DialogContent className='w-[95vw] max-w-[800px] max-h-[90vh] h-auto'>
+          <DialogHeader className='mb-2'>
+            <DialogTitle className='text-lg sm:text-xl'>{editingReport ? 'Edit Daily Report' : 'Close Day Report'}</DialogTitle>
             <DialogDescription>
               {editingReport 
                 ? 'Update your daily report by modifying the values and notes below.' 
@@ -1650,7 +1649,7 @@ export function Dashboard() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className='grid gap-6 py-4 overflow-y-auto max-h-[calc(90vh-180px)]'>
+          <div className='grid gap-4 sm:gap-6 py-2 sm:py-4 overflow-x-hidden max-h-[calc(90vh-180px)]'>
             {/* Date Selection */}
             <div className='grid gap-2'>
               <label className='text-sm font-medium'>Report Date</label>
@@ -1658,7 +1657,7 @@ export function Dashboard() {
                 type='date'
                 value={reportDate}
                 onChange={handleDateChange}
-                className='w-[200px]'
+                className='w-full sm:w-[200px] h-10'
                 disabled={editingReport !== null || reviewMode}
               />
             </div>
@@ -1666,68 +1665,72 @@ export function Dashboard() {
             {/* Objectives and Metrics */}
             <div className='grid gap-2'>
               <label className='text-sm font-medium'>Metrics Update</label>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Plan</TableHead>
-                    <TableHead>Actual</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {reportObjectives.map(objective => (
-                    <React.Fragment key={objective.id}>
-                      <TableRow className='bg-muted/50'>
-                        <TableCell colSpan={3} className='py-2'>
-                          <Button
-                            variant='ghost'
-                            size='sm'
-                            className='p-0'
-                            onClick={() =>
-                              toggleReportObjectiveExpansion(objective.id)
-                            }
-                          >
-                            {objective.isExpanded ? (
-                              <ChevronDown className='h-4 w-4 mr-2' />
-                            ) : (
-                              <ChevronRight className='h-4 w-4 mr-2' />
-                            )}
-                            <span>{objective.name}</span>
-                          </Button>
-                        </TableCell>
+              <div className={scrollableContainerStyles}>
+                <div className='min-w-[500px]'>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Plan</TableHead>
+                        <TableHead>Actual</TableHead>
                       </TableRow>
-                      {objective.isExpanded &&
-                        objective.metrics.map((metric: Metric) => (
-                          <TableRow key={metric.id}>
-                            <TableCell className='pl-8'>
-                              {metric.name}
-                            </TableCell>
-                            <TableCell>
-                              {calculateDailyPlanValue(metric)}
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type='number'
-                                value={metricValues[metric.id] || ''}
-                                onChange={e => {
-                                  handleMetricValueChange(metric.id, e.target.value);
-                                }}
-                                className='w-20'
-                                disabled={reviewMode}
-                              />
+                    </TableHeader>
+                    <TableBody>
+                      {reportObjectives.map(objective => (
+                        <React.Fragment key={objective.id}>
+                          <TableRow className='bg-muted/50'>
+                            <TableCell colSpan={3} className='py-2'>
+                              <Button
+                                variant='ghost'
+                                size='sm'
+                                className='p-1 h-8 touch-manipulation flex items-center'
+                                onClick={() =>
+                                  toggleReportObjectiveExpansion(objective.id)
+                                }
+                              >
+                                {objective.isExpanded ? (
+                                  <ChevronDown className='h-4 w-4 mr-2' />
+                                ) : (
+                                  <ChevronRight className='h-4 w-4 mr-2' />
+                                )}
+                                <span>{objective.name}</span>
+                              </Button>
                             </TableCell>
                           </TableRow>
-                        ))}
-                    </React.Fragment>
-                  ))}
-                </TableBody>
-              </Table>
+                          {objective.isExpanded &&
+                            objective.metrics.map((metric: Metric) => (
+                              <TableRow key={metric.id}>
+                                <TableCell className='pl-8'>
+                                  {metric.name}
+                                </TableCell>
+                                <TableCell>
+                                  {calculateDailyPlanValue(metric)}
+                                </TableCell>
+                                <TableCell>
+                                  <Input
+                                    type='number'
+                                    value={metricValues[metric.id] || ''}
+                                    onChange={e => {
+                                      handleMetricValueChange(metric.id, e.target.value);
+                                    }}
+                                    className='w-20 h-9'
+                                    disabled={reviewMode}
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                        </React.Fragment>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
             </div>
 
             {/* Daily Notes Summary */}
             <div className='grid gap-2'>
               <label className='text-sm font-medium'>Daily Notes Summary</label>
-              <div className='rounded-md border p-4 space-y-4'>
+              <div className='rounded-md border p-3 sm:p-4 space-y-4'>
                 <div>
                   <h4 className='text-sm font-medium text-muted-foreground'>
                     Today's Notes
@@ -1764,16 +1767,38 @@ export function Dashboard() {
                     disabled={reviewMode}
                   />
                 </div>
+
+                <DialogFooter className='flex-row gap-3 sm:gap-2 mt-4 sm:mt-0'>
+            <Button
+              variant='outline'
+              onClick={() => {
+                setReportDialogOpen(false);
+                setEditingReport(null);
+                setReviewMode(false);
+              }}
+              className='w-full sm:w-auto h-11 text-base'
+            >
+              Cancel
+            </Button>
+            {reviewMode ? (
+              <Button onClick={handleSubmitReview} className='w-full sm:w-auto h-11 text-base'>Submit Review</Button>
+            ) : editingReport ? (
+              <Button onClick={handleUpdateReport} className='w-full sm:w-auto h-11 text-base'>Update Report</Button>
+            ) : (
+              <Button onClick={handleCreateReport} className='w-full sm:w-auto h-11 text-base'>Create Report</Button>
+            )}
+          </DialogFooter>
+
               </div>
             </div>
 
             {reviewMode && (
-              <div className='grid gap-6'>
+              <div className='grid gap-4 sm:gap-6'>
                 <label className='text-sm font-medium'>
                   Performance Review
                 </label>
-                <div className='rounded-md border p-4 space-y-4'>
-                  <div className='grid grid-cols-2 gap-4'>
+                <div className='rounded-md border p-3 sm:p-4 space-y-4'>
+                  <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
                     <div>
                       <h4 className='text-sm font-medium text-muted-foreground mb-2'>
                         Quantity Rating
@@ -1798,25 +1823,6 @@ export function Dashboard() {
             )}
           </div>
 
-          <DialogFooter>
-            <Button
-              variant='outline'
-              onClick={() => {
-                setReportDialogOpen(false);
-                setEditingReport(null);
-                setReviewMode(false);
-              }}
-            >
-              Cancel
-            </Button>
-            {reviewMode ? (
-              <Button onClick={handleSubmitReview}>Submit Review</Button>
-            ) : editingReport ? (
-              <Button onClick={handleUpdateReport}>Update Report</Button>
-            ) : (
-              <Button onClick={handleCreateReport}>Create Report</Button>
-            )}
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1825,9 +1831,9 @@ export function Dashboard() {
         open={resultReportDialogOpen}
         onOpenChange={setResultReportDialogOpen}
       >
-        <DialogContent className='sm:max-w-[800px] max-h-[90vh]'>
-          <DialogHeader>
-            <DialogTitle>
+        <DialogContent className='w-[95vw] max-w-[800px] max-h-[90vh] h-auto'>
+          <DialogHeader className='mb-2'>
+            <DialogTitle className='text-lg sm:text-xl'>
               {editingResultReport
                 ? reviewMode
                   ? 'Review Result Report'
@@ -1843,16 +1849,17 @@ export function Dashboard() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className='grid gap-6 py-4 overflow-y-auto max-h-[calc(90vh-180px)]'>
+          <div className='grid gap-4 sm:gap-6 py-2 sm:py-4 overflow-x-hidden max-h-[calc(90vh-180px)]'>
             {/* Report Type Selection */}
             <div className='grid gap-2'>
               <label className='text-sm font-medium'>Report Type</label>
-              <div className='flex gap-2'>
+              <div className='flex flex-wrap gap-2'>
                 <Button
                   variant={
                     resultReportType === 'weekly' ? 'default' : 'outline'
                   }
                   size='sm'
+                  className='h-10 px-4'
                   onClick={() => {
                     setResultReportType('weekly');
                     // If current range is longer than 7 days, adjust end date
@@ -1877,6 +1884,7 @@ export function Dashboard() {
                     resultReportType === 'monthly' ? 'default' : 'outline'
                   }
                   size='sm'
+                  className='h-10 px-4'
                   onClick={() => setResultReportType('monthly')}
                   disabled={!!editingResultReport}
                 >
@@ -1886,7 +1894,7 @@ export function Dashboard() {
             </div>
 
             {/* Date Range Selection */}
-            <div className='grid md:grid-cols-2 gap-4'>
+            <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
               <div className='grid gap-2'>
                 <label className='text-sm font-medium'>Start Date</label>
                 <Input
@@ -1918,6 +1926,7 @@ export function Dashboard() {
                       }
                     }
                   }}
+                  className='w-full h-10'
                   disabled={!!editingResultReport}
                 />
               </div>
@@ -1961,10 +1970,11 @@ export function Dashboard() {
                     
                     setResultReportEndDate(newEndDate);
                   }}
+                  className='w-full h-10'
                   disabled={!!editingResultReport}
                 />
               </div>
-              <div className='col-span-2'>
+              <div className='col-span-1 sm:col-span-2'>
                 <p className='text-xs text-muted-foreground mt-1'>
                   {resultReportType === 'weekly' 
                     ? 'Weekly reports are limited to a maximum of 7 days.'
@@ -1975,22 +1985,26 @@ export function Dashboard() {
             
             {/* Metrics Calculator - now shows automatically when dates are selected */}
             {user && (
-              <ResultReportManager
-                userId={user.id}
-                startDate={resultReportStartDate || ""}
-                endDate={resultReportEndDate || ""}
-                objectives={objectives}
-                showMetricsSection={showMetricsSection || !!editingResultReport}
-                onSaveReport={(calculatedMetrics) => {
-                  console.log('Metrics saved from ResultReportManager:', calculatedMetrics);
-                  if (calculatedMetrics && Object.keys(calculatedMetrics).length > 0) {
-                    console.log('Setting resultReportMetrics with valid data:', calculatedMetrics);
-                    setResultReportMetrics(calculatedMetrics);
-                  } else {
-                    console.warn('Received empty metrics data from ResultReportManager');
-                  }
-                }}
-              />
+              <div className={scrollableContainerStyles}>
+                <div className='min-w-[600px]'>
+                  <ResultReportManager
+                    userId={user.id}
+                    startDate={resultReportStartDate || ""}
+                    endDate={resultReportEndDate || ""}
+                    objectives={objectives}
+                    showMetricsSection={showMetricsSection || !!editingResultReport}
+                    onSaveReport={(calculatedMetrics) => {
+                      console.log('Metrics saved from ResultReportManager:', calculatedMetrics);
+                      if (calculatedMetrics && Object.keys(calculatedMetrics).length > 0) {
+                        console.log('Setting resultReportMetrics with valid data:', calculatedMetrics);
+                        setResultReportMetrics(calculatedMetrics);
+                      } else {
+                        console.warn('Received empty metrics data from ResultReportManager');
+                      }
+                    }}
+                  />
+                </div>
+              </div>
             )}
 
             {/* Report Notes */}
@@ -2031,16 +2045,54 @@ export function Dashboard() {
                   disabled={reviewMode}
                 />
               </div>
+              <DialogFooter className='flex-row gap-3 sm:gap-2 mt-4 sm:mt-0'>
+              <Button
+              variant='outline'
+              onClick={() => {
+                resetResultReportState();
+                setReviewMode(false);
+                setTimeout(() => {
+                  setResultReportDialogOpen(false);
+                }, 10);
+              }}
+              className='w-full sm:w-auto h-11 text-base'
+            >
+              Cancel
+            </Button>
+            {reviewMode ? (
+              <Button onClick={submitResultReportReview} className='w-full sm:w-auto h-11 text-base'>Submit Review</Button>
+            ) : (
+              <Button onClick={async () => {
+                try {
+                  // Only reset state and close dialog if report generation was successful
+                  const success = await generateResultReport();
+                  if (success) {
+                    resetResultReportState();
+                    setTimeout(() => {
+                      setResultReportDialogOpen(false);
+                    }, 10);
+                  }
+                } catch (error) {
+                  console.error('Error generating report:', error);
+                }
+              }}
+              className='w-full sm:w-auto h-11 text-base'
+              >
+                {editingResultReport ? 'Update Report' : 'Generate Report'}
+              </Button>
+            )}
+            </DialogFooter>
+
             </div>
 
             {/* Review section (only shown in review mode) */}
             {reviewMode && (
-              <div className='grid gap-6'>
+              <div className='grid gap-4 sm:gap-6'>
                 <label className='text-sm font-medium'>
                   Performance Review
                 </label>
-                <div className='rounded-md border p-4 space-y-4'>
-                  <div className='grid grid-cols-2 gap-4'>
+                <div className='rounded-md border p-3 sm:p-4 space-y-4'>
+                  <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
                     <div>
                       <h4 className='text-sm font-medium text-muted-foreground mb-2'>
                         Quantity Rating
@@ -2065,41 +2117,7 @@ export function Dashboard() {
             )}
           </div>
 
-          <DialogFooter>
-            <Button
-              variant='outline'
-              onClick={() => {
-                resetResultReportState();
-                setReviewMode(false);
-                setTimeout(() => {
-                  setResultReportDialogOpen(false);
-                }, 10);
-              }}
-            >
-              Cancel
-            </Button>
 
-            {reviewMode ? (
-              <Button onClick={submitResultReportReview}>Submit Review</Button>
-            ) : (
-              <Button onClick={async () => {
-                try {
-                  // Only reset state and close dialog if report generation was successful
-                  const success = await generateResultReport();
-                  if (success) {
-                    resetResultReportState();
-                    setTimeout(() => {
-                      setResultReportDialogOpen(false);
-                    }, 10);
-                  }
-                } catch (error) {
-                  console.error('Error generating report:', error);
-                }
-              }}>
-                {editingResultReport ? 'Update Report' : 'Generate Report'}
-              </Button>
-            )}
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -2116,7 +2134,7 @@ export function Dashboard() {
           }
         }}
       >
-        <DialogContent className='sm:max-w-[800px] max-h-[90vh]'>
+        <DialogContent className='w-[95vw] max-w-[800px] max-h-[90vh]'>
           <DialogHeader>
             <DialogTitle>Missing Daily Report</DialogTitle>
             <DialogDescription>
@@ -2133,7 +2151,7 @@ export function Dashboard() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className='grid gap-6 py-4 overflow-y-auto max-h-[calc(90vh-180px)]'>
+          <div className='grid gap-4 sm:gap-6 py-4 overflow-y-auto max-h-[calc(90vh-180px)]'>
             {/* Date Selection - Locked to the missing date */}
             <div className='grid gap-2'>
               <label className='text-sm font-medium'>Report Date</label>
@@ -2141,73 +2159,77 @@ export function Dashboard() {
                 type='date'
                 value={reportDate}
                 disabled={true}
-                className='w-[200px]'
+                className='w-full sm:w-[200px]'
               />
             </div>
 
             {/* Reuse the metrics update section from the normal report dialog */}
-            <div className='grid gap-2'>
+            <div className='grid gap-2 overflow-x-auto'>
               <label className='text-sm font-medium'>Metrics Update</label>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Plan</TableHead>
-                    <TableHead>Actual</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {reportObjectives.map(objective => (
-                    <React.Fragment key={objective.id}>
-                      <TableRow className='bg-muted/50'>
-                        <TableCell colSpan={3} className='py-2'>
-                          <Button
-                            variant='ghost'
-                            size='sm'
-                            className='p-0'
-                            onClick={() =>
-                              toggleReportObjectiveExpansion(objective.id)
-                            }
-                          >
-                            {objective.isExpanded ? (
-                              <ChevronDown className='h-4 w-4 mr-2' />
-                            ) : (
-                              <ChevronRight className='h-4 w-4 mr-2' />
-                            )}
-                            <span>{objective.name}</span>
-                          </Button>
-                        </TableCell>
+              <div className={scrollableContainerStyles}>
+                <div className='min-w-[500px]'>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Plan</TableHead>
+                        <TableHead>Actual</TableHead>
                       </TableRow>
-                      {objective.isExpanded &&
-                        objective.metrics.map((metric: Metric) => (
-                          <TableRow key={metric.id}>
-                            <TableCell className='pl-8'>
-                              {metric.name}
-                            </TableCell>
-                            <TableCell>
-                              {calculateDailyPlanValue(metric)}
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type='number'
-                                value={metricValues[metric.id] || ''}
-                                onChange={e => {
-                                  handleMetricValueChange(metric.id, e.target.value);
-                                }}
-                                className='w-20'
-                                disabled={reviewMode}
-                              />
+                    </TableHeader>
+                    <TableBody>
+                      {reportObjectives.map(objective => (
+                        <React.Fragment key={objective.id}>
+                          <TableRow className='bg-muted/50'>
+                            <TableCell colSpan={3} className='py-2'>
+                              <Button
+                                variant='ghost'
+                                size='sm'
+                                className='p-0'
+                                onClick={() =>
+                                  toggleReportObjectiveExpansion(objective.id)
+                                }
+                              >
+                                {objective.isExpanded ? (
+                                  <ChevronDown className='h-4 w-4 mr-2' />
+                                ) : (
+                                  <ChevronRight className='h-4 w-4 mr-2' />
+                                )}
+                                <span>{objective.name}</span>
+                              </Button>
                             </TableCell>
                           </TableRow>
-                        ))}
-                    </React.Fragment>
-                  ))}
-                </TableBody>
-              </Table>
+                          {objective.isExpanded &&
+                            objective.metrics.map((metric: Metric) => (
+                              <TableRow key={metric.id}>
+                                <TableCell className='pl-8'>
+                                  {metric.name}
+                                </TableCell>
+                                <TableCell>
+                                  {calculateDailyPlanValue(metric)}
+                                </TableCell>
+                                <TableCell>
+                                  <Input
+                                    type='number'
+                                    value={metricValues[metric.id] || ''}
+                                    onChange={e => {
+                                      handleMetricValueChange(metric.id, e.target.value);
+                                    }}
+                                    className='w-20'
+                                    disabled={reviewMode}
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                        </React.Fragment>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
             </div>
 
             {/* Notes section */}
-            <div className='grid gap-6'>
+            <div className='grid gap-4 sm:gap-6'>
               <label className='text-sm font-medium'>Notes</label>
               <div className='grid gap-4'>
                 <div>
@@ -2247,8 +2269,11 @@ export function Dashboard() {
             </div>
           </div>
 
-          <DialogFooter>
-            <Button onClick={handleNextMissingReport}>
+          <DialogFooter className='flex-col sm:flex-row gap-2 sm:gap-0'>
+            <Button 
+              onClick={handleNextMissingReport}
+              className='w-full sm:w-auto'
+            >
               {currentMissingIndex < missingDates.length - 1
                 ? 'Save & Next'
                 : 'Complete'}
@@ -2259,18 +2284,18 @@ export function Dashboard() {
 
       {/* Add the Delete Confirmation Dialog */}
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className='max-w-[90vw] sm:max-w-[425px]'>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Report</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete this report? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogFooter className='flex-col sm:flex-row gap-2 sm:gap-0'>
+            <AlertDialogCancel className='w-full sm:w-auto mt-2 sm:mt-0'>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDeleteReport}
-              className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+              className='bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full sm:w-auto'
             >
               Delete
             </AlertDialogAction>
@@ -2280,7 +2305,7 @@ export function Dashboard() {
       
       {/* Keep the existing Alert Dialog */}
       <AlertDialog open={alertDialogOpen} onOpenChange={setAlertDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className='max-w-[90vw] sm:max-w-[425px]'>
           <AlertDialogHeader>
             <AlertDialogTitle>{alertDialogTitle}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -2288,7 +2313,7 @@ export function Dashboard() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction>OK</AlertDialogAction>
+            <AlertDialogAction className='w-full sm:w-auto'>OK</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
