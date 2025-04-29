@@ -46,7 +46,7 @@ import {
             }
           }
         }
-        return metricId; // Якщо назва не знайдена, повертаємо сам id
+        return null; 
       };
 
     
@@ -136,6 +136,11 @@ import {
         },
       },
     };
+
+    const validMetrics = metrics.filter(metricId => {
+      const name = getMetricNameById(metricId);
+      return name !== null && name.trim() !== ''; 
+    });
   
     return (
       <div className="p-6 bg-card text-card-foreground rounded-lg shadow-md">
@@ -153,7 +158,7 @@ import {
           style={{ backgroundColor: `hsl(${backgroundColor})` }}
         >
           <option value="" style={{ color: `hsl(${foregroundColor})` }}>Select a metric</option>
-          {metrics.map(metricId => (
+          {validMetrics.map(metricId => (
             <option key={metricId} value={metricId}>
                {getMetricNameById(metricId)}
             </option>
