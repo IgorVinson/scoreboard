@@ -144,34 +144,35 @@ import {
   
     return (
       <div className="p-6 bg-card text-card-foreground rounded-lg shadow-md">
-      <h3 className="text-lg font-semibold mb-4">Performance Chart</h3>
-       {/* Випадаючий список для вибору метрики */}
-       <div className="mb-4">
-        <label htmlFor="metric-select" className="block text-sm font-medium text-gray-700" style={{ color: `hsl(${foregroundColor})` }}>
-          Select Metric:
-        </label>
-        <select
-          id="metric-select"
-          value={selectedMetric}
-          onChange={e => setSelectedMetric(e.target.value)}
-          className="mt-1 block w-2/5 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          style={{ backgroundColor: `hsl(${backgroundColor})` }}
-        >
-          <option value="" style={{ color: `hsl(${foregroundColor})` }}>Select a metric</option>
-          {validMetrics.map(metricId => (
-            <option key={metricId} value={metricId}>
-               {getMetricNameById(metricId)}
-            </option>
-          ))}
-        </select>
-      </div>
+    <div className="flex items-center justify-between mb-4">
+  {/* Заголовок вирівняний ліворуч */}
+  <h3 className="text-lg font-semibold whitespace-nowrap">Performance Chart</h3>
+
+  {/* Випадаючий список по центру */}
+  <div className="flex-1 flex justify-center">
+    <select
+      id="metric-select"
+      value={selectedMetric}
+      onChange={e => setSelectedMetric(e.target.value)}
+      className="block rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm font-bold"
+      style={{ backgroundColor: `hsl(${backgroundColor})` }}
+    >
+      <option value="" style={{ color: `hsl(${foregroundColor})` }}>Select a metric</option>
+      {validMetrics.map(metricId => (
+        <option key={metricId} value={metricId}>
+          {getMetricNameById(metricId)}
+        </option>
+      ))}
+    </select>
+  </div>
+</div>
 
       {/* Графік */}
       <div style={{ overflowX: 'auto', width: '100%' }}>
       <div style={{ minWidth: '300px', height: '300px' }}>
         <Line data={data} options={options} />
       </div>
-</div>
+      </div>
     </div>
     );
   };
