@@ -52,7 +52,7 @@ import {
     
 
       const [selectedMetric, setSelectedMetric] = useState('');
-
+      const [isCollapsed, setIsCollapsed] = useState(false);
       const metrics = Array.from(
         new Set(
           reports.flatMap(report => Object.keys(report.metrics_data))
@@ -144,37 +144,50 @@ import {
   
     return (
       <div className="p-6 bg-card text-card-foreground rounded-lg shadow-md">
-    <div className="flex items-center justify-between mb-4">
-  {/* Заголовок вирівняний ліворуч */}
-  <h3 className="text-lg font-semibold whitespace-nowrap">Performance Chart</h3>
-
-  {/* Випадаючий список по центру */}
-  <div className="flex-1 flex justify-center">
-    <select
-      id="metric-select"
-      value={selectedMetric}
-      onChange={e => setSelectedMetric(e.target.value)}
-      className="block rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm font-bold"
-      style={{ backgroundColor: `hsl(${backgroundColor})` }}
-    >
-      <option value="" style={{ color: `hsl(${foregroundColor})` }}>Select a metric</option>
-      {validMetrics.map(metricId => (
-        <option key={metricId} value={metricId}>
-          {getMetricNameById(metricId)}
-        </option>
-      ))}
-    </select>
-  </div>
-</div>
-
-      {/* Графік */}
-      <div style={{ overflowX: 'auto', width: '100%' }}>
-      <div style={{ minWidth: '300px', height: '300px' }}>
-        <Line data={data} options={options} />
+      <button
+  onClick={() => setIsCollapsed(!isCollapsed)}
+  className="w-full px-4 py-1 rounded-md shadow-sm text-center font-semibold flex items-center justify-center gap-2 mb-4"
+  style={{
+    backgroundColor: `hsl(${backgroundColor})`,
+    color: `hsl(${foregroundColor})`,
+  }}
+>
+  Performance Chart
+  <span>{isCollapsed ? '▲' : '▼'}</span>
+</button>
+        {!isCollapsed && (
+          <>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex-1 flex justify-center">
+                <select
+                  id="metric-select"
+                  value={selectedMetric}
+                  onChange={e => setSelectedMetric(e.target.value)}
+                  className="block rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm font-bold"
+                  style={{ backgroundColor: `hsl(${backgroundColor})` }}
+                >
+<option value="" className="text-lx" style={{ color: `hsl(${foregroundColor})` }}>Select a metric</option>
+                  {validMetrics.map(metricId => (
+                    <option key={metricId} value={metricId}>
+                      {getMetricNameById(metricId)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+    
+            {/* Графік */}
+            <div style={{ overflowX: 'auto', width: '100%' }}>
+              <div style={{ minWidth: '300px', height: '300px' }}>
+                <Line data={data} options={options} />
+              </div>
+            </div>
+          </>
+        )}
       </div>
-      </div>
-    </div>
     );
   };
+
+  
   
   export default ChartBlock;
