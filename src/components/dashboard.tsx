@@ -1486,156 +1486,153 @@ export function Dashboard() {
               </div>
             </Card>
           </div>
+          
+          {/* Chart Block - Moved inside the main container */}
+          <ChartBlock reports={userReports} objectives={objectives}/>
 
-
-          {/* Chart Block */ }
-           <ChartBlock reports={userReports} objectives={objectives}/>
-
- 
-
-      <main className='container px-2 sm:px-4 py-4 sm:py-8'>
-        <div className='flex flex-col gap-4 sm:gap-8'>
-
-          {/* Tabs */}
-          <Card>
-            <Tabs 
-              defaultValue='deep-overview' 
-              className='w-full'
-              value={activeTab}
-              onValueChange={(value) => setActiveTab(value)}
-            >
-              <div className='border-b px-2 sm:px-4 overflow-x-auto'>
-                <TabsList className='my-2 w-full h-auto flex flex-wrap justify-start'>
-                  <TabsTrigger value='deep-overview' className='h-10 px-3 py-2'>Objectives</TabsTrigger>
-                  <TabsTrigger value='reports' className='h-10 px-3 py-2'>Daily Reports</TabsTrigger>
-                  <TabsTrigger value='result-reports' className='h-10 px-3 py-2'>Results</TabsTrigger>
-                </TabsList>
-              </div>
-
-              <TabsContent value='deep-overview' className='p-2 sm:p-6'>
-                <div className='gap-4 sm:gap-6'>
-                  <DeepOverviewTable
-                    objectives={objectives}
-                    onObjectivesChange={handleObjectivesChange}
-                    reports={reports}
-                  />
+          {/* Tabs and Notes - Now nested within the main container */}
+          <div className='flex flex-col gap-4 sm:gap-8'> 
+            {/* Tabs */}
+            <Card>
+              <Tabs 
+                defaultValue='deep-overview' 
+                className='w-full'
+                value={activeTab}
+                onValueChange={(value) => setActiveTab(value)}
+              >
+                <div className='border-b px-2 sm:px-4 overflow-x-auto'>
+                  <TabsList className='my-2 w-full h-auto flex flex-wrap justify-start'>
+                    <TabsTrigger value='deep-overview' className='h-10 px-3 py-2'>Objectives</TabsTrigger>
+                    <TabsTrigger value='reports' className='h-10 px-3 py-2'>Daily Reports</TabsTrigger>
+                    <TabsTrigger value='result-reports' className='h-10 px-3 py-2'>Results</TabsTrigger>
+                  </TabsList>
                 </div>
-              </TabsContent>
 
-              <TabsContent value='reports' className='p-2 sm:p-6 w-'>
-                <div className='space-y-2 sm:space-y-4'>
-                  <div className={scrollableContainerStyles}>
-                    <div className='min-w-[800px]'>
-                      <ReportsTable
-                        reports={userReports}
-                        objectives={objectives}
-                        onDeleteReport={handleDeleteReport}
-                        onEditReport={handleEditReport}
-                        onReviewReport={handleReviewReport}
-                        onToggleReview={handleToggleReview}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value='result-reports' className='p-2 sm:p-6'>
-                <div className='space-y-2 sm:space-y-4'>
-                  <div className='flex justify-between items-center mb-4'>
-                    <Button
-                      variant='outline'
-                      onClick={() => setResultReportDialogOpen(true)}
-                      className='flex items-center gap-2 h-10 px-4'
-                    >
-                      <PlusCircle className='h-4 w-4' />
-                      Generate Report
-                    </Button>
-                  </div>
-                  <div className={scrollableContainerStyles}>
-                    <div className='min-w-[800px]'>
-                      <ReportsTable
-                        reports={processedResultReports}
-                        objectives={objectives}
-                        onDeleteReport={handleDeleteResultReport}
-                        onEditReport={handleEditResultReport}
-                        onReviewReport={handleReviewResultReport}
-                        onToggleReview={handleToggleResultReview}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value='overview' className='p-2 sm:p-6'>
-                <div className='grid gap-4 sm:gap-6'>
-                  <SimpleOverview objectives={objectives} />
-                </div>
-              </TabsContent>
-            </Tabs>
-          </Card>
-
-          {/* Notes Editor */}
-          <Card className=''>
-            <div className='p-4 sm:p-6'>
-              <h3 className='text-base sm:text-lg font-semibold mb-4'>Daily Notes</h3>
-              
-              {isLoadingNotes ? (
-                <div className="flex items-center justify-center p-4 sm:p-8">
-                  <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-primary"></div>
-                  <span className="ml-3">Loading notes...</span>
-                </div>
-              ) : (
-                <>
-                  <div className='grid gap-4 sm:gap-6 md:grid-cols-2'>
-                    <div>
-                      <h4 className='font-medium mb-2 text-sm text-muted-foreground'>
-                        Today's Notes
-                      </h4>
-                      <NotesEditor
-                        id='today-notes'
-                        content={todayNotes}
-                        onChange={handleTodayNotesChange}
-                        placeholder='What did you accomplish today?'
-                      />
-                    </div>
-                    <div className='mt-2 md:mt-0'>
-                      <h4 className='font-medium mb-2 text-sm text-muted-foreground'>
-                        Tomorrow's Plan
-                      </h4>
-                      <NotesEditor
-                        id='tomorrow-notes'
-                        content={tomorrowNotes}
-                        onChange={handleTomorrowNotesChange}
-                        placeholder='What do you plan to work on tomorrow?'
-                      />
-                    </div>
-                  </div>
-                  <div className='mt-4 sm:mt-6'>
-                    <h4 className='font-medium mb-2 text-sm text-muted-foreground'>
-                      General Comments
-                    </h4>
-                    <NotesEditor
-                      id='general-comments'
-                      content={generalComments}
-                      onChange={handleGeneralCommentsChange}
-                      placeholder='Any other thoughts or comments...'
+                <TabsContent value='deep-overview' className='p-2 sm:p-6'>
+                  <div className='gap-4 sm:gap-6'>
+                    <DeepOverviewTable
+                      objectives={objectives}
+                      onObjectivesChange={handleObjectivesChange}
+                      reports={reports}
                     />
                   </div>
-                  <div className='mt-4 sm:mt-6 flex justify-end'>
-                    <Button 
-                      onClick={handleOpenReport}
-                      className='h-10 px-4'
-                    >
-                      <ClipboardList className='h-4 w-4 mr-2' />
-                      Close Day
-                    </Button>
+                </TabsContent>
+
+                <TabsContent value='reports' className='p-2 sm:p-6 w-'>
+                  <div className='space-y-2 sm:space-y-4'>
+                    <div className={scrollableContainerStyles}>
+                      <div className='min-w-[800px]'>
+                        <ReportsTable
+                          reports={userReports}
+                          objectives={objectives}
+                          onDeleteReport={handleDeleteReport}
+                          onEditReport={handleEditReport}
+                          onReviewReport={handleReviewReport}
+                          onToggleReview={handleToggleReview}
+                        />
+                      </div>
+                    </div>
                   </div>
-                </>
-              )}
+                </TabsContent>
+
+                <TabsContent value='result-reports' className='p-2 sm:p-6'>
+                  <div className='space-y-2 sm:space-y-4'>
+                    <div className='flex justify-between items-center mb-4'>
+                      <Button
+                        variant='outline'
+                        onClick={() => setResultReportDialogOpen(true)}
+                        className='flex items-center gap-2 h-10 px-4'
+                      >
+                        <PlusCircle className='h-4 w-4' />
+                        Generate Report
+                      </Button>
+                    </div>
+                    <div className={scrollableContainerStyles}>
+                      <div className='min-w-[800px]'>
+                        <ReportsTable
+                          reports={processedResultReports}
+                          objectives={objectives}
+                          onDeleteReport={handleDeleteResultReport}
+                          onEditReport={handleEditResultReport}
+                          onReviewReport={handleReviewResultReport}
+                          onToggleReview={handleToggleResultReview}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value='overview' className='p-2 sm:p-6'>
+                  <div className='grid gap-4 sm:gap-6'>
+                    <SimpleOverview objectives={objectives} />
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </Card>
+          </div> {/* End of inner flex container */}
+        </div> {/* End of grid gap-8 */}
+      </main> {/* End of main content area */}
+
+      {/* Notes Editor */}
+      <Card className=''>
+        <div className='p-4 sm:p-6'>
+          <h3 className='text-base sm:text-lg font-semibold mb-4'>Daily Notes</h3>
+          
+          {isLoadingNotes ? (
+            <div className="flex items-center justify-center p-4 sm:p-8">
+              <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-primary"></div>
+              <span className="ml-3">Loading notes...</span>
             </div>
-          </Card>
+          ) : (
+            <>
+              <div className='grid gap-4 sm:gap-6 md:grid-cols-2'>
+                <div>
+                  <h4 className='font-medium mb-2 text-sm text-muted-foreground'>
+                    Today's Notes
+                  </h4>
+                  <NotesEditor
+                    id='today-notes'
+                    content={todayNotes}
+                    onChange={handleTodayNotesChange}
+                    placeholder='What did you accomplish today?'
+                  />
+                </div>
+                <div className='mt-2 md:mt-0'>
+                  <h4 className='font-medium mb-2 text-sm text-muted-foreground'>
+                    Tomorrow's Plan
+                  </h4>
+                  <NotesEditor
+                    id='tomorrow-notes'
+                    content={tomorrowNotes}
+                    onChange={handleTomorrowNotesChange}
+                    placeholder='What do you plan to work on tomorrow?'
+                  />
+                </div>
+              </div>
+              <div className='mt-4 sm:mt-6'>
+                <h4 className='font-medium mb-2 text-sm text-muted-foreground'>
+                  General Comments
+                </h4>
+                <NotesEditor
+                  id='general-comments'
+                  content={generalComments}
+                  onChange={handleGeneralCommentsChange}
+                  placeholder='Any other thoughts or comments...'
+                />
+              </div>
+              <div className='mt-4 sm:mt-6 flex justify-end'>
+                <Button 
+                  onClick={handleOpenReport}
+                  className='h-10 px-4'
+                >
+                  <ClipboardList className='h-4 w-4 mr-2' />
+                  Close Day
+                </Button>
+              </div>
+            </>
+          )}
         </div>
-      </main>
+      </Card>
 
       {/* Add the Report Dialog */}
       <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
@@ -2320,3 +2317,4 @@ export function Dashboard() {
     </div>
   );
 }
+
