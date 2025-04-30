@@ -2078,61 +2078,63 @@ export function DeepOverviewTable({
                           </div>
                           
                           {metricPlans[metric.id]?.selected && (
-                            <div className='pl-6 space-y-3'>
-                              <div>
-                                <label className='text-xs text-muted-foreground mb-1 block'>
-                                  Plan Value
-                                </label>
-                                <Input
-                                  type='number'
-                                  placeholder='Enter plan target value'
-                                  value={metricPlans[metric.id]?.value !== undefined ? metricPlans[metric.id].value : ''}
-                                  onChange={(e) => handleMetricPlanValueChange(metric.id, e.target.value)}
-                                  className='w-full'
-                                />
-                              </div>
-                              
-                              <div>
-                                <label className='text-xs text-muted-foreground mb-1 block'>
-                                  Period
-                                </label>
-                                <div className='flex gap-2'>
-                                  <Button
-                                    size='sm'
-                                    variant={
-                                      metricPlans[metric.id]?.period ===
-                                      'until_week_end'
-                                        ? 'default'
-                                        : 'outline'
-                                    }
-                                    className='flex-1 text-xs'
-                                    onClick={() =>
-                                      handleMetricPeriodChange(
-                                        metric.id,
+                            <div className='pl-6 space-y-2'>
+                              <div className='flex items-center gap-4'>
+                                <div className='flex-1'>
+                                  <label className='text-xs text-muted-foreground mb-1 block'>
+                                    Plan Value
+                                  </label>
+                                  <Input
+                                    type='number'
+                                    placeholder='Enter value'
+                                    value={metricPlans[metric.id]?.value !== undefined ? metricPlans[metric.id].value : ''}
+                                    onChange={(e) => handleMetricPlanValueChange(metric.id, e.target.value)}
+                                    className='w-full'
+                                  />
+                                </div>
+                                
+                                <div className='flex-1'>
+                                  <label className='text-xs text-muted-foreground mb-1 block'>
+                                    Period
+                                  </label>
+                                  <div className='flex gap-1'>
+                                    <Button
+                                      size='sm'
+                                      variant={
+                                        metricPlans[metric.id]?.period ===
                                         'until_week_end'
-                                      )
-                                    }
-                                  >
-                                    Weekly (5 days)
-                                  </Button>
-                                  <Button
-                                    size='sm'
-                                    variant={
-                                      metricPlans[metric.id]?.period ===
-                                      'until_month_end'
-                                        ? 'default'
-                                        : 'outline'
-                                    }
-                                    className='flex-1 text-xs'
-                                    onClick={() =>
-                                      handleMetricPeriodChange(
-                                        metric.id,
+                                          ? 'default'
+                                          : 'outline'
+                                      }
+                                      className='flex-1 text-xs'
+                                      onClick={() =>
+                                        handleMetricPeriodChange(
+                                          metric.id,
+                                          'until_week_end'
+                                        )
+                                      }
+                                    >
+                                      Weekly (5d)
+                                    </Button>
+                                    <Button
+                                      size='sm'
+                                      variant={
+                                        metricPlans[metric.id]?.period ===
                                         'until_month_end'
-                                      )
-                                    }
-                                  >
-                                    Monthly (22 days)
-                                  </Button>
+                                          ? 'default'
+                                          : 'outline'
+                                      }
+                                      className='flex-1 text-xs'
+                                      onClick={() =>
+                                        handleMetricPeriodChange(
+                                          metric.id,
+                                          'until_month_end'
+                                        )
+                                      }
+                                    >
+                                      Monthly (22d)
+                                    </Button>
+                                  </div>
                                 </div>
                               </div>
                             </div>
