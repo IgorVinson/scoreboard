@@ -356,15 +356,21 @@ export function Dashboard() {
     
     const planValue = metric.plan;
     
-    // If it's a weekly plan, always divide by 5 working days
-    if (metric.planPeriod !== 'until_month_end') {
-      return String((planValue / 5).toFixed(2));
+    // Use standard work day values for consistent calculations
+    const workDaysInMonth = 22; // Standard work days in a month
+    const workDaysInWeek = 5;   // Standard work days in a week
+    
+    // Calculate daily value based on plan period
+    if (metric.planPeriod === 'until_week_end') {
+      // Weekly plan: divide by work days in a week
+      return String((planValue / workDaysInWeek).toFixed(2));
+    } else if (metric.planPeriod === 'until_month_end') {
+      // Monthly plan: divide by work days in a month
+      return String((planValue / workDaysInMonth).toFixed(2));
     }
     
-    // For monthly plans, get the number of days in the current month
-    const today = new Date();
-    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-    return String((planValue / daysInMonth).toFixed(2));
+    // If no period specified, return as is
+    return String(planValue);
   };
 
   
@@ -1658,7 +1664,9 @@ export function Dashboard() {
                                   {metric.name}
                                 </TableCell>
                                 <TableCell>
-                                  {calculateDailyPlanValue(metric)}
+                                  {metric.plan !== undefined && metric.planPeriod !== undefined 
+                                    ? calculateDailyPlanValue(metric)
+                                    : '-'}
                                 </TableCell>
                                 <TableCell>
                                   <Input
@@ -2159,7 +2167,9 @@ export function Dashboard() {
                                   {metric.name}
                                 </TableCell>
                                 <TableCell>
-                                  {calculateDailyPlanValue(metric)}
+                                  {metric.plan !== undefined && metric.planPeriod !== undefined 
+                                    ? calculateDailyPlanValue(metric)
+                                    : '-'}
                                 </TableCell>
                                 <TableCell>
                                   <Input
@@ -2168,7 +2178,7 @@ export function Dashboard() {
                                     onChange={e => {
                                       handleMetricValueChange(metric.id, e.target.value);
                                     }}
-                                    className='w-20'
+                                    className='w-20 h-9'
                                     disabled={reviewMode}
                                   />
                                 </TableCell>
