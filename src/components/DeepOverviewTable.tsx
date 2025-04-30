@@ -337,9 +337,9 @@ export function DeepOverviewTable({
             // Use batch updates for cache instead of separate invalidations
             queryClient.invalidateQueries({ 
               predicate: (query) => {
-                return query.queryKey[0] === 'metrics' || 
+                return Boolean(query.queryKey[0] === 'metrics' || 
                        (query.queryKey[0] === 'plans' && user?.id && 
-                        query.queryKey[1] === 'by-user' && query.queryKey[2] === user.id);
+                        query.queryKey[1] === 'by-user' && query.queryKey[2] === user.id));
               }
             });
             
@@ -431,9 +431,9 @@ export function DeepOverviewTable({
             // Batch update for caches
             queryClient.invalidateQueries({ 
               predicate: (query) => {
-                return query.queryKey[0] === 'metrics' || 
+                return Boolean(query.queryKey[0] === 'metrics' || 
                        (query.queryKey[0] === 'plans' && user?.id && 
-                        query.queryKey[1] === 'by-user' && query.queryKey[2] === user.id);
+                        query.queryKey[1] === 'by-user' && query.queryKey[2] === user.id));
               }
             });
             
@@ -743,7 +743,7 @@ export function DeepOverviewTable({
 
     // Calculate deviation based on projected final value
     const deviation = ((projectedFinalValue - metric.plan) / metric.plan) * 100;
-    return Math.round(deviation * 10) / 10; // Round to 1 decimal place
+    return Math.round(deviation); // Round to whole number
   };
 
   // Get badge variant based on deviation
@@ -1153,12 +1153,27 @@ export function DeepOverviewTable({
         
         return metricExists;
       })
-      .map(([metricId, data]) => ({
-        metricId,
-        planValue: data.value as number,
-        period: data.period,
-        planId: data.planId, // Track existing plan ID for updates
-      }));
+      .map(([metricId, data]) => {
+        // Find the metric name for better logging
+        let metricName = "unknown";
+        for (const objective of objectives) {
+          const metric = objective.metrics.find(m => m.id === metricId);
+          if (metric) {
+            metricName = metric.name;
+            break;
+          }
+        }
+        
+        console.log(`Setting plan for metric "${metricName}": value=${data.value}, period=${data.period}`);
+        
+        return {
+          metricId,
+          metricName,
+          planValue: data.value as number,
+          period: data.period,
+          planId: data.planId, // Track existing plan ID for updates
+        };
+      });
 
     // Check if any plans were skipped
     const skippedCount = Object.entries(metricPlans)
@@ -1210,17 +1225,23 @@ export function DeepOverviewTable({
     // Calculate end date based on period
     const getEndDate = (period: 'until_week_end' | 'until_month_end') => {
       const now = new Date();
+      console.log(`Calculating end date for period: ${period}`);
+      
       if (period === 'until_week_end') {
         // End of current week (Friday)
         const dayOfWeek = now.getDay(); // 0 = Sunday, 6 = Saturday
         const daysUntilFriday = dayOfWeek <= 5 ? 5 - dayOfWeek : (5 + 7 - dayOfWeek); // Ensure Friday of current week
         const friday = new Date(now);
         friday.setDate(now.getDate() + daysUntilFriday);
-        return friday.toISOString().split('T')[0];
+        const fridayStr = friday.toISOString().split('T')[0];
+        console.log(`Week end date: ${fridayStr} (${daysUntilFriday} days from now, ${friday.toDateString()})`);
+        return fridayStr;
       } else {
         // End of current month
         const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-        return lastDay.toISOString().split('T')[0];
+        const lastDayStr = lastDay.toISOString().split('T')[0];
+        console.log(`Month end date: ${lastDayStr} (day ${lastDay.getDate()} of month, ${lastDay.toDateString()})`);
+        return lastDayStr;
       }
     };
 
@@ -1258,7 +1279,7 @@ export function DeepOverviewTable({
       // Batch update the cache instead of multiple invalidations
       queryClient.invalidateQueries({ 
         predicate: (query) => {
-          return query.queryKey[0] === 'plans' || query.queryKey[0] === 'metrics';
+          return Boolean(query.queryKey[0] === 'plans' || query.queryKey[0] === 'metrics');
         }
       });
     } catch (error) {
@@ -1305,16 +1326,16 @@ export function DeepOverviewTable({
   const calculateDailyPlanValue = (metric: UIMetric) => {
     if (!metric.plan || !metric.planPeriod) return '-';
 
-    const workDaysInMonth = 22; // Assumption for work days in a month
-    const workDaysInWeek = 5; // Assumption for work days in a week
+    const workDaysInMonth = 22; // Standard assumption for work days in a month
+    const workDaysInWeek = 5; // Standard working days in a week
 
     if (metric.planPeriod === 'until_week_end') {
-      return (metric.plan / workDaysInWeek).toFixed(2);
+      return Math.round(metric.plan / workDaysInWeek).toString();
     } else if (metric.planPeriod === 'until_month_end') {
-      return (metric.plan / workDaysInMonth).toFixed(2);
+      return Math.round(metric.plan / workDaysInMonth).toString();
     }
 
-    return metric.plan;
+    return String(Math.round(metric.plan));
   };
 
   // Fix the getAccumulatedActualValue function to properly handle date comparisons
@@ -1436,10 +1457,24 @@ export function DeepOverviewTable({
           try {
             const endDate = new Date(plan.end_date);
             const endOfMonth = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0);
-            const isEndOfMonth = endDate.getDate() === endOfMonth.getDate();
+            
+            // Debug logs for date comparison
+            console.log(`Plan ${plan.id} end date: ${plan.end_date}`);
+            console.log(`End date: ${endDate.toISOString()}`);
+            console.log(`End of month: ${endOfMonth.toISOString()}`);
+            console.log(`End date day: ${endDate.getDate()}, End of month day: ${endOfMonth.getDate()}`);
+            
+            // Check if the date is within the last 3 days of the month
+            // This makes the check more robust for cases where the exact last day might vary
+            const daysFromEndOfMonth = endOfMonth.getDate() - endDate.getDate();
+            const isEndOfMonth = daysFromEndOfMonth <= 2; // Within 2 days of month end
+            console.log(`Days from end of month: ${daysFromEndOfMonth}, Is end of month?: ${isEndOfMonth}`);
+            
             if (isEndOfMonth) {
               period = 'until_month_end';
             }
+            
+            console.log(`Determined period for metric ${metric.name}: ${period}`);
           } catch (e) {
             console.error('Error parsing plan date:', e);
           }
@@ -1491,8 +1526,8 @@ export function DeepOverviewTable({
     // Use batched cache invalidation
     queryClient.invalidateQueries({ 
       predicate: (query) => {
-        return query.queryKey[0] === 'metrics' || 
-               query.queryKey[0] === 'plans';
+        return Boolean(query.queryKey[0] === 'metrics' || 
+               query.queryKey[0] === 'plans');
       }
     });
     
@@ -1711,40 +1746,66 @@ export function DeepOverviewTable({
                               ? (() => {
                                   // Calculate the appropriate value based on the view period
                                   if (dateRange === 'day') {
-                                    // For daily view, show daily value
-                                    if (metric.planPeriod === 'until_week_end') {
-                                      return (metric.plan / 5).toFixed(2);
-                                    } else if (
-                                      metric.planPeriod === 'until_month_end'
-                                    ) {
-                                      return (metric.plan / 22).toFixed(2);
-                                    }
+                                    // For daily view, show daily value based on plan period
+                                    return (
+                                      <>
+                                        {calculateDailyPlanValue(metric)}
+                                        <span className='text-xs text-muted-foreground ml-1'>
+                                          (daily)
+                                        </span>
+                                      </>
+                                    );
                                   } else if (dateRange === 'week') {
-                                    // For weekly view, show weekly value (daily * 5)
-                                    if (metric.planPeriod === 'until_month_end') {
-                                      // Convert monthly to weekly: (monthly / 22) * 5
-                                      return ((metric.plan / 22) * 5).toFixed(2);
-                                    } else if (
-                                      metric.planPeriod === 'until_week_end'
-                                    ) {
-                                      // Already weekly
-                                      return metric.plan;
+                                    // For weekly view
+                                    if (metric.planPeriod === 'until_week_end') {
+                                      // If it's a weekly plan, show as is
+                                      return (
+                                        <>
+                                          {Math.round(metric.plan)}
+                                          <span className='text-xs text-muted-foreground ml-1'>
+                                            (weekly plan)
+                                          </span>
+                                        </>
+                                      );
+                                    } else if (metric.planPeriod === 'until_month_end') {
+                                      // If it's a monthly plan, convert to weekly (monthly / (22/5))
+                                      return (
+                                        <>
+                                          {Math.round((metric.plan * 5) / 22)}
+                                          <span className='text-xs text-muted-foreground ml-1'>
+                                            (from {Math.round(metric.plan)} monthly)
+                                          </span>
+                                        </>
+                                      );
+                                    }
+                                  } else if (dateRange === 'month') {
+                                    // For monthly view
+                                    if (metric.planPeriod === 'until_week_end') {
+                                      // If it's a weekly plan, convert to monthly (weekly * (22/5))
+                                      return (
+                                        <>
+                                          {Math.round((metric.plan * 22) / 5)}
+                                          <span className='text-xs text-muted-foreground ml-1'>
+                                            (from {Math.round(metric.plan)} weekly)
+                                          </span>
+                                        </>
+                                      );
+                                    } else if (metric.planPeriod === 'until_month_end') {
+                                      // If it's a monthly plan, show as is
+                                      return (
+                                        <>
+                                          {Math.round(metric.plan)}
+                                          <span className='text-xs text-muted-foreground ml-1'>
+                                            (monthly plan)
+                                          </span>
+                                        </>
+                                      );
                                     }
                                   }
-                                  // For monthly view or default, show the original plan value
-                                  return metric.plan;
+                                  // Default to original plan value
+                                  return Math.round(metric.plan);
                                 })()
                               : '-'}
-                            {metric.planPeriod && (
-                              <span className='text-xs text-muted-foreground ml-1'>
-                                (
-                                {getPlanPeriodDisplayName(
-                                  metric.planPeriod,
-                                  dateRange
-                                )}
-                                )
-                              </span>
-                            )}
                           </TableCell>
                           <TableCell className='text-right'>
                             {(() => {
@@ -1763,7 +1824,7 @@ export function DeepOverviewTable({
                                 variant={getDeviationBadgeVariant(deviation)}
                               >
                                 {deviation > 0 ? '+' : ''}
-                                {deviation}%
+                                {Math.round(deviation)}%
                               </Badge>
                             ) : (
                               '-'
@@ -2002,89 +2063,78 @@ export function DeepOverviewTable({
                             <div className='flex items-center gap-2'>
                               <Checkbox
                                 id={`metric-${metric.id}`}
-                                checked={
-                                  metricPlans[metric.id]?.selected || false
-                                }
-                                onCheckedChange={checked =>
+                                checked={metricPlans[metric.id]?.selected || false}
+                                onCheckedChange={(checked) => 
                                   handleMetricSelectionChange(
-                                    metric.id,
+                                    metric.id, 
                                     checked === true
                                   )
                                 }
                               />
-                              <label
-                                htmlFor={`metric-${metric.id}`}
-                                className='text-sm'
-                              >
+                              <span className='flex items-center'>
                                 {metric.name}
-                              </label>
+                              </span>
                             </div>
                           </div>
-
+                          
                           {metricPlans[metric.id]?.selected && (
-                            <div className='pl-6 grid grid-cols-2 gap-4'>
-                              <div>
-                                <label className='text-xs text-muted-foreground mb-1 block'>
-                                  Plan Value
-                                </label>
-                                <Input
-                                  type='number'
-                                  placeholder='Plan value'
-                                  className='w-full'
-                                  value={
-                                    metricPlans[metric.id]?.value !== undefined
-                                      ? metricPlans[metric.id].value
-                                      : ''
-                                  }
-                                  onChange={e =>
-                                    handleMetricPlanValueChange(
-                                      metric.id,
-                                      e.target.value
-                                    )
-                                  }
-                                />
-                              </div>
-                              <div>
-                                <label className='text-xs text-muted-foreground mb-1 block'>
-                                  Period
-                                </label>
-                                <div className='flex gap-2'>
-                                  <Button
-                                    size='sm'
-                                    variant={
-                                      metricPlans[metric.id]?.period ===
-                                      'until_week_end'
-                                        ? 'default'
-                                        : 'outline'
-                                    }
-                                    className='flex-1 text-xs'
-                                    onClick={() =>
-                                      handleMetricPeriodChange(
-                                        metric.id,
+                            <div className='pl-6 space-y-2'>
+                              <div className='flex items-center gap-4'>
+                                <div className='flex-1'>
+                                  <label className='text-xs text-muted-foreground mb-1 block'>
+                                    Plan Value
+                                  </label>
+                                  <Input
+                                    type='number'
+                                    placeholder='Enter value'
+                                    value={metricPlans[metric.id]?.value !== undefined ? metricPlans[metric.id].value : ''}
+                                    onChange={(e) => handleMetricPlanValueChange(metric.id, e.target.value)}
+                                    className='w-full'
+                                  />
+                                </div>
+                                
+                                <div className='flex-1'>
+                                  <label className='text-xs text-muted-foreground mb-1 block'>
+                                    Period
+                                  </label>
+                                  <div className='flex gap-1'>
+                                    <Button
+                                      size='sm'
+                                      variant={
+                                        metricPlans[metric.id]?.period ===
                                         'until_week_end'
-                                      )
-                                    }
-                                  >
-                                    Weekly
-                                  </Button>
-                                  <Button
-                                    size='sm'
-                                    variant={
-                                      metricPlans[metric.id]?.period ===
-                                      'until_month_end'
-                                        ? 'default'
-                                        : 'outline'
-                                    }
-                                    className='flex-1 text-xs'
-                                    onClick={() =>
-                                      handleMetricPeriodChange(
-                                        metric.id,
+                                          ? 'default'
+                                          : 'outline'
+                                      }
+                                      className='flex-1 text-xs'
+                                      onClick={() =>
+                                        handleMetricPeriodChange(
+                                          metric.id,
+                                          'until_week_end'
+                                        )
+                                      }
+                                    >
+                                      Weekly (5d)
+                                    </Button>
+                                    <Button
+                                      size='sm'
+                                      variant={
+                                        metricPlans[metric.id]?.period ===
                                         'until_month_end'
-                                      )
-                                    }
-                                  >
-                                    Monthly
-                                  </Button>
+                                          ? 'default'
+                                          : 'outline'
+                                      }
+                                      className='flex-1 text-xs'
+                                      onClick={() =>
+                                        handleMetricPeriodChange(
+                                          metric.id,
+                                          'until_month_end'
+                                        )
+                                      }
+                                    >
+                                      Monthly (22d)
+                                    </Button>
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -2097,12 +2147,14 @@ export function DeepOverviewTable({
               </div>
             </div>
           </div>
-
           <DialogFooter>
-            <Button variant='outline' onClick={() => setPlansDialogOpen(false)}>
+            <Button
+              variant='outline'
+              onClick={() => setPlansDialogOpen(false)}
+            >
               Cancel
             </Button>
-            <Button onClick={handleSavePlans}>Save Plans</Button>
+            <Button onClick={handleSavePlans}>Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -79,13 +79,10 @@ import {
 import { 
   useCreateMetric, 
   useUpdateMetric, 
-  useDeleteMetric,
-  useDailyReports,
   useDailyReportsByUser,
-  useDailyReportByUserAndDate,
   useCreateDailyReport,
   useUpdateDailyReport,
-  useDeleteDailyReport
+  useDeleteDailyReport,
 } from '@/queries';
 import type { UIObjective } from '@/components/DeepOverviewTable';
 import type { DailyReport } from '@/lib/types';
@@ -356,8 +353,26 @@ export function Dashboard() {
   // Helper functions
   const calculateDailyPlanValue = (metric: any) => {
     if (!metric.plan) return '0';
-    return String(metric.plan);
+    
+    const planValue = metric.plan;
+    
+    // Use standard work day values for consistent calculations
+    const workDaysInMonth = 22; // Standard work days in a month
+    const workDaysInWeek = 5;   // Standard work days in a week
+    
+    // Calculate daily value based on plan period
+    if (metric.planPeriod === 'until_week_end') {
+      // Weekly plan: divide by work days in a week
+      return String((planValue / workDaysInWeek).toFixed(2));
+    } else if (metric.planPeriod === 'until_month_end') {
+      // Monthly plan: divide by work days in a month
+      return String((planValue / workDaysInMonth).toFixed(2));
+    }
+    
+    // If no period specified, return as is
+    return String(planValue);
   };
+
   
   // Add alert dialog state
   const [alertDialogOpen, setAlertDialogOpen] = useState(false);
@@ -1649,7 +1664,9 @@ export function Dashboard() {
                                   {metric.name}
                                 </TableCell>
                                 <TableCell>
-                                  {calculateDailyPlanValue(metric)}
+                                  {metric.plan !== undefined && metric.planPeriod !== undefined 
+                                    ? calculateDailyPlanValue(metric)
+                                    : '-'}
                                 </TableCell>
                                 <TableCell>
                                   <Input
@@ -2150,7 +2167,9 @@ export function Dashboard() {
                                   {metric.name}
                                 </TableCell>
                                 <TableCell>
-                                  {calculateDailyPlanValue(metric)}
+                                  {metric.plan !== undefined && metric.planPeriod !== undefined 
+                                    ? calculateDailyPlanValue(metric)
+                                    : '-'}
                                 </TableCell>
                                 <TableCell>
                                   <Input
@@ -2159,7 +2178,7 @@ export function Dashboard() {
                                     onChange={e => {
                                       handleMetricValueChange(metric.id, e.target.value);
                                     }}
-                                    className='w-20'
+                                    className='w-20 h-9'
                                     disabled={reviewMode}
                                   />
                                 </TableCell>
