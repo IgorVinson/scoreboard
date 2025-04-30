@@ -79,13 +79,10 @@ import {
 import { 
   useCreateMetric, 
   useUpdateMetric, 
-  useDeleteMetric,
-  useDailyReports,
   useDailyReportsByUser,
-  useDailyReportByUserAndDate,
   useCreateDailyReport,
   useUpdateDailyReport,
-  useDeleteDailyReport
+  useDeleteDailyReport,
 } from '@/queries';
 import type { UIObjective } from '@/components/DeepOverviewTable';
 import type { DailyReport } from '@/lib/types';
@@ -356,8 +353,20 @@ export function Dashboard() {
   // Helper functions
   const calculateDailyPlanValue = (metric: any) => {
     if (!metric.plan) return '0';
-    return String(metric.plan);
+    
+    const planValue = metric.plan;
+    
+    // If it's a weekly plan, always divide by 5 working days
+    if (metric.planPeriod !== 'until_month_end') {
+      return String((planValue / 5).toFixed(2));
+    }
+    
+    // For monthly plans, get the number of days in the current month
+    const today = new Date();
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    return String((planValue / daysInMonth).toFixed(2));
   };
+
   
   // Add alert dialog state
   const [alertDialogOpen, setAlertDialogOpen] = useState(false);
