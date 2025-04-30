@@ -743,7 +743,7 @@ export function DeepOverviewTable({
 
     // Calculate deviation based on projected final value
     const deviation = ((projectedFinalValue - metric.plan) / metric.plan) * 100;
-    return Math.round(deviation * 10) / 10; // Round to 1 decimal place
+    return Math.round(deviation); // Round to whole number
   };
 
   // Get badge variant based on deviation
@@ -1330,12 +1330,12 @@ export function DeepOverviewTable({
     const workDaysInWeek = 5; // Standard working days in a week
 
     if (metric.planPeriod === 'until_week_end') {
-      return (metric.plan / workDaysInWeek).toFixed(2);
+      return Math.round(metric.plan / workDaysInWeek).toString();
     } else if (metric.planPeriod === 'until_month_end') {
-      return (metric.plan / workDaysInMonth).toFixed(2);
+      return Math.round(metric.plan / workDaysInMonth).toString();
     }
 
-    return String(metric.plan);
+    return String(Math.round(metric.plan));
   };
 
   // Fix the getAccumulatedActualValue function to properly handle date comparisons
@@ -1761,7 +1761,7 @@ export function DeepOverviewTable({
                                       // If it's a weekly plan, show as is
                                       return (
                                         <>
-                                          {metric.plan.toFixed(2)}
+                                          {Math.round(metric.plan)}
                                           <span className='text-xs text-muted-foreground ml-1'>
                                             (weekly plan)
                                           </span>
@@ -1771,9 +1771,9 @@ export function DeepOverviewTable({
                                       // If it's a monthly plan, convert to weekly (monthly / (22/5))
                                       return (
                                         <>
-                                          {((metric.plan * 5) / 22).toFixed(2)}
+                                          {Math.round((metric.plan * 5) / 22)}
                                           <span className='text-xs text-muted-foreground ml-1'>
-                                            (from {metric.plan.toFixed(2)} monthly)
+                                            (from {Math.round(metric.plan)} monthly)
                                           </span>
                                         </>
                                       );
@@ -1784,9 +1784,9 @@ export function DeepOverviewTable({
                                       // If it's a weekly plan, convert to monthly (weekly * (22/5))
                                       return (
                                         <>
-                                          {((metric.plan * 22) / 5).toFixed(2)}
+                                          {Math.round((metric.plan * 22) / 5)}
                                           <span className='text-xs text-muted-foreground ml-1'>
-                                            (from {metric.plan.toFixed(2)} weekly)
+                                            (from {Math.round(metric.plan)} weekly)
                                           </span>
                                         </>
                                       );
@@ -1794,7 +1794,7 @@ export function DeepOverviewTable({
                                       // If it's a monthly plan, show as is
                                       return (
                                         <>
-                                          {metric.plan.toFixed(2)}
+                                          {Math.round(metric.plan)}
                                           <span className='text-xs text-muted-foreground ml-1'>
                                             (monthly plan)
                                           </span>
@@ -1803,7 +1803,7 @@ export function DeepOverviewTable({
                                     }
                                   }
                                   // Default to original plan value
-                                  return metric.plan.toFixed(2);
+                                  return Math.round(metric.plan);
                                 })()
                               : '-'}
                           </TableCell>
@@ -1824,7 +1824,7 @@ export function DeepOverviewTable({
                                 variant={getDeviationBadgeVariant(deviation)}
                               >
                                 {deviation > 0 ? '+' : ''}
-                                {deviation}%
+                                {Math.round(deviation)}%
                               </Badge>
                             ) : (
                               '-'
