@@ -1227,20 +1227,37 @@ export function DeepOverviewTable({
       const now = new Date();
       console.log(`Calculating end date for period: ${period}`);
       
+      // Make sure we're working with a fresh date (start of day)
+      const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
       if (period === 'until_week_end') {
         // End of current week (Friday)
-        const dayOfWeek = now.getDay(); // 0 = Sunday, 6 = Saturday
-        const daysUntilFriday = dayOfWeek <= 5 ? 5 - dayOfWeek : (5 + 7 - dayOfWeek); // Ensure Friday of current week
-        const friday = new Date(now);
-        friday.setDate(now.getDate() + daysUntilFriday);
+        const dayOfWeek = startDate.getDay(); // 0 = Sunday, 6 = Saturday
+        
+        // Calculate days until Friday, ensure it's a future date
+        let daysUntilFriday = dayOfWeek <= 5 ? 5 - dayOfWeek : (5 + 7 - dayOfWeek);
+        
+        // If today is Friday, set the end date to next Friday
+        if (daysUntilFriday === 0) {
+          daysUntilFriday = 7;
+        }
+        
+        const friday = new Date(startDate);
+        friday.setDate(startDate.getDate() + daysUntilFriday);
         const fridayStr = friday.toISOString().split('T')[0];
-        console.log(`Week end date: ${fridayStr} (${daysUntilFriday} days from now, ${friday.toDateString()})`);
+        
+        console.log(`Start date: ${today}, Week end date: ${fridayStr} (${daysUntilFriday} days from now, ${friday.toDateString()})`);
         return fridayStr;
       } else {
-        // End of current month
-        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        // End of current month - go to next month to ensure it's always a future date
+        const nextMonth = new Date(startDate);
+        nextMonth.setMonth(nextMonth.getMonth() + 1);
+        
+        // Get the last day of next month
+        const lastDay = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 0);
         const lastDayStr = lastDay.toISOString().split('T')[0];
-        console.log(`Month end date: ${lastDayStr} (day ${lastDay.getDate()} of month, ${lastDay.toDateString()})`);
+        
+        console.log(`Start date: ${today}, Month end date: ${lastDayStr} (day ${lastDay.getDate()} of month, ${lastDay.toDateString()})`);
         return lastDayStr;
       }
     };
@@ -1248,27 +1265,44 @@ export function DeepOverviewTable({
     try {
       // Create or update plans in the database
       for (const plan of selectedMetricPlans) {
-        if (plan.planId) {
-          // Update existing plan
-          const updatePromise = updatePlanMutation.mutateAsync({
-            id: plan.planId,
-            target_value: plan.planValue,
-            start_date: today, // Optionally update start date, or keep existing
-            end_date: getEndDate(plan.period),
-            status: 'ACTIVE', // Assuming plan becomes active on save
-          });
-          dbOperations.push(updatePromise);
-        } else {
-          // Create new plan
-          const createPromise = createPlanMutation.mutateAsync({
-            metric_id: plan.metricId,
-            target_value: plan.planValue,
-            user_id: user.id,
-            start_date: today,
-            end_date: getEndDate(plan.period),
-            status: 'ACTIVE',
-          });
-          dbOperations.push(createPromise);
+        try {
+          // Calculate end date for this plan
+          const endDate = getEndDate(plan.period);
+          
+          // Validate that end date is after start date
+          if (endDate <= today) {
+            console.error(`Invalid dates: start (${today}) must be before end (${endDate})`);
+            alert(`Cannot save plan: End date (${endDate}) must be after start date (${today})`);
+            continue; // Skip this plan
+          }
+          
+          if (plan.planId) {
+            // Update existing plan
+            console.log(`Updating plan ${plan.planId} for metric ${plan.metricName}: ${plan.planValue} (${plan.period}) from ${today} to ${endDate}`);
+            const updatePromise = updatePlanMutation.mutateAsync({
+              id: plan.planId,
+              target_value: plan.planValue,
+              start_date: today,
+              end_date: endDate,
+              status: 'ACTIVE',
+            });
+            dbOperations.push(updatePromise);
+          } else {
+            // Create new plan
+            console.log(`Creating plan for metric ${plan.metricName}: ${plan.planValue} (${plan.period}) from ${today} to ${endDate}`);
+            const createPromise = createPlanMutation.mutateAsync({
+              metric_id: plan.metricId,
+              target_value: plan.planValue,
+              user_id: user.id,
+              start_date: today,
+              end_date: endDate,
+              status: 'ACTIVE',
+            });
+            dbOperations.push(createPromise);
+          }
+        } catch (planError) {
+          console.error(`Error processing plan for metric ${plan.metricName}:`, planError);
+          alert(`Error saving plan for ${plan.metricName}: ${planError instanceof Error ? planError.message : String(planError)}`);
         }
       }
 
