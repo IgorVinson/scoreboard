@@ -36,6 +36,7 @@ import {
   Star,
   PlusCircle,
   Database,
+  Calendar as CalendarIcon,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -94,6 +95,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/queries/queryKeys';
 import { ResultReportManager } from '@/components/result-report/MetricCalculator';
 import { toast } from '@/components/ui/use-toast';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 // Extend the DailyReport type to include the 'reviewed' field for our app's usage
 interface ExtendedDailyReport extends Omit<DailyReport, 'id' | 'created_at' | 'updated_at'> {
@@ -518,9 +521,11 @@ export function Dashboard() {
       console.log('Report created successfully');
       setReportDialogOpen(false);
       
-      // Show success alert
+      // Show success alert with consistent date formatting
       setAlertDialogTitle("Success");
-      setAlertMessage("Daily report for " + format(parseISO(reportDate), 'MMMM d, yyyy') + " has been created successfully.");
+      // Fix: Use a consistent approach to display the date without timezone issues
+      const formattedDate = format(new Date(`${reportDate}T12:00:00`), 'MMMM d, yyyy');
+      setAlertMessage(`Daily report for ${formattedDate} has been created successfully.`);
       setAlertDialogOpen(true);
     } catch (error) {
       console.error('Error creating report:', error);
@@ -1889,82 +1894,140 @@ export function Dashboard() {
             <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
               <div className='grid gap-2'>
                 <label className='text-sm font-medium'>Start Date</label>
-                <Input
-                  type='date'
-                  value={resultReportStartDate}
-                  onChange={e => {
-                    const newStartDate = e.target.value;
-                    setResultReportStartDate(newStartDate);
-                    
-                    // If end date is set, validate the range
-                    if (resultReportEndDate) {
-                      const start = new Date(newStartDate);
-                      const end = new Date(resultReportEndDate);
-                      
-                      // If start date is after end date, set end date to start date
-                      if (start > end) {
-                        setResultReportEndDate(newStartDate);
-                      } else {
-                        // Check if range exceeds the maximum allowed days
-                        const dayDiff = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-                        const maxDays = resultReportType === 'weekly' ? 7 : 31;
-                        
-                        if (dayDiff > maxDays) {
-                          // Adjust end date to maintain valid range
-                          const newEnd = new Date(start);
-                          newEnd.setDate(newEnd.getDate() + maxDays - 1);
-                          setResultReportEndDate(newEnd.toISOString().split('T')[0]);
-                        }
-                      }
-                    }
-                  }}
-                  className='w-full h-10'
-                  disabled={!!editingResultReport}
-                />
+                <div className="relative">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !resultReportStartDate && "text-muted-foreground"
+                        )}
+                        disabled={!!editingResultReport}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {resultReportStartDate ? format(new Date(`${resultReportStartDate}T12:00:00`), "PPP") : "Select date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={resultReportStartDate ? new Date(`${resultReportStartDate}T12:00:00`) : undefined}
+                        onSelect={(date) => {
+                          if (!date) return;
+                          // Fix: Preserve the exact date selected without timezone influence
+                          // Create an ISO string in format YYYY-MM-DD that represents the selected date
+                          const year = date.getFullYear();
+                          const month = String(date.getMonth() + 1).padStart(2, '0');
+                          const day = String(date.getDate()).padStart(2, '0');
+                          const newStartDate = `${year}-${month}-${day}`;
+                          setResultReportStartDate(newStartDate);
+                          
+                          // If end date is set, validate the range
+                          if (resultReportEndDate) {
+                            // Create date objects that preserve the day values
+                            const start = new Date(`${newStartDate}T12:00:00`);
+                            const end = new Date(`${resultReportEndDate}T12:00:00`);
+                            
+                            // If start date is after end date, set end date to start date
+                            if (start > end) {
+                              setResultReportEndDate(newStartDate);
+                            } else {
+                              // Check if range exceeds the maximum allowed days
+                              const dayDiff = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                              const maxDays = resultReportType === 'weekly' ? 7 : 31;
+                              
+                              if (dayDiff > maxDays) {
+                                // Adjust end date to maintain valid range
+                                const newEnd = new Date(start);
+                                newEnd.setDate(newEnd.getDate() + maxDays - 1);
+                                // Format the new end date in YYYY-MM-DD
+                                const endYear = newEnd.getFullYear();
+                                const endMonth = String(newEnd.getMonth() + 1).padStart(2, '0');
+                                const endDay = String(newEnd.getDate()).padStart(2, '0');
+                                setResultReportEndDate(`${endYear}-${endMonth}-${endDay}`);
+                              }
+                            }
+                          }
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
               <div className='grid gap-2'>
                 <label className='text-sm font-medium'>End Date</label>
-                <Input
-                  type='date'
-                  value={resultReportEndDate}
-                  onChange={e => {
-                    const newEndDate = e.target.value;
-                    
-                    // If start date is set, validate the range
-                    if (resultReportStartDate) {
-                      const start = new Date(resultReportStartDate);
-                      const end = new Date(newEndDate);
-                      
-                      // If end date is before start date, don't update
-                      if (end < start) {
-                        setAlertDialogTitle("Invalid Date Range");
-                        setAlertMessage("End date cannot be before start date.");
-                        setAlertDialogOpen(true);
-                        return;
-                      }
-                      
-                      // Check if range exceeds the maximum allowed days
-                      const dayDiff = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-                      const maxDays = resultReportType === 'weekly' ? 7 : 31;
-                      
-                      if (dayDiff > maxDays) {
-                        setAlertDialogTitle("Date Range Too Large");
-                        setAlertMessage(`The maximum date range for a ${resultReportType} report is ${maxDays} days.`);
-                        setAlertDialogOpen(true);
-                        
-                        // Set end date to maximum allowed from start date
-                        const maxEnd = new Date(start);
-                        maxEnd.setDate(maxEnd.getDate() + maxDays - 1);
-                        setResultReportEndDate(maxEnd.toISOString().split('T')[0]);
-                        return;
-                      }
-                    }
-                    
-                    setResultReportEndDate(newEndDate);
-                  }}
-                  className='w-full h-10'
-                  disabled={!!editingResultReport}
-                />
+                <div className="relative">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !resultReportEndDate && "text-muted-foreground"
+                        )}
+                        disabled={!!editingResultReport}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {resultReportEndDate ? format(new Date(`${resultReportEndDate}T12:00:00`), "PPP") : "Select date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={resultReportEndDate ? new Date(`${resultReportEndDate}T12:00:00`) : undefined}
+                        onSelect={(date) => {
+                          if (!date) return;
+                          // Fix: Preserve the exact date selected without timezone influence
+                          // Create an ISO string in format YYYY-MM-DD that represents the selected date
+                          const year = date.getFullYear();
+                          const month = String(date.getMonth() + 1).padStart(2, '0');
+                          const day = String(date.getDate()).padStart(2, '0');
+                          const newEndDate = `${year}-${month}-${day}`;
+                          
+                          // If start date is set, validate the range
+                          if (resultReportStartDate) {
+                            // Create date objects that preserve the day values
+                            const start = new Date(`${resultReportStartDate}T12:00:00`);
+                            const end = new Date(`${newEndDate}T12:00:00`);
+                            
+                            // If end date is before start date, don't update
+                            if (end < start) {
+                              setAlertDialogTitle("Invalid Date Range");
+                              setAlertMessage("End date cannot be before start date.");
+                              setAlertDialogOpen(true);
+                              return;
+                            }
+                            
+                            // Check if range exceeds the maximum allowed days
+                            const dayDiff = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                            const maxDays = resultReportType === 'weekly' ? 7 : 31;
+                            
+                            if (dayDiff > maxDays) {
+                              setAlertDialogTitle("Date Range Too Large");
+                              setAlertMessage(`The maximum date range for a ${resultReportType} report is ${maxDays} days.`);
+                              setAlertDialogOpen(true);
+                              
+                              // Set end date to maximum allowed from start date
+                              const maxEnd = new Date(start);
+                              maxEnd.setDate(maxEnd.getDate() + maxDays - 1);
+                              // Format the new end date
+                              const maxYear = maxEnd.getFullYear();
+                              const maxMonth = String(maxEnd.getMonth() + 1).padStart(2, '0');
+                              const maxDay = String(maxEnd.getDate()).padStart(2, '0');
+                              setResultReportEndDate(`${maxYear}-${maxMonth}-${maxDay}`);
+                              return;
+                            }
+                          }
+                          
+                          setResultReportEndDate(newEndDate);
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
               <div className='col-span-1 sm:col-span-2'>
                 <p className='text-xs text-muted-foreground mt-1'>
