@@ -23,7 +23,7 @@ export const benefits: IBenefit[] = [
                 icon: <FiTrendingUp size={26} />
             }
         ],
-        imageSrc: "/images/mockup-1.webp"
+        imageSrc: "/images/hero-mockup.png"
     },
     {
         title: "Daily & Weekly Reports",
@@ -45,7 +45,7 @@ export const benefits: IBenefit[] = [
                 icon: <FiPieChart size={26} />
             }
         ],
-        imageSrc: "/images/mockup-2.webp"
+        imageSrc: "/images/mockup-2.png"
     },
     {
         title: "Notes & Achievement Tracking",
@@ -67,6 +67,6 @@ export const benefits: IBenefit[] = [
                 icon: <FiShield size={26} />
             }
         ],
-        imageSrc: "/images/mockup-1.webp"
+        imageSrc: "/images/mockup-1.png"
     },
 ]
