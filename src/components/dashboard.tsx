@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '@/components/theme-provider';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -37,6 +37,7 @@ import {
   PlusCircle,
   Database,
   Calendar as CalendarIcon,
+  Loader2,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -91,7 +92,7 @@ import { ModeToggle } from '@/components/mode-toggle';
 import { VirtualManagerToggle } from '@/components/virtual-manager-toggle';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from '@/lib/supabase';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/queries/queryKeys';
 import { ResultReportManager } from '@/components/result-report/MetricCalculator';
 import { toast } from '@/components/ui/use-toast';
@@ -352,6 +353,7 @@ export function Dashboard() {
   }
   ]);
   const [editingResultReport, setEditingResultReport] = useState<any>(null);
+  const [createResultReportMode, setCreateResultReportMode] = useState(false);
   
   // Helper functions
   const calculateDailyPlanValue = (metric: any) => {
@@ -1406,8 +1408,20 @@ export function Dashboard() {
     }
   }, [user]);
   
-  // Add state to track active tab
+  // Track active tabs
   const [activeTab, setActiveTab] = useState('deep-overview');
+  
+  // State for popover controls
+  const [startDatePopoverOpen, setStartDatePopoverOpen] = useState(false);
+  const [endDatePopoverOpen, setEndDatePopoverOpen] = useState(false);
+  
+  // Function to reset popover state when dialog closes
+  useEffect(() => {
+    if (!resultReportDialogOpen) {
+      setStartDatePopoverOpen(false);
+      setEndDatePopoverOpen(false);
+    }
+  }, [resultReportDialogOpen]);
   
   // Refresh reports when switching to the result-reports tab
   useEffect(() => {
@@ -1418,6 +1432,125 @@ export function Dashboard() {
 
   // Define mobile-optimized scrollable container styles as utility classes
   const scrollableContainerStyles = 'overflow-x-auto pb-2 -mx-2 px-2 overscroll-none overflow-y-hidden touch-pan-x scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent';
+  
+  // Get objectives from Supabase
+  const { data: objectivesData, isLoading: isLoadingObjectives } = useQuery({
+    queryKey: ['objectives'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('objectives')
+        .select('id, name, metrics:metrics(id, name)')
+        .order('name');
+      
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 5 * 60 * 1000, // Data considered fresh for 5 minutes
+  });
+
+  // Define query for result reports
+  const {
+    data: resultReport,
+    isLoading: isLoadingResultReport,
+    refetch: refetchResultReport
+  } = useQuery({
+    queryKey: ['resultReport', resultReportStartDate, resultReportEndDate],
+    queryFn: async () => {
+      if (!resultReportStartDate || !resultReportEndDate) {
+        return null;
+      }
+      
+      // Prevent querying if we're actively creating a new report
+      if (createResultReportMode) {
+        return null;
+      }
+      
+      console.log(`Fetching result report: ${resultReportStartDate} to ${resultReportEndDate}`);
+      
+      const { data, error } = await supabase
+        .from('result_reports')
+        .select('*')
+        .eq('user_id', user?.id)
+        .eq('start_date', resultReportStartDate)
+        .eq('end_date', resultReportEndDate)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!resultReportStartDate && !!resultReportEndDate && !!user?.id && !createResultReportMode,
+    staleTime: 2 * 60 * 1000, // Consider fresh for 2 minutes
+  });
+
+  // Extract date range handling to a dedicated function
+  const handleDateRangeChange = useCallback((startDate: string | null, endDate: string | null) => {
+    // Reset states when date range changes
+    setEditingResultReport(null);
+    setCreateResultReportMode(false);
+    
+    if (startDate) {
+      setResultReportStartDate(startDate);
+    }
+    
+    if (endDate) {
+      setResultReportEndDate(endDate);
+    }
+    
+    // Reset popover states to ensure they can be reopened
+    setStartDatePopoverOpen(false);
+    setEndDatePopoverOpen(false);
+    
+    // If both dates are valid, trigger a prefetch
+    if (startDate && endDate) {
+      console.log(`Dates selected: ${startDate} to ${endDate}, prefetching data...`);
+      
+      // After a small delay to ensure UI is responsive, prefetch data
+      setTimeout(() => {
+        refetchResultReport();
+      }, 100);
+    }
+  }, [refetchResultReport]);
+
+  // Validate date range for result reports
+  const validateDateRange = useCallback((startDateStr: string, endDateStr: string) => {
+    // Create date objects that preserve the day values (add time to avoid timezone issues)
+    const start = new Date(`${startDateStr}T12:00:00`);
+    const end = new Date(`${endDateStr}T12:00:00`);
+    
+    // If end date is before start date, adjust it
+    if (end < start) {
+      setAlertDialogTitle("Invalid Date Range");
+      setAlertMessage("End date cannot be before start date.");
+      setAlertDialogOpen(true);
+      
+      // Set end date equal to start date
+      handleDateRangeChange(startDateStr, startDateStr);
+      return;
+    }
+    
+    // Check if range exceeds the maximum allowed days
+    const dayDiff = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    const maxDays = resultReportType === 'weekly' ? 7 : 31;
+    
+    if (dayDiff > maxDays) {
+      setAlertDialogTitle("Date Range Too Large");
+      setAlertMessage(`The maximum date range for a ${resultReportType} report is ${maxDays} days.`);
+      setAlertDialogOpen(true);
+      
+      // Set end date to maximum allowed from start date
+      const maxEnd = new Date(start);
+      maxEnd.setDate(maxEnd.getDate() + maxDays - 1);
+      
+      // Format the new end date
+      const maxYear = maxEnd.getFullYear();
+      const maxMonth = String(maxEnd.getMonth() + 1).padStart(2, '0');
+      const maxDay = String(maxEnd.getDate()).padStart(2, '0');
+      const newEndDate = `${maxYear}-${maxMonth}-${maxDay}`;
+      
+      // Update end date
+      handleDateRangeChange(startDateStr, newEndDate);
+    }
+  }, [handleDateRangeChange, resultReportType, setAlertDialogOpen, setAlertDialogTitle, setAlertMessage]);
 
   return (
     <div className='min-h-screen bg-background'>
@@ -1895,7 +2028,11 @@ export function Dashboard() {
               <div className='grid gap-2'>
                 <label className='text-sm font-medium'>Start Date</label>
                 <div className="relative">
-                  <Popover>
+                  <Popover 
+                    key={`start-date-${resultReportStartDate || 'unset'}`}
+                    open={startDatePopoverOpen}
+                    onOpenChange={setStartDatePopoverOpen}
+                  >
                     <PopoverTrigger asChild>
                       <Button
                         variant={"outline"}
@@ -1909,7 +2046,7 @@ export function Dashboard() {
                         {resultReportStartDate ? format(new Date(`${resultReportStartDate}T12:00:00`), "PPP") : "Select date"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
+                    <PopoverContent className="w-auto p-0" align="start" sideOffset={4}>
                       <Calendar
                         mode="single"
                         selected={resultReportStartDate ? new Date(`${resultReportStartDate}T12:00:00`) : undefined}
@@ -1921,34 +2058,20 @@ export function Dashboard() {
                           const month = String(date.getMonth() + 1).padStart(2, '0');
                           const day = String(date.getDate()).padStart(2, '0');
                           const newStartDate = `${year}-${month}-${day}`;
-                          setResultReportStartDate(newStartDate);
+                          
+                          // Use the optimized date range handler
+                          handleDateRangeChange(newStartDate, resultReportEndDate);
                           
                           // If end date is set, validate the range
                           if (resultReportEndDate) {
-                            // Create date objects that preserve the day values
-                            const start = new Date(`${newStartDate}T12:00:00`);
-                            const end = new Date(`${resultReportEndDate}T12:00:00`);
-                            
-                            // If start date is after end date, set end date to start date
-                            if (start > end) {
-                              setResultReportEndDate(newStartDate);
-                            } else {
-                              // Check if range exceeds the maximum allowed days
-                              const dayDiff = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-                              const maxDays = resultReportType === 'weekly' ? 7 : 31;
-                              
-                              if (dayDiff > maxDays) {
-                                // Adjust end date to maintain valid range
-                                const newEnd = new Date(start);
-                                newEnd.setDate(newEnd.getDate() + maxDays - 1);
-                                // Format the new end date in YYYY-MM-DD
-                                const endYear = newEnd.getFullYear();
-                                const endMonth = String(newEnd.getMonth() + 1).padStart(2, '0');
-                                const endDay = String(newEnd.getDate()).padStart(2, '0');
-                                setResultReportEndDate(`${endYear}-${endMonth}-${endDay}`);
-                              }
-                            }
+                            validateDateRange(newStartDate, resultReportEndDate);
                           }
+                          
+                          // Close the popover after selection
+                          setStartDatePopoverOpen(false);
+                        }}
+                        disabled={(date) => {
+                          return date > new Date() || date < new Date(new Date().getFullYear() - 1, 0, 1);
                         }}
                         initialFocus
                       />
@@ -1959,7 +2082,11 @@ export function Dashboard() {
               <div className='grid gap-2'>
                 <label className='text-sm font-medium'>End Date</label>
                 <div className="relative">
-                  <Popover>
+                  <Popover 
+                    key={`end-date-${resultReportEndDate || 'unset'}`}
+                    open={endDatePopoverOpen}
+                    onOpenChange={setEndDatePopoverOpen}
+                  >
                     <PopoverTrigger asChild>
                       <Button
                         variant={"outline"}
@@ -1973,7 +2100,7 @@ export function Dashboard() {
                         {resultReportEndDate ? format(new Date(`${resultReportEndDate}T12:00:00`), "PPP") : "Select date"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
+                    <PopoverContent className="w-auto p-0" align="start" sideOffset={4}>
                       <Calendar
                         mode="single"
                         selected={resultReportEndDate ? new Date(`${resultReportEndDate}T12:00:00`) : undefined}
@@ -1986,42 +2113,19 @@ export function Dashboard() {
                           const day = String(date.getDate()).padStart(2, '0');
                           const newEndDate = `${year}-${month}-${day}`;
                           
+                          // Use the optimized date range handler
+                          handleDateRangeChange(resultReportStartDate, newEndDate);
+                          
                           // If start date is set, validate the range
                           if (resultReportStartDate) {
-                            // Create date objects that preserve the day values
-                            const start = new Date(`${resultReportStartDate}T12:00:00`);
-                            const end = new Date(`${newEndDate}T12:00:00`);
-                            
-                            // If end date is before start date, don't update
-                            if (end < start) {
-                              setAlertDialogTitle("Invalid Date Range");
-                              setAlertMessage("End date cannot be before start date.");
-                              setAlertDialogOpen(true);
-                              return;
-                            }
-                            
-                            // Check if range exceeds the maximum allowed days
-                            const dayDiff = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-                            const maxDays = resultReportType === 'weekly' ? 7 : 31;
-                            
-                            if (dayDiff > maxDays) {
-                              setAlertDialogTitle("Date Range Too Large");
-                              setAlertMessage(`The maximum date range for a ${resultReportType} report is ${maxDays} days.`);
-                              setAlertDialogOpen(true);
-                              
-                              // Set end date to maximum allowed from start date
-                              const maxEnd = new Date(start);
-                              maxEnd.setDate(maxEnd.getDate() + maxDays - 1);
-                              // Format the new end date
-                              const maxYear = maxEnd.getFullYear();
-                              const maxMonth = String(maxEnd.getMonth() + 1).padStart(2, '0');
-                              const maxDay = String(maxEnd.getDate()).padStart(2, '0');
-                              setResultReportEndDate(`${maxYear}-${maxMonth}-${maxDay}`);
-                              return;
-                            }
+                            validateDateRange(resultReportStartDate, newEndDate);
                           }
                           
-                          setResultReportEndDate(newEndDate);
+                          // Close the popover after selection
+                          setEndDatePopoverOpen(false);
+                        }}
+                        disabled={(date) => {
+                          return date > new Date() || date < new Date(new Date().getFullYear() - 1, 0, 1);
                         }}
                         initialFocus
                       />
@@ -2374,6 +2478,35 @@ export function Dashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Result Reports Metrics */}
+      {activeTab === 'results' && resultReportStartDate && resultReportEndDate && (
+        <>
+          {/* Loading indicator during data fetching */}
+          {isLoadingResultReport && (
+            <div className="my-4 flex items-center space-x-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <div className="text-sm">Loading report data...</div>
+            </div>
+          )}
+          
+          {/* Only show metrics calculator if data is available */}
+          {!isLoadingResultReport && (
+            <div className="my-4">
+              <ResultReportManager
+                userId={user?.id || ''}
+                startDate={resultReportStartDate}
+                endDate={resultReportEndDate}
+                objectives={objectivesData || []}
+                showMetricsSection={true}
+                onSaveReport={(calculatedMetrics) => {
+                  setResultReportMetrics(calculatedMetrics);
+                }}
+              />
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

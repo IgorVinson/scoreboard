@@ -39,71 +39,107 @@ interface ResultReport {
   updated_at: string;
 }
 
-/**
- * Calculates metrics summary for a result report based on daily reports within the date range
- * @param resultReport - The result report to update
- * @param dailyReports - All daily reports
- * @returns Updated ResultReport with calculated metrics_summary
- */
+// Optimized metrics calculations utility
+
+// Memoization cache for expensive calculations
+const calculationCache = new Map();
+
+// Calculate metrics summary for a result report based on daily reports
 export function calculateMetricsSummary(
-  resultReport: ResultReport,
-  dailyReports: DailyReport[]
-): ResultReport {
-  // Create a deep copy of the result report to avoid mutating the original
-  const updatedReport = { ...resultReport, metrics_summary: {} };
+  resultReport: any,
+  dailyReports: any[]
+): any {
+  // Generate cache key based on report data
+  const cacheKey = `${resultReport.id}_${resultReport.start_date}_${resultReport.end_date}_${dailyReports.length}`;
   
-  // Filter daily reports within the date range of the result report
-  const reportsInRange = dailyReports.filter(report => {
-    const reportDate = new Date(report.date);
-    const startDate = new Date(resultReport.start_date);
-    const endDate = new Date(resultReport.end_date);
-    
-    // Include reports on or after start date and on or before end date
-    return reportDate >= startDate && reportDate <= endDate;
-  });
-  
-  console.log(`Found ${reportsInRange.length} reports within the date range`);
-  
-  // If no reports in range, return the original report
-  if (reportsInRange.length === 0) {
-    return resultReport;
+  // Check if calculation is already cached
+  if (calculationCache.has(cacheKey)) {
+    console.log('Using cached metrics calculation');
+    return calculationCache.get(cacheKey);
   }
   
-  // Collect all unique metric IDs from the daily reports
+  console.time('metrics-calculation');
+  
+  // Filter reports to ensure they are within the date range
+  const startDate = new Date(resultReport.start_date);
+  const endDate = new Date(resultReport.end_date);
+  
+  // Convert dates only once and store them in a Map for quick lookup
+  const reportDates = new Map(
+    dailyReports.map(report => {
+      const date = new Date(report.date);
+      return [report.id, date];
+    })
+  );
+  
+  // Filter reports in range using our pre-computed dates
+  const reportsInRange = dailyReports.filter(report => {
+    const date = reportDates.get(report.id);
+    return date && date >= startDate && date <= endDate;
+  });
+  
+  // Skip expensive processing if no reports found
+  if (reportsInRange.length === 0) {
+    const emptyResult = { ...resultReport, metrics_summary: {} };
+    calculationCache.set(cacheKey, emptyResult);
+    console.timeEnd('metrics-calculation');
+    return emptyResult;
+  }
+  
+  // Collect all metric IDs from reports (only do this once)
   const metricIds = new Set<string>();
-  reportsInRange.forEach(report => {
-    Object.keys(report.metrics_data).forEach(metricId => {
-      metricIds.add(metricId);
-    });
-  });
-  
-  // Calculate aggregated values for each metric
-  metricIds.forEach(metricId => {
-    let totalPlan = 0;
-    let totalFact = 0;
-    let reportCount = 0;
-    
-    reportsInRange.forEach(report => {
-      const metricData = report.metrics_data[metricId];
-      if (metricData) {
-        totalPlan += metricData.plan || 0;
-        totalFact += metricData.fact || 0;
-        reportCount++;
-      }
-    });
-    
-    // Only add metrics that were present in at least one report
-    if (reportCount > 0) {
-      updatedReport.metrics_summary[metricId] = {
-        plan: totalPlan,
-        fact: totalFact
-      };
+  for (const report of reportsInRange) {
+    if (report.metrics_data) {
+      Object.keys(report.metrics_data).forEach(id => metricIds.add(id));
     }
-  });
+  }
   
-  console.log('Calculated metrics summary:', updatedReport.metrics_summary);
+  // Create summary metrics object with totals
+  const metricsSummary: Record<string, { plan: number; fact: number }> = {};
   
-  return updatedReport;
+  // Pre-allocate the metrics summary object to avoid dynamic property creation
+  for (const metricId of metricIds) {
+    metricsSummary[metricId] = { plan: 0, fact: 0 };
+  }
+  
+  // Single pass aggregation
+  for (const report of reportsInRange) {
+    if (!report.metrics_data) continue;
+    
+    for (const [metricId, values] of Object.entries(report.metrics_data)) {
+      const summary = metricsSummary[metricId];
+      if (summary) {
+        // Safely add numerical values, default to 0 if undefined
+        const metricValues = values as { plan?: number; fact?: number };
+        summary.plan += Number(metricValues.plan) || 0;
+        summary.fact += Number(metricValues.fact) || 0;
+      }
+    }
+  }
+  
+  // Round all values to whole numbers for better display
+  for (const metricId in metricsSummary) {
+    metricsSummary[metricId].plan = Math.round(metricsSummary[metricId].plan);
+    metricsSummary[metricId].fact = Math.round(metricsSummary[metricId].fact);
+  }
+  
+  // Create result
+  const result = {
+    ...resultReport,
+    metrics_summary: metricsSummary
+  };
+  
+  // Cache the result
+  calculationCache.set(cacheKey, result);
+  
+  // Limit cache size to prevent memory issues (keep last 20 calculations)
+  if (calculationCache.size > 20) {
+    const firstKey = calculationCache.keys().next().value;
+    calculationCache.delete(firstKey);
+  }
+  
+  console.timeEnd('metrics-calculation');
+  return result;
 }
 
 /**
