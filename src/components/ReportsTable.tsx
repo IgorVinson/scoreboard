@@ -250,9 +250,6 @@ export function ReportsTable({
           <TableHead className='text-center'>Actual</TableHead>
           <TableHead className='text-center'>Deviation</TableHead>
           <TableHead className='text-center'>Actions</TableHead>
-          <TableHead className='text-center'>Reviewed</TableHead>
-          <TableHead className='text-center'>Quantity</TableHead>
-          <TableHead className='text-center'>Quality</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -346,54 +343,6 @@ export function ReportsTable({
                     </div>
                   </TableCell>
 
-                  {/* Modified Reviewed column */}
-                  <TableCell className='text-center'>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      className='h-8 w-8 p-0 rounded-full'
-                      onClick={() => {
-                        if (report.reviewed) {
-                          // If already reviewed, just toggle it off
-                          onToggleReview(report.id);
-                        } else {
-                          // If not reviewed, open the review modal
-                          onReviewReport(report);
-                        }
-                      }}
-                    >
-                      <input
-                        type='checkbox'
-                        checked={report.reviewed !== undefined ? report.reviewed : false}
-                        className='h-4 w-4 cursor-pointer'
-                        readOnly
-                      />
-                    </Button>
-                  </TableCell>
-
-                  {/* Quantity Column */}
-                  <TableCell className='text-center'>
-                    {report.quantity_rating !== undefined ? (
-                      <div className='flex items-center justify-center'>
-                        <Star className='h-4 w-4 text-amber-500 mr-1' />
-                        <span>{report.quantity_rating}/5</span>
-                      </div>
-                    ) : (
-                      <span className='text-muted-foreground'>—</span>
-                    )}
-                  </TableCell>
-
-                  {/* Quality Column */}
-                  <TableCell className='text-center'>
-                    {report.quality_rating !== undefined ? (
-                      <div className='flex items-center justify-center'>
-                        <Star className='h-4 w-4 text-amber-500 mr-1' />
-                        <span>{report.quality_rating}/5</span>
-                      </div>
-                    ) : (
-                      <span className='text-muted-foreground'>—</span>
-                    )}
-                  </TableCell>
                 </TableRow>
 
                 {/* Expanded content */}

@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import {
   Card,
@@ -74,6 +74,9 @@ interface ResultReportManagerProps {
   onSaveReport?: (calculatedData: MetricsData) => void;
 }
 
+// Cache for report data to avoid unnecessary refetching
+const reportsCache = new Map<string, DailyReport[]>();
+
 export function ResultReportManager({ 
   userId,
   startDate,
@@ -88,29 +91,79 @@ export function ResultReportManager({
   const [calculatedMetrics, setCalculatedMetrics] = useState<MetricsData>({});
   const [hasCalculatedData, setHasCalculatedData] = useState(false);
   
-  // Format date for display
-  const formatDateRange = () => {
+  // Create a cache key based on userId and date range
+  const cacheKey = useMemo(() => 
+    `${userId}_${startDate}_${endDate}`, 
+    [userId, startDate, endDate]
+  );
+  
+  // Format date for display - memoized to avoid recalculation
+  const formatDateRange = useMemo(() => {
     if (!startDate || !endDate || !hasCalculatedData) return "";
-    const start = parseISO(startDate);
-    const end = parseISO(endDate);
-    return `${format(start, 'MMM d')} – ${format(end, 'MMM d, yyyy')}`;
-  };
+    try {
+      const start = parseISO(startDate);
+      const end = parseISO(endDate);
+      return `${format(start, 'MMM d')} – ${format(end, 'MMM d, yyyy')}`;
+    } catch (e) {
+      console.error('Error formatting date range:', e);
+      return "";
+    }
+  }, [startDate, endDate, hasCalculatedData]);
+  
+  // Preload data when dates change but before the section is shown
+  useEffect(() => {
+    // Even if metrics section is not shown yet, start loading data in background
+    // when dates are valid
+    if (startDate && endDate && userId) {
+      // Check if we already have this data in cache
+      if (!reportsCache.has(cacheKey)) {
+        // Only trigger a background fetch if not already loading
+        fetchDailyReports(false);
+      }
+    }
+  }, [startDate, endDate, userId, cacheKey]);
   
   // Fetch daily reports in the date range
-  const fetchDailyReports = async () => {
+  const fetchDailyReports = useCallback(async (showLoadingState = true) => {
+    // Skip if already loading or no valid dates
+    if (!startDate || !endDate) {
+      return;
+    }
+    
+    // Check cache first
+    if (reportsCache.has(cacheKey)) {
+      const cachedReports = reportsCache.get(cacheKey);
+      console.log('Using cached reports data:', cachedReports?.length || 0, 'reports');
+      setDailyReports(cachedReports || []);
+      
+      if (cachedReports && cachedReports.length > 0) {
+        // Recalculate metrics with cached data
+        calculateMetrics(cachedReports);
+      } else {
+        setError('No daily reports found for this date range');
+      }
+      return;
+    }
+    
     // Clear previous state
     setError(null);
     setHasCalculatedData(false);
-    setCalculatedMetrics({});
-    setIsLoading(true);
+    
+    // Only show loading indicator if this is a user-initiated action
+    if (showLoadingState) {
+      setIsLoading(true);
+      setCalculatedMetrics({});
+    }
     
     try {
       // Validate dates
       if (!startDate || !endDate) {
         setError('Please select both start and end dates');
-        setIsLoading(false);
+        if (showLoadingState) setIsLoading(false);
         return;
       }
+      
+      console.log(`Fetching reports for ${startDate} to ${endDate}`);
       
       const { data, error } = await supabase
         .from('daily_reports')
@@ -123,26 +176,37 @@ export function ResultReportManager({
         throw error;
       }
       
-      setDailyReports(data || []);
-      console.log(`Loaded ${data?.length || 0} daily reports for the period`);
+      // Store in cache for future use
+      const reportData = data || [];
+      reportsCache.set(cacheKey, reportData);
+      
+      setDailyReports(reportData);
+      console.log(`Loaded ${reportData.length} daily reports for the period`);
       
       // Check if we have reports to process
-      if (data && data.length > 0) {
-        calculateMetrics(data);
+      if (reportData.length > 0) {
+        calculateMetrics(reportData);
       } else {
         setError('No daily reports found for this date range');
-        setIsLoading(false);
+        if (showLoadingState) setIsLoading(false);
       }
     } catch (err) {
       console.error('Error fetching daily reports:', err);
       setError('Failed to load daily reports');
-      setIsLoading(false);
+      if (showLoadingState) setIsLoading(false);
     }
-  };
+  }, [startDate, endDate, userId, cacheKey]);
   
-  // Calculate metrics
-  const calculateMetrics = (reports: DailyReport[]) => {
+  // Calculate metrics - memoized to prevent unnecessary recalculations
+  const calculateMetrics = useCallback((reports: DailyReport[]) => {
     try {
+      // Skip calculation if no reports
+      if (!reports || reports.length === 0) {
+        setError('No reports available for calculation');
+        setIsLoading(false);
+        return;
+      }
+      
       // Create a mock result report structure for the calculation
       const mockResultReport: ResultReport = {
         id: 'temp',
@@ -185,10 +249,10 @@ export function ResultReportManager({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [userId, startDate, endDate, onSaveReport]);
   
-  // Calculate deviation percentage
-  const calculateDeviation = (plan: number, actual: number): { value: string, className: string } => {
+  // Calculate deviation percentage - memoized
+  const calculateDeviation = useCallback((plan: number, actual: number): { value: string, className: string } => {
     if (typeof plan !== 'number' || typeof actual !== 'number') {
       return { value: '-', className: '' };
     }
@@ -205,20 +269,14 @@ export function ResultReportManager({
     const className = deviation >= 0 ? 'text-green-500' : 'text-red-500';
     
     return { value: formattedValue, className };
-  };
+  }, []);
   
-  // Load reports when date range and showMetricsSection changes
+  // Load reports when metrics section is shown (user requested)
   useEffect(() => {
     if (startDate && endDate && showMetricsSection) {
-      fetchDailyReports();
-    } else {
-      // Clear state if dates are not set or metrics section is hidden
-      setDailyReports([]);
-      setCalculatedMetrics({});
-      setHasCalculatedData(false);
-      setError(null);
+      fetchDailyReports(true);
     }
-  }, [startDate, endDate, userId, showMetricsSection]);
+  }, [startDate, endDate, userId, showMetricsSection, fetchDailyReports]);
   
   // Only render the component if showMetricsSection is true
   if (!showMetricsSection) {
@@ -229,7 +287,7 @@ export function ResultReportManager({
     <div className="space-y-4">
       <div>
         <h3 className="text-lg font-medium">Metrics Calculator</h3>
-        {hasCalculatedData && <p className="text-sm text-muted-foreground">{formatDateRange()}</p>}
+        {hasCalculatedData && <p className="text-sm text-muted-foreground">{formatDateRange}</p>}
       </div>
       
       {error && (
@@ -247,70 +305,66 @@ export function ResultReportManager({
       )}
       
       {isLoading && (
-        <div className="text-center p-8">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
-          <p className="mt-2 text-sm text-muted-foreground">Loading reports and calculating metrics...</p>
+        <div className="flex items-center justify-center gap-2 py-4">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Loading metrics data...</span>
         </div>
       )}
       
-      {hasCalculatedData && Object.keys(calculatedMetrics).length > 0 ? (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle>Calculated Metrics</CardTitle>
-            <CardDescription>
-              Aggregated metrics from {dailyReports.length} daily reports
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-muted">
-                    <th className="border p-2 text-left">Metric</th>
-                    <th className="border p-2 text-right">Plan</th>
-                    <th className="border p-2 text-right">Actual</th>
-                    <th className="border p-2 text-right">Deviation</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {objectives.flatMap(objective => 
-                    objective.metrics
-                      .filter(metric => calculatedMetrics[metric.id])
-                      .map(metric => {
-                        const metricData = calculatedMetrics[metric.id];
-                        const plan = metricData.plan;
-                        const actual = metricData.fact;
-                        const deviation = calculateDeviation(plan, actual);
-                        
-                        return (
-                          <tr key={metric.id} className="border-b">
-                            <td className="border p-2">
-                              <div>
-                                <div className="font-medium">{metric.name}</div>
-                                <div className="text-sm text-muted-foreground">{objective.name}</div>
-                              </div>
-                            </td>
-                            <td className="border p-2 text-right">{plan}</td>
-                            <td className="border p-2 text-right">{actual}</td>
-                            <td className={`border p-2 text-right ${deviation.className}`}>
-                              {deviation.value}
-                            </td>
-                          </tr>
-                        );
-                      })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        !isLoading && !error && (
-          <div className="text-center p-8 border rounded-md bg-muted/20">
-            <p className="text-muted-foreground">No metrics data calculated yet.</p>
-            <p className="text-sm mt-1">Select a valid date range with daily reports to view metrics.</p>
-          </div>
-        )
+      {/* Metrics data table */}
+      {hasCalculatedData && !isLoading && (
+        <div className="border rounded-md overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b">
+                <th className="px-4 py-2 text-left font-medium">Metric</th>
+                <th className="px-4 py-2 text-right font-medium">Plan</th>
+                <th className="px-4 py-2 text-right font-medium">Actual</th>
+                <th className="px-4 py-2 text-right font-medium">Deviation</th>
+              </tr>
+            </thead>
+            <tbody>
+              {objectives.map(objective => {
+                // Extract metrics from this objective that have data
+                const objectiveMetrics = objective.metrics.filter(
+                  metric => calculatedMetrics[metric.id]
+                );
+                
+                if (objectiveMetrics.length === 0) return null;
+                
+                return (
+                  <React.Fragment key={objective.id}>
+                    <tr className="bg-muted/50">
+                      <td colSpan={4} className="px-4 py-2 font-medium">
+                        {objective.name}
+                      </td>
+                    </tr>
+                    {objectiveMetrics.map(metric => {
+                      const metricData = calculatedMetrics[metric.id];
+                      if (!metricData) return null;
+                      
+                      const deviation = calculateDeviation(
+                        metricData.plan,
+                        metricData.fact
+                      );
+                      
+                      return (
+                        <tr key={metric.id} className="border-t">
+                          <td className="px-4 py-2 pl-8">{metric.name}</td>
+                          <td className="px-4 py-2 text-right">{metricData.plan}</td>
+                          <td className="px-4 py-2 text-right">{metricData.fact}</td>
+                          <td className={`px-4 py-2 text-right ${deviation.className}`}>
+                            {deviation.value}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
