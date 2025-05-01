@@ -698,8 +698,13 @@ export function DeepOverviewTable({
       return null;
     }
     
+    // Get the adjusted plan value for the current view period
+    const adjustedPlanValue = calculatePlanValueForPeriod(metric, viewPeriod);
+    
+    if (!adjustedPlanValue) return null;
+    
     // Handle edge cases
-    if (metric.plan === 0) {
+    if (adjustedPlanValue === 0) {
       // If plan is 0 and actual is 0, they match (0% deviation)
       if (actualValue === 0) return 0;
       // If plan is 0 but actual > 0, it's over-performing (100% deviation instead of Infinity)
@@ -707,12 +712,13 @@ export function DeepOverviewTable({
     }
     
     // When plan equals actual, return exactly 0 (perfect match)
-    if (metric.plan === actualValue) {
+    if (adjustedPlanValue === actualValue) {
       return 0;
     }
 
-    // Calculate simple deviation as a percentage
-    const deviation = ((actualValue - metric.plan) / metric.plan) * 100;
+    // Calculate simple deviation as a percentage using the adjusted plan value
+    const deviation = ((actualValue - adjustedPlanValue) / adjustedPlanValue) * 100;
+    console.log(`DEVDEBUG: Metric ${metric.name} - Period: ${viewPeriod}, Actual: ${actualValue}, Plan: ${metric.plan}, Adjusted Plan: ${adjustedPlanValue}, Deviation: ${Math.round(deviation)}%`);
     return Math.round(deviation); // Round to whole number
   };
 
@@ -1063,8 +1069,10 @@ export function DeepOverviewTable({
     let dailyValue: number;
     if (metric.planPeriod === 'until_week_end') {
       dailyValue = metric.plan / workDaysInWeek;
+      console.log(`Converting weekly plan ${metric.plan} to daily: ${dailyValue}`);
     } else if (metric.planPeriod === 'until_month_end') {
       dailyValue = metric.plan / workDaysInMonth;
+      console.log(`Converting monthly plan ${metric.plan} to daily: ${dailyValue}`);
     } else {
       dailyValue = metric.plan; // Already daily
     }
@@ -1073,9 +1081,13 @@ export function DeepOverviewTable({
     if (viewPeriod === 'day') {
       return dailyValue;
     } else if (viewPeriod === 'week') {
-      return dailyValue * workDaysInWeek;
+      const weeklyValue = dailyValue * workDaysInWeek;
+      console.log(`Converting daily value ${dailyValue} to weekly: ${weeklyValue}`);
+      return weeklyValue;
     } else if (viewPeriod === 'month') {
-      return dailyValue * workDaysInMonth;
+      const monthlyValue = dailyValue * workDaysInMonth;
+      console.log(`Converting daily value ${dailyValue} to monthly: ${monthlyValue}`);
+      return monthlyValue;
     }
 
     return metric.plan; // Fallback
@@ -1390,8 +1402,14 @@ export function DeepOverviewTable({
       }
     });
 
-    console.log(`DEBUGFACT: Total fact value for metric ${metricId}: ${totalFactValue}`);
-    return totalFactValue > 0 ? Math.round(totalFactValue) : null;
+    // Apply period adjustments if needed (for consistent comparisons with the plan values)
+    let adjustedFactValue = totalFactValue;
+    
+    // For now, we're returning the raw accumulated value without period adjustments
+    // since these are real reported values and we should preserve them
+    
+    console.log(`DEBUGFACT: Total fact value for metric ${metricId}: ${totalFactValue}, final adjusted value: ${adjustedFactValue}`);
+    return adjustedFactValue > 0 ? Math.round(adjustedFactValue) : null;
   };
 
   // Use effect to initialize metric plans with data from database when userPlans changes
@@ -1812,7 +1830,14 @@ export function DeepOverviewTable({
                               
                               // First try accumulated value from reports for the selected date range
                               if (accumulatedValue !== null) {
-                                return accumulatedValue;
+                                return (
+                                  <>
+                                    {accumulatedValue}
+                                    <span className='text-xs text-muted-foreground ml-1'>
+                                      ({dateRange === 'day' ? 'daily' : dateRange === 'week' ? 'weekly' : 'monthly'})
+                                    </span>
+                                  </>
+                                );
                               }
                               
                               // Then try metric.actual if it exists (which should contain aggregated fact values)
