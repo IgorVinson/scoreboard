@@ -1826,7 +1826,7 @@ export function DeepOverviewTable({
                           </TableCell>
                           <TableCell className='text-center'>
                             {deviation !== null ? (
-                              <span className={`${deviation >= 0 ? 'text-green-600' : 'text-red-600'} font-medium text-base`}>
+                              <span className={`${deviation >= 0 ? 'text-green-600' : 'text-red-400'} font-medium text-[14px]`}>
                                 {deviation > 0 ? '+' : ''}
                                 {Math.round(deviation)}%
                               </span>
