@@ -703,6 +703,9 @@ export function DeepOverviewTable({
     
     if (!adjustedPlanValue) return null;
     
+    // For daily view, we're comparing today's actual with the daily plan
+    // For weekly/monthly views, we're comparing accumulated actuals with the respective period plans
+    
     // Handle edge cases
     if (adjustedPlanValue === 0) {
       // If plan is 0 and actual is 0, they match (0% deviation)
@@ -1366,49 +1369,64 @@ export function DeepOverviewTable({
       return null;
     }
 
-    // IMPORTANT: Your system date appears to be set to 2025
-    // We'll ignore the date range filter since all the reports should be counted
-    console.log(`DEBUGFACT: Date check disabled, treating all reports as valid due to future system date`);
-
-    // Filter reports by metric ID only, without date range check
-    const relevantReports = reports.filter(report => {
-      if (!report || !report.metrics_data || !report.metrics_data[metricId]) {
-        return false;
-      }
-      return true;
-    });
+    // Get current date formatted as YYYY-MM-DD for comparison
+    const today = format(new Date(), 'yyyy-MM-dd');
+    console.log(`DEBUGFACT: Today's date for comparison: ${today}`);
+    
+    // Filter reports based on view period and metric ID
+    let relevantReports;
+    
+    if (viewPeriod === 'day') {
+      // For daily view, only get today's report
+      relevantReports = reports.filter(report => {
+        if (!report || !report.metrics_data || !report.metrics_data[metricId]) {
+          return false;
+        }
+        
+        // Check if report date matches today
+        const isToday = report.date === today;
+        console.log(`DEBUGFACT: Report ${report.id} date ${report.date} compared to today ${today}: ${isToday ? 'MATCHES' : 'not a match'}`);
+        
+        return isToday;
+      });
+      
+      console.log(`DEBUGFACT: Found ${relevantReports.length} reports for today`);
+    } else {
+      // For weekly and monthly views, get all reports (we'll filter by date later if needed)
+      relevantReports = reports.filter(report => {
+        if (!report || !report.metrics_data || !report.metrics_data[metricId]) {
+          return false;
+        }
+        return true;
+      });
+      
+      console.log(`DEBUGFACT: Found ${relevantReports.length} total reports for accumulated view`);
+    }
 
     if (relevantReports.length === 0) {
-      console.log(`DEBUGFACT: No relevant reports for metric ${metricId}`);
+      console.log(`DEBUGFACT: No relevant reports for metric ${metricId} in ${viewPeriod} view`);
       return null;
     }
 
-    console.log(`DEBUGFACT: Found ${relevantReports.length} reports for metric ${metricId}`);
-
-    // Aggregate fact values from all relevant reports
+    // Aggregate fact values from relevant reports
     let totalFactValue = 0;
     relevantReports.forEach(report => {
       // The metrics_data structure should be: { "metricId": { "fact": number, "plan": number } }
       const metricData = report.metrics_data[metricId];
-      
-      console.log(`DEBUGFACT: Processing metric data:`, metricData);
       
       // Check if the fact property exists and is a number
       if (metricData && typeof metricData === 'object' && 'fact' in metricData && typeof metricData.fact === 'number') {
         console.log(`DEBUGFACT: Adding fact value ${metricData.fact} from report ${report.id} (${report.date})`);
         totalFactValue += metricData.fact;
       } else {
-        console.log(`DEBUGFACT: No valid fact value found in metric data`);
+        console.log(`DEBUGFACT: No valid fact value found in metric data for report ${report.id}`);
       }
     });
 
-    // Apply period adjustments if needed (for consistent comparisons with the plan values)
+    // No additional period adjustments needed - we're already filtering by period
     let adjustedFactValue = totalFactValue;
     
-    // For now, we're returning the raw accumulated value without period adjustments
-    // since these are real reported values and we should preserve them
-    
-    console.log(`DEBUGFACT: Total fact value for metric ${metricId}: ${totalFactValue}, final adjusted value: ${adjustedFactValue}`);
+    console.log(`DEBUGFACT: ${viewPeriod === 'day' ? 'Today' : 'Total'} fact value for metric ${metricId}: ${totalFactValue}`);
     return adjustedFactValue > 0 ? Math.round(adjustedFactValue) : null;
   };
 
@@ -1834,7 +1852,11 @@ export function DeepOverviewTable({
                                   <>
                                     {accumulatedValue}
                                     <span className='text-xs text-muted-foreground ml-1'>
-                                      ({dateRange === 'day' ? 'daily' : dateRange === 'week' ? 'weekly' : 'monthly'})
+                                      {dateRange === 'day' 
+                                        ? '(today)' 
+                                        : dateRange === 'week' 
+                                          ? '(accumulated weekly)' 
+                                          : '(accumulated monthly)'}
                                     </span>
                                   </>
                                 );
