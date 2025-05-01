@@ -363,14 +363,14 @@ export function Dashboard() {
     // Calculate daily value based on plan period
     if (metric.planPeriod === 'until_week_end') {
       // Weekly plan: divide by work days in a week
-      return String((planValue / workDaysInWeek).toFixed(2));
+      return String(Math.round(planValue / workDaysInWeek));
     } else if (metric.planPeriod === 'until_month_end') {
       // Monthly plan: divide by work days in a month
-      return String((planValue / workDaysInMonth).toFixed(2));
+      return String(Math.round(planValue / workDaysInMonth));
     }
     
     // If no period specified, return as is
-    return String(planValue);
+    return String(Math.round(planValue));
   };
 
   
@@ -468,14 +468,29 @@ export function Dashboard() {
       Object.entries(metricValues).forEach(([metricId, factValue]) => {
         // Find the metric in objectives to get its plan value
         let planValue = 0;
+        let metric: Metric | undefined;
         
+        // Find the metric object to access both plan and planPeriod
         objectives.forEach(obj => {
-          obj.metrics.forEach(metric => {
-            if (metric.id === metricId && metric.plan !== undefined) {
-              planValue = metric.plan;
-            }
-          });
+          const foundMetric = obj.metrics.find(m => m.id === metricId);
+          if (foundMetric && foundMetric.plan !== undefined) {
+            metric = foundMetric;
+          }
         });
+        
+        if (metric && metric.plan !== undefined) {
+          // Use the daily plan value based on the plan period
+          if (metric.planPeriod === 'until_week_end') {
+            // Weekly plan: calculate daily value
+            planValue = Math.round(metric.plan / 5); // 5 working days per week
+          } else if (metric.planPeriod === 'until_month_end') {
+            // Monthly plan: calculate daily value
+            planValue = Math.round(metric.plan / 22); // 22 working days per month
+          } else {
+            // No specific period, use as is
+            planValue = Math.round(metric.plan);
+          }
+        }
         
         metricsData[metricId] = {
           plan: planValue,
@@ -529,14 +544,29 @@ export function Dashboard() {
       Object.entries(metricValues).forEach(([metricId, factValue]) => {
         // Find the metric in objectives to get its plan value
         let planValue = 0;
+        let metric: Metric | undefined;
         
+        // Find the metric object to access both plan and planPeriod
         objectives.forEach(obj => {
-          obj.metrics.forEach(metric => {
-            if (metric.id === metricId && metric.plan !== undefined) {
-              planValue = metric.plan;
-            }
-          });
+          const foundMetric = obj.metrics.find(m => m.id === metricId);
+          if (foundMetric && foundMetric.plan !== undefined) {
+            metric = foundMetric;
+          }
         });
+        
+        if (metric && metric.plan !== undefined) {
+          // Use the daily plan value based on the plan period
+          if (metric.planPeriod === 'until_week_end') {
+            // Weekly plan: calculate daily value
+            planValue = Math.round(metric.plan / 5); // 5 working days per week
+          } else if (metric.planPeriod === 'until_month_end') {
+            // Monthly plan: calculate daily value
+            planValue = Math.round(metric.plan / 22); // 22 working days per month
+          } else {
+            // No specific period, use as is
+            planValue = Math.round(metric.plan);
+          }
+        }
         
         metricsData[metricId] = {
           plan: planValue,
