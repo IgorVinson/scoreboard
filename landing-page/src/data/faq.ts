@@ -4,22 +4,22 @@ import { siteDetails } from "./siteDetails";
 export const faqs: IFAQ[] = [
     {
         question: `Is ${siteDetails.siteName} secure?`,
-        answer: 'Absolutely. We use bank-level encryption to protect your data and never store your login information. Plus, our biometric authentication adds an extra layer of security.',
+        answer: 'Absolutely. We use industry-standard encryption to protect your data and never share your personal information with third parties. Your metrics and achievements are always kept private and secure.',
     },
     {
         question: `Can I use ${siteDetails.siteName} on multiple devices?`,
-        answer: 'Absolutely! Your Finwise account syncs seamlessly across all your devices - smartphone, tablet, and computer.',
+        answer: 'Yes! Your Scoreboard account syncs seamlessly across all your devices - smartphone, tablet, and computer, allowing you to track your metrics wherever you are.',
     },
     {
-        question: 'Can I connect all my bank accounts?',
-        answer: `Yes! ${siteDetails.siteName} supports connections with over 10,000 financial institutions worldwide. Simply log in through our secure portal to link your accounts.`
+        question: 'What types of metrics can I track?',
+        answer: `${siteDetails.siteName} supports tracking any custom metric you want to monitor. Whether it's fitness goals, work productivity, learning progress, or personal habits, our flexible system adapts to your needs.`
     },
     {
-        question: 'Do I need any financial expertise to use the investing features?',
-        answer: 'Not at all! Our expert-curated portfolios and educational resources make investing accessible to everyone, regardless of experience level.',
+        question: 'How does the achievement tracking work?',
+        answer: 'Our achievement system automatically recognizes when you hit milestones based on your tracked metrics. You can also manually log achievements and add notes to document your progress journey.',
     },
     {
-        question: 'What if I need help using the app?',
-        answer: 'Our dedicated support team is available 24/7 via chat or email. Plus, we offer extensive in-app tutorials and a comprehensive knowledge base to help you make the most of Finwise.'
+        question: 'What if I need help using the tracking features?',
+        answer: 'Our support team is available via email to help with any questions. We also provide comprehensive in-app tutorials and documentation to help you make the most of your metrics tracking experience.'
     }
 ];
