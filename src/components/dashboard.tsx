@@ -1645,7 +1645,7 @@ export function Dashboard() {
                   <DeepOverviewTable
                     objectives={objectives}
                     onObjectivesChange={handleObjectivesChange}
-                    reports={reports}
+                    reports={userReports}
                   />
                 </div>
               </TabsContent>
