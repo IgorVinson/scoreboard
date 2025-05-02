@@ -96,7 +96,21 @@ interface Report {
   general_comments: string;
   user_id: string;
   created_at: string;
-  reviewed: boolean;
+  updated_at?: string; // Add updated_at property
+  reviewed?: boolean;
+  // Additional fields for result reports
+  type?: 'weekly' | 'monthly' | 'result';
+  start_date?: string;
+  end_date?: string;
+  summary?: string;
+  next_goals?: string;
+  comments?: string;
+  metrics_summary?: Record<string, { plan: number; fact: number }>;
+  rating?: number;
+  feedback?: string;
+  // Review-related properties
+  quantity_rating?: number;
+  quality_rating?: number;
 }
 
 interface Metric {
@@ -156,8 +170,7 @@ export function Dashboard() {
   const [reportToDelete, setReportToDelete] = useState<string | null>(null);
   
   const { data: metrics = [], isLoading: isLoadingMetrics } = useMetrics();
-  const createMetricMutation = useCreateMetric();
-  const updateMetricMutation = useUpdateMetric();
+
   const deleteDailyReportMutation = useDeleteDailyReport();
   
   // TanStack Query hooks for daily reports
@@ -303,7 +316,7 @@ export function Dashboard() {
   const [resultReportNextGoals, setResultReportNextGoals] = useState('');
   const [resultReportComments, setResultReportComments] = useState('');
   const [resultReportMetrics, setResultReportMetrics] = useState<Record<string, { plan: number; fact: number }>>({});
-  const [resultReports, setResultReports] = useState<Object[]>([
+  const [resultReports, setResultReports] = useState<Report[]>([
     {
       "id": "de5a751c-0daf-4540-874d-7b3282e5a4d2",
       "user_id": "39007684-055b-47e0-9ca9-fd373626f2f6",
@@ -588,12 +601,7 @@ export function Dashboard() {
       
       // Determine if we're deleting a daily report or result report
       // Use a more reliable way to check if it's a result report
-      const isResultReport = resultReports.some(r => {
-        if (typeof r === 'object' && r !== null) {
-          return r.id === reportToDelete;
-        }
-        return false;
-      });
+      const isResultReport = resultReports.some(r => r.id === reportToDelete);
       
       if (isResultReport) {
         // Delete from result_reports table
@@ -615,12 +623,7 @@ export function Dashboard() {
         
         // Update local state immediately
         setResultReports(prevReports => 
-          prevReports.filter(r => {
-            if (typeof r === 'object' && r !== null) {
-              return r.id !== reportToDelete;
-            }
-            return true;
-          })
+          prevReports.filter(r => r.id !== reportToDelete)
         );
         
         setProcessedResultReports(prevReports => 
@@ -746,7 +749,7 @@ export function Dashboard() {
   };
 
   // Add missing handler functions
-  const handleEditReport = (report) => {
+  const handleEditReport = (report: Report) => {
     // Set the report being edited
     setEditingReport(report);
     
@@ -759,10 +762,10 @@ export function Dashboard() {
     setReportGeneralComments(report.general_comments || '');
     
     // Set the metric values from the report's metrics_data
-    const values = {};
+    const values: Record<string, number> = {};
     if (report.metrics_data) {
       Object.entries(report.metrics_data).forEach(([metricId, data]) => {
-        if (data.fact !== undefined) {
+        if (data && data.fact !== undefined) {
           values[metricId] = data.fact;
         }
       });
@@ -784,7 +787,7 @@ export function Dashboard() {
   };
   
   // Report review functions
-  const handleReviewReport = (report) => {
+  const handleReviewReport = (report: Report) => {
     // Set the report being reviewed
     setEditingReport(report);
     
@@ -804,16 +807,19 @@ export function Dashboard() {
     setReportDialogOpen(true);
   };
   
-  const handleToggleReview = async (reportId) => {
+  const handleToggleReview = async (reportId: string) => {
     try {
       // Find the report
       const report = userReports.find(r => r.id === reportId);
       if (!report) return;
       
+      // Type assertion to include the reviewed property
+      const reportWithReview = report as DailyReport & { reviewed?: boolean };
+      
       // Toggle the reviewed status
       const updatedReport = {
         id: reportId,
-        reviewed: !report.reviewed
+        reviewed: !reportWithReview.reviewed
       };
       
       // Update the report
@@ -821,7 +827,7 @@ export function Dashboard() {
       
       // Show success message
       setAlertDialogTitle("Success");
-      setAlertMessage(`Report ${report.reviewed ? 'unmarked' : 'marked'} as reviewed`);
+      setAlertMessage(`Report ${reportWithReview.reviewed ? 'unmarked' : 'marked'} as reviewed`);
       setAlertDialogOpen(true);
     } catch (error) {
       console.error('Error toggling review status:', error);
@@ -894,11 +900,11 @@ export function Dashboard() {
     setResultReportReviewDialogOpen(true);
   };
   
-  const handleToggleResultReview = async (report) => {
+  const handleToggleResultReview = async (report: Report) => {
     console.log('Toggling review for result report:', report);
     
     try {
-      const reportId = typeof report === 'object' ? report.id : report;
+      const reportId = report.id;
       
       // Toggle the reviewed status
       const { data, error } = await supabase
@@ -1283,7 +1289,7 @@ export function Dashboard() {
   }, [user]);
 
   // And update the handleDeleteResultReport function
-  const handleDeleteResultReport = async (reportId) => {
+  const handleDeleteResultReport = async (reportId: string) => {
     try {
       if (!reportId) return;
       
@@ -1461,6 +1467,24 @@ export function Dashboard() {
       handleDateRangeChange(startDateStr, newEndDate);
     }
   }, [handleDateRangeChange, resultReportType, setAlertDialogOpen, setAlertDialogTitle, setAlertMessage]);
+
+  // Add these state variables after the other state variables
+  const [resultReportForm, setResultReportForm] = useState<{
+    summary: string;
+    startDate: Date;
+    endDate: Date;
+  }>({
+    summary: '',
+    startDate: new Date(),
+    endDate: new Date()
+  });
+
+  const [reviewingReport, setReviewingReport] = useState<Report | null>(null);
+  const [resultReportReview, setResultReportReview] = useState<{
+    rating: number;
+    feedback: string;
+  }>({ rating: 0, feedback: '' });
+  const [resultReportReviewDialogOpen, setResultReportReviewDialogOpen] = useState(false);
 
   return (
     <div className='min-h-screen bg-background'>
