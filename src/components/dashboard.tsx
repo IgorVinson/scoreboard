@@ -73,6 +73,7 @@ import { ResultReportManager } from '@/components/result-report/MetricCalculator
 import { toast } from '@/components/ui/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import type { Report as ReportTableType } from '@/components/ReportsTable';
 
 // Extend the DailyReport type to include the 'reviewed' field for our app's usage
 interface ExtendedDailyReport extends Omit<DailyReport, 'id' | 'created_at' | 'updated_at'> {
@@ -693,12 +694,12 @@ export function Dashboard() {
   };
 
   // Add missing handler functions
-  const handleEditReport = (report: Report) => {
+  const handleEditReport = (report: ReportTableType) => {
     // Set the report being edited
     setEditingReport(report);
     
     // Set the report date
-    setReportDate(report.date);
+    setReportDate(report.date || '');
     
     // Copy the notes from the report
     setReportTodayNotes(report.today_notes || '');
@@ -732,14 +733,13 @@ export function Dashboard() {
   
 
   
-  const handleToggleReview = async (reportId: string) => {
+  const handleToggleReview = async (report: ReportTableType) => {
     try {
-      // Find the report
-      const report = userReports.find(r => r.id === reportId);
-      if (!report) return;
+      // Get the report ID
+      const reportId = report.id;
       
       // Type assertion to include the reviewed property
-      const reportWithReview = report as DailyReport & { reviewed?: boolean };
+      const reportWithReview = report as ReportTableType & { reviewed?: boolean };
       
       // Toggle the reviewed status
       const updatedReport = {
@@ -802,7 +802,7 @@ export function Dashboard() {
     console.log('Next missing report');
   };
   
-  const handleEditResultReport = (report: Report) => {
+  const handleEditResultReport = (report: ReportTableType) => {
     setEditingReport(report);
     if (report.type === 'result') {
       // For result reports, populate form data with result report values
@@ -810,9 +810,7 @@ export function Dashboard() {
     }
   };
   
-  const handleToggleResultReview = async (report: Report) => {
-    console.log('Toggling review for result report:', report);
-    
+  const handleToggleResultReview = async (report: ReportTableType) => {
     try {
       const reportId = report.id;
       
