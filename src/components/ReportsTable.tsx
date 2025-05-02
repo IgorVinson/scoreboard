@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, {useState} from 'react';
 import {
   Table,
   TableBody,
@@ -15,25 +15,77 @@ import {
   Trash2,
   Edit,
   FileText,
-  Star,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
+
+interface Metric {
+  id: string;
+  name: string;
+}
+
+interface Objective {
+  id: string;
+  name: string;
+  metrics: Metric[];
+}
+
+interface MetricData {
+  plan?: number;
+  fact?: number;
+}
+
+interface MetricsData {
+  [key: string]: MetricData;
+}
+
+export interface Report {
+  id: string;
+  date?: string;
+  is_result_report?: boolean;
+  display_date?: string;
+  metrics_data?: MetricsData;
+  metrics_summary?: MetricsData;
+  today_notes?: string;
+  tomorrow_notes?: string;
+  summary?: string;
+  next_goals?: string;
+  general_comments?: string;
+  comments?: string;
+  user_id?: string;
+  created_at?: string;
+  updated_at?: string;
+  reviewed?: boolean;
+  // Additional fields for result reports
+  type?: 'weekly' | 'monthly' | 'result';
+  start_date?: string;
+  end_date?: string;
+  rating?: number;
+  feedback?: string;
+  quantity_rating?: number;
+  quality_rating?: number;
+}
+
+interface ReportsTableProps {
+  reports: Report[];
+  objectives: Objective[];
+  onDeleteReport: (id: string) => void;
+  onToggleReview: (report: Report) => void;
+  onEditReport: (report: Report) => void;
+  onReviewReport: (report: Report) => void;
+}
 
 export function ReportsTable({
   reports,
   objectives,
   onDeleteReport,
-  onToggleReview,
   onEditReport,
-  onReviewReport,
-}) {
-  const [expandedReports, setExpandedReports] = useState(new Set());
-  const [expandedMainObjectives, setExpandedMainObjectives] = useState(
+}: ReportsTableProps) {
+  const [expandedReports, setExpandedReports] = useState<Set<string>>(new Set());
+  const [expandedMainObjectives, setExpandedMainObjectives] = useState<Map<string, Set<string>>>(
     new Map()
   );
-  const [activeTab, setActiveTab] = useState('overview-performance');
 
-  const toggleReportExpansion = reportId => {
+  const toggleReportExpansion = (reportId: string): void => {
     setExpandedReports(prev => {
       const newSet = new Set(prev);
       if (newSet.has(reportId)) {
@@ -45,7 +97,7 @@ export function ReportsTable({
     });
   };
 
-  const toggleMainObjectiveExpansion = (reportId, objectiveId, event) => {
+  const toggleMainObjectiveExpansion = (reportId: string, objectiveId: string, event: React.MouseEvent): void => {
     // Stop propagation to prevent triggering the row expansion
     event.stopPropagation();
 
@@ -64,12 +116,12 @@ export function ReportsTable({
     });
   };
 
-  const isMainObjectiveExpanded = (reportId, objectiveId) => {
+  const isMainObjectiveExpanded = (reportId: string, objectiveId: string): boolean => {
     return expandedMainObjectives.get(reportId)?.has(objectiveId) || false;
   };
 
   // Helper function to get plan, actual, and deviation for a metric
-  const getMetricValues = (metric, report) => {
+  const getMetricValues = (metric: Metric, report: Report) => {
     const metricsData = report.metrics_data || report.metrics_summary || {};
     const metricData = metricsData[metric.id];
     const plan = metricData?.plan ?? '-';
@@ -92,10 +144,10 @@ export function ReportsTable({
   };
 
   // Render the objectives and metrics in a more structured way
-  const renderObjectivesAndMetrics = report => {
+  const renderObjectivesAndMetrics = (report: Report) => {
     return (
       <div className='flex flex-col space-y-1'>
-        {objectives.map(objective => (
+        {objectives.map((objective: Objective) => (
           <div key={objective.id} className='flex flex-col'>
             {/* Objective row */}
             <div className='flex items-center space-x-2'>
@@ -124,7 +176,7 @@ export function ReportsTable({
             {/* Metrics */}
             {isMainObjectiveExpanded(report.id, objective.id) && (
               <div className='ml-6 mt-1 mb-2 border-l-2 pl-2'>
-                {objective.metrics.map(metric => (
+                {objective.metrics.map((metric: Metric) => (
                   <div key={metric.id} className='text-sm py-1'>
                     <span className='text-muted-foreground'>{metric.name}</span>
                   </div>
@@ -138,10 +190,10 @@ export function ReportsTable({
   };
 
   // New function to render metric values in a properly aligned way
-  const renderMetricValues = (report, column) => {
+  const renderMetricValues = (report: Report, column: 'plan' | 'actual' | 'deviation') => {
     return (
       <div className='flex flex-col space-y-1'>
-        {objectives.map(objective => (
+        {objectives.map((objective: Objective) => (
           <div key={objective.id} className='flex flex-col'>
             {/* Placeholder for the objective row to maintain alignment */}
             <div className='flex items-center h-6'></div>
@@ -149,7 +201,7 @@ export function ReportsTable({
             {/* Metric values - only rendered when objective is expanded */}
             {isMainObjectiveExpanded(report.id, objective.id) && (
               <div className='ml-6 mt-1 mb-2'>
-                {objective.metrics.map(metric => {
+                {objective.metrics.map((metric: Metric) => {
                   const { plan, actual, deviation } = getMetricValues(
                     metric,
                     report
@@ -192,54 +244,7 @@ export function ReportsTable({
     );
   };
 
-  // Modify the tabs array to remove the separate tabs and create a combined one
-  const tabs = [
-    {
-      name: 'Overview & Performance',
-      href: '#',
-      current: activeTab === 'overview-performance',
-    },
-    // ... keep other tabs if they exist ...
-  ];
-
-  // Update the tab content rendering logic
-  function renderTabContent() {
-    switch (activeTab) {
-      case 'overview-performance':
-        return (
-          <div>
-            {/* Overview content */}
-            <div className='mb-8'>
-              <h2 className='text-lg font-medium mb-4'>Overview</h2>
-              {/* Include all overview components here */}
-              <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
-                {/* Overview metrics and charts */}
-                {/* ... existing overview components ... */}
-              </div>
-            </div>
-
-            {/* Performance content */}
-            <div>
-              <h2 className='text-lg font-medium mb-4'>Performance</h2>
-              {/* Include all performance components here */}
-              <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
-                {/* Performance metrics and charts */}
-                {/* ... existing performance components ... */}
-              </div>
-            </div>
-          </div>
-        );
-      // ... other case statements for other tabs ...
-      default:
-        return null;
-    }
-  }
-
   // Update the initial state or useEffect to set the default active tab
-  useEffect(() => {
-    setActiveTab('overview-performance');
-  }, []);
-
   return (
     <Table>
       <TableHeader>
@@ -260,7 +265,7 @@ export function ReportsTable({
             </TableCell>
           </TableRow>
         ) : (
-          reports.map((report, reportIndex) => {
+          reports.map((report: Report) => {
             const isExpanded = expandedReports.has(report.id);
             
             // Get the date to display, handling both regular reports and result reports

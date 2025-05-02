@@ -33,14 +33,12 @@ import {
   Trash2,
   ChevronDown,
   ChevronRight,
-  Play,
   Edit,
   ArrowRight,
   Target,
   Loader2,
 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Objective, Metric, Plan } from '@/lib/types';
+import { Objective, Plan } from '@/lib/types';
 import { Textarea } from '@/components/ui/textarea';
 import { 
   useCreateObjective, 
@@ -49,23 +47,13 @@ import {
   useCreateMetric,
   useUpdateMetric,
   useDeleteMetric,
-  useMetricsByObjective,
   useMetrics,
   useCreatePlan,
   useUpdatePlan,
   useDeletePlan,
-  usePlansByMetric,
   usePlansByUser
 } from '@/queries';
-import {
-  format,
-  startOfWeek,
-  endOfWeek,
-  startOfMonth,
-  endOfMonth,
-  isWithinInterval,
-  eachDayOfInterval,
-} from 'date-fns';
+import {format} from 'date-fns';
 
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/auth-context';
@@ -156,10 +144,6 @@ export function DeepOverviewTable({
   );
   const [currentMetricId, setCurrentMetricId] = useState<string | null>(null);
   const [metricName, setMetricName] = useState('');
-  const [metricPlan, setMetricPlan] = useState<number | undefined>(undefined);
-  const [metricActual, setMetricActual] = useState<number | undefined>(
-    undefined
-  );
   const [metricDescription, setMetricDescription] = useState('');
 
   // Add these state variables
@@ -172,10 +156,9 @@ export function DeepOverviewTable({
   
   // Fetch plans for current user
   const { data: userPlans, isLoading: plansLoading } = usePlansByUser(user?.id || '');
-  const plansEnabled = !!user;
 
   // Add this state to track optimistic loading without hiding the table
-  const [optimisticLoading, setOptimisticLoading] = useState(false);
+  const [optimisticLoading] = useState(false);
   // Track loading operations separately instead of a single boolean
   const [loadingOperations, setLoadingOperations] = useState<Record<string, boolean>>({});
 
@@ -341,7 +324,7 @@ export function DeepOverviewTable({
           name: metricName,
           description: metricDescription,
         }, {
-          onSuccess: (updatedMetric) => {            
+          onSuccess: () => {            
             // Use batch updates for cache instead of separate invalidations
             queryClient.invalidateQueries({ 
               predicate: (query) => {
@@ -692,14 +675,6 @@ export function DeepOverviewTable({
     return Math.round(deviation); // Round to whole number
   };
 
-  // Get badge variant based on deviation
-  const getDeviationBadgeVariant = (deviation: number | null) => {
-    if (deviation === null) return 'outline';
-    if (deviation >= 0) return 'default';
-    if (deviation >= -10) return 'secondary';
-    return 'destructive';
-  };
-
   // Open dialog to add a new objective
   const openAddObjectiveDialog = () => {
     setObjectiveName('');
@@ -712,8 +687,6 @@ export function DeepOverviewTable({
   const openAddMetricDialog = (objectiveId: string) => {
     setMetricName('');
     setMetricDescription('');
-    setMetricPlan(undefined);
-    setMetricActual(undefined);
     setCurrentObjectiveId(objectiveId);
     setIsEditing(false);
     setMetricDialogOpen(true);
@@ -732,7 +705,7 @@ export function DeepOverviewTable({
           name: objectiveName,
           description: objectiveDescription,
         }, {
-          onSuccess: (updatedObjective) => {            
+          onSuccess: () => {            
             // Update the objective in local state
             const updatedObjectives = objectives.map(obj =>
               obj.id === currentObjectiveId
@@ -782,75 +755,13 @@ export function DeepOverviewTable({
 
   // Add these state variables to the DeepOverviewTable component
   const [dateRange, setDateRange] = useState<'day' | 'week' | 'month'>('day');
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [selectedDates, setSelectedDates] = useState<Date[]>([new Date()]);
-
-  // Updated function to get the formatted date range string
-  const getDateRangeText = () => {
-    if (dateRange === 'day') {
-      return format(selectedDate, 'MMM d, yyyy');
-    } else if (dateRange === 'week') {
-      const start = startOfWeek(selectedDate);
-      const end = endOfWeek(selectedDate);
-      return `${format(start, 'MMM d')} - ${format(end, 'MMM d, yyyy')}`;
-    } else {
-      return format(selectedDate, 'MMMM yyyy');
-    }
-  };
-
   // Updated function to handle date range selection
   const handleDateRangeChange = (range: 'day' | 'week' | 'month') => {
     setDateRange(range);
-    // Set the date to current date when changing ranges
-    const today = new Date();
-    setSelectedDate(today);
-
-    // Update the selected dates array based on the range
-    if (range === 'day') {
-      setSelectedDates([today]);
-    } else if (range === 'week') {
-      const start = startOfWeek(today);
-      const end = endOfWeek(today);
-      setSelectedDates(eachDayOfInterval({ start, end }));
-    } else if (range === 'month') {
-      const start = startOfMonth(today);
-      const end = endOfMonth(today);
-      setSelectedDates(eachDayOfInterval({ start, end }));
-    }
-  };
-
-  // Add a function to handle date selection in the calendar
-  const handleDateSelect = (date: Date | undefined) => {
-    if (!date) return;
-
-    setSelectedDate(date);
-
-    // Update the selected dates array based on the current range
-    if (dateRange === 'day') {
-      setSelectedDates([date]);
-    } else if (dateRange === 'week') {
-      const start = startOfWeek(date);
-      const end = endOfWeek(date);
-      setSelectedDates(eachDayOfInterval({ start, end }));
-    } else if (dateRange === 'month') {
-      const start = startOfMonth(date);
-      const end = endOfMonth(date);
-      setSelectedDates(eachDayOfInterval({ start, end }));
-    }
-  };
-
-  // Add this function to filter objectives based on date range
-  const filterObjectivesByDate = (objectives: UIObjective[]) => {
-    // In a real implementation, you would filter based on dates in your data
-    // For now, we'll just return all objectives
-    return objectives;
   };
 
   // Add these state variables to the component
   const [plansDialogOpen, setPlansDialogOpen] = useState(false);
-  const [planPeriod, setPlanPeriod] = useState<
-    'until_week_end' | 'until_month_end'
-  >('until_week_end');
   const [metricPlans, setMetricPlans] = useState<
     Record<
       string,
@@ -1439,7 +1350,7 @@ export function DeepOverviewTable({
     // Then directly trigger refetch of critical queries
     refetchMetrics().then(() => {
       setTimeout(() => showLoadingIndicator('reloading-plans', false), 300);
-    }).catch(error => {
+    }).catch(() => {
       showLoadingIndicator('reloading-plans', false);
     });
   }, [queryClient, refetchMetrics, showLoadingIndicator]);
