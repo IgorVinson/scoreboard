@@ -23,7 +23,7 @@ import {
   Eraser,
   Type,
 } from 'lucide-react';
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 interface NotesEditorProps {
   id?: string;
@@ -221,7 +221,6 @@ const CustomEmptyDocHandler = Extension.create({
 });
 
 export function NotesEditor({
-  id = 'default-editor',
   content = '',
   placeholder = 'Write something...',
   onChange,

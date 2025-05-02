@@ -182,6 +182,7 @@ export const createUser = (userData: Partial<User>): User => {
     last_name: userData.last_name || null,
     phone_number: userData.phone_number || null,
     role: userData.role || 'EMPLOYEE',
+    mode: userData.mode || 'SOLO',
     company_id: userData.company_id || null,
     team_id: userData.team_id || null,
     profile_completed: userData.profile_completed || false,

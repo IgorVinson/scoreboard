@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { Dashboard } from '@/components/dashboard';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import { DataProvider } from '@/contexts/data-context';
 import { SoloModeProvider } from '@/contexts/solo-mode-context';
-import { AuthPage } from '@/components/auth/auth-page';
 import { supabase } from '@/lib/supabase';
 import { SubscriptionModal } from '@/components/subscription-modal';
 
@@ -24,9 +23,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [checkingSubscription, setCheckingSubscription] = useState(true);
-  const [hasSubscription, setHasSubscription] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
-  const navigate = useNavigate();
     
   useEffect(() => {
     // Add a short delay to ensure auth state is properly checked
@@ -55,8 +52,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
         // Check if user has an active subscription
         const isSubscribed = data?.subscription_status === 'active' || 
                              data?.subscription_status === 'trialing';
-                
-        setHasSubscription(isSubscribed);
         
         // If not subscribed, store current path and show modal
         if (!isSubscribed) {

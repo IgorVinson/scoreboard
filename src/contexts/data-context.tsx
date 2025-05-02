@@ -110,22 +110,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         plansData,
         reportsData
       ] = await Promise.all([
-        isCacheValid(cache.current.companies) 
+        cache.current.companies && isCacheValid(cache.current.companies) 
           ? cache.current.companies.data 
           : supabaseService.getCompanies(),
-        isCacheValid(cache.current.teams)
+        cache.current.teams && isCacheValid(cache.current.teams)
           ? cache.current.teams.data
           : supabaseService.getTeams(),
-        isCacheValid(cache.current.users)
+        cache.current.users && isCacheValid(cache.current.users)
           ? cache.current.users.data
           : supabaseService.getUsers(),
-        isCacheValid(cache.current.metrics)
+        cache.current.metrics && isCacheValid(cache.current.metrics)
           ? cache.current.metrics.data
           : supabaseService.getMetrics(),
-        isCacheValid(cache.current.plans)
+        cache.current.plans && isCacheValid(cache.current.plans)
           ? cache.current.plans.data
           : supabaseService.getPlans(),
-        isCacheValid(cache.current.dailyReports)
+        cache.current.dailyReports && isCacheValid(cache.current.dailyReports)
           ? cache.current.dailyReports.data
           : supabaseService.getDailyReports()
       ]);

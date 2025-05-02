@@ -57,4 +57,9 @@ export const queryKeys = {
     byUser: (userId: string) => [...queryKeys.userPreferences.all, 'by-user', userId] as const,
     byKey: (userId: string, key: string) => [...queryKeys.userPreferences.all, 'by-key', userId, key] as const,
   },
+  resultReports: {
+    all: ['result-reports'] as const,
+    byId: (id: string) => [...queryKeys.resultReports.all, id] as const,
+    byUser: (userId: string) => [...queryKeys.resultReports.all, 'by-user', userId] as const,
+  },
 }; 

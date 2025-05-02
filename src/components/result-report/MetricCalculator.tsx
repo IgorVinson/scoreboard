@@ -3,13 +3,6 @@ import { supabase } from '@/lib/supabase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { 
   calculateMetricsSummary 
 } from '@/utils/metrics';
@@ -66,12 +59,14 @@ interface Objective {
 }
 
 interface ResultReportManagerProps {
-  userId: string;
-  startDate: string;
-  endDate: string;
-  objectives: Objective[];
+  userId?: string;
+  startDate?: string;
+  endDate?: string;
+  objectives?: Objective[];
   showMetricsSection?: boolean;
   onSaveReport?: (calculatedData: MetricsData) => void;
+  resultReport?: ResultReport;
+  onReportUpdated?: (updatedReport: ResultReport) => void;
 }
 
 // Cache for report data to avoid unnecessary refetching
@@ -81,52 +76,63 @@ export function ResultReportManager({
   userId,
   startDate,
   endDate,
-  objectives,
+  objectives = [],
   showMetricsSection = true,
-  onSaveReport
+  onSaveReport,
+  resultReport,
+  onReportUpdated
 }: ResultReportManagerProps) {
+  // If resultReport is provided, use its values
+  const reportUserId = resultReport?.user_id || userId || '';
+  const reportStartDate = resultReport?.start_date || startDate || '';
+  const reportEndDate = resultReport?.end_date || endDate || '';
+
   const [dailyReports, setDailyReports] = useState<DailyReport[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [calculatedMetrics, setCalculatedMetrics] = useState<MetricsData>({});
-  const [hasCalculatedData, setHasCalculatedData] = useState(false);
+  const [calculatedMetrics, setCalculatedMetrics] = useState<MetricsData>(
+    resultReport?.metrics_summary || {}
+  );
+  const [hasCalculatedData, setHasCalculatedData] = useState(
+    !!resultReport?.metrics_summary && Object.keys(resultReport.metrics_summary).length > 0
+  );
   
   // Create a cache key based on userId and date range
   const cacheKey = useMemo(() => 
-    `${userId}_${startDate}_${endDate}`, 
-    [userId, startDate, endDate]
+    `${reportUserId}_${reportStartDate}_${reportEndDate}`, 
+    [reportUserId, reportStartDate, reportEndDate]
   );
   
   // Format date for display - memoized to avoid recalculation
   const formatDateRange = useMemo(() => {
-    if (!startDate || !endDate || !hasCalculatedData) return "";
+    if (!reportStartDate || !reportEndDate || !hasCalculatedData) return "";
     try {
-      const start = parseISO(startDate);
-      const end = parseISO(endDate);
+      const start = parseISO(reportStartDate);
+      const end = parseISO(reportEndDate);
       return `${format(start, 'MMM d')} – ${format(end, 'MMM d, yyyy')}`;
     } catch (e) {
       console.error('Error formatting date range:', e);
       return "";
     }
-  }, [startDate, endDate, hasCalculatedData]);
+  }, [reportStartDate, reportEndDate, hasCalculatedData]);
   
   // Preload data when dates change but before the section is shown
   useEffect(() => {
     // Even if metrics section is not shown yet, start loading data in background
     // when dates are valid
-    if (startDate && endDate && userId) {
+    if (reportStartDate && reportEndDate && reportUserId) {
       // Check if we already have this data in cache
       if (!reportsCache.has(cacheKey)) {
         // Only trigger a background fetch if not already loading
         fetchDailyReports(false);
       }
     }
-  }, [startDate, endDate, userId, cacheKey]);
+  }, [reportStartDate, reportEndDate, reportUserId, cacheKey]);
   
   // Fetch daily reports in the date range
   const fetchDailyReports = useCallback(async (showLoadingState = true) => {
     // Skip if already loading or no valid dates
-    if (!startDate || !endDate) {
+    if (!reportStartDate || !reportEndDate) {
       return;
     }
     
@@ -157,20 +163,20 @@ export function ResultReportManager({
     
     try {
       // Validate dates
-      if (!startDate || !endDate) {
+      if (!reportStartDate || !reportEndDate) {
         setError('Please select both start and end dates');
         if (showLoadingState) setIsLoading(false);
         return;
       }
       
-      console.log(`Fetching reports for ${startDate} to ${endDate}`);
+      console.log(`Fetching reports for ${reportStartDate} to ${reportEndDate}`);
       
       const { data, error } = await supabase
         .from('daily_reports')
         .select('*')
-        .gte('date', startDate)
-        .lte('date', endDate)
-        .eq('user_id', userId);
+        .gte('date', reportStartDate)
+        .lte('date', reportEndDate)
+        .eq('user_id', reportUserId);
       
       if (error) {
         throw error;
@@ -195,7 +201,7 @@ export function ResultReportManager({
       setError('Failed to load daily reports');
       if (showLoadingState) setIsLoading(false);
     }
-  }, [startDate, endDate, userId, cacheKey]);
+  }, [reportStartDate, reportEndDate, reportUserId, cacheKey]);
   
   // Calculate metrics - memoized to prevent unnecessary recalculations
   const calculateMetrics = useCallback((reports: DailyReport[]) => {
@@ -210,10 +216,10 @@ export function ResultReportManager({
       // Create a mock result report structure for the calculation
       const mockResultReport: ResultReport = {
         id: 'temp',
-        user_id: userId,
+        user_id: reportUserId,
         type: 'weekly',
-        start_date: startDate,
-        end_date: endDate,
+        start_date: reportStartDate,
+        end_date: reportEndDate,
         summary: '',
         next_goals: '',
         comments: '',
@@ -249,7 +255,7 @@ export function ResultReportManager({
     } finally {
       setIsLoading(false);
     }
-  }, [userId, startDate, endDate, onSaveReport]);
+  }, [reportUserId, reportStartDate, reportEndDate, onSaveReport]);
   
   // Calculate deviation percentage - memoized
   const calculateDeviation = useCallback((plan: number, actual: number): { value: string, className: string } => {
@@ -273,10 +279,10 @@ export function ResultReportManager({
   
   // Load reports when metrics section is shown (user requested)
   useEffect(() => {
-    if (startDate && endDate && showMetricsSection) {
+    if (reportStartDate && reportEndDate && showMetricsSection) {
       fetchDailyReports(true);
     }
-  }, [startDate, endDate, userId, showMetricsSection, fetchDailyReports]);
+  }, [reportStartDate, reportEndDate, reportUserId, showMetricsSection, fetchDailyReports]);
   
   // Only render the component if showMetricsSection is true
   if (!showMetricsSection) {
