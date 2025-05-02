@@ -1,15 +1,15 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { User, Session } from '@supabase/supabase-js';
+import { User, Session, Provider } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{ user: User; session: Session } | null>;
   signUp: (email: string, password: string, name: string) => Promise<void>;
   signOut: () => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
+  signInWithGoogle: () => Promise<{ provider: Provider; url: string } | null>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -81,10 +81,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
-        options: {
-          // Configure session duration to 3 days
-          sessionTime: 60 * 60 * 24 * 3, // 3 days in seconds
-        },
       });
 
       if (signInError) throw signInError;
@@ -111,8 +107,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           data: {
             name,
           },
-          // Configure session duration to 3 days
-          sessionTime: 60 * 60 * 24 * 3, // 3 days in seconds
         },
       });
 
@@ -129,8 +123,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
-          // Configure session duration to 3 days
-          sessionTime: 60 * 60 * 24 * 3, // 3 days in seconds
         },
       });
 

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { DataView } from './data-view';
 import { AddCompanyForm } from './add-company-form';
 
@@ -19,7 +18,7 @@ export function DatabaseExplorer() {
           {/* <AddMetricForm /> */}
         </div>
         
-        <DataView />
+        <DataView data={[]} title="Data Preview" />
       </div>
     </div>
   );

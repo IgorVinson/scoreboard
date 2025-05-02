@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useData } from '@/contexts/data-context';
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
@@ -14,17 +14,29 @@ import { Settings } from 'lucide-react';
 export function ModeToggle() {
   const { user } = useAuth();
   const { updateUser, getUserById, refreshData } = useData();
-  const currentUser = getUserById(user?.id || '');
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [open, setOpen] = useState(false);
+  const [isSoloMode, setIsSoloMode] = useState(false);
 
-  const isSoloMode = currentUser?.mode === 'SOLO';
+  // Fetch user data when user changes
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (!user?.id) return;
+      const userData = await getUserById(user.id);
+      setCurrentUser(userData);
+      setIsSoloMode(userData?.mode === 'SOLO');
+    };
+    
+    fetchUserData();
+  }, [user, getUserById]);
 
-  const handleModeChange = (checked: boolean) => {
+  const handleModeChange = async (checked: boolean) => {
     if (currentUser) {
-      updateUser(currentUser.id, {
+      await updateUser(currentUser.id, {
         mode: checked ? 'SOLO' : 'TEAM',
       });
-      refreshData();
+      await refreshData();
+      setIsSoloMode(checked);
       setOpen(false);
     }
   };

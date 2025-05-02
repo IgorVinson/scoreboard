@@ -1,4 +1,3 @@
-import { Objective } from '@/components/ObjectivesMetricsTable';
 import {
   Card,
   CardContent,
@@ -6,6 +5,16 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+
+export interface Objective {
+  id: string;
+  name: string;
+  metrics: Array<{
+    id: string;
+    name: string;
+  }>;
+  progress?: number;
+}
 
 interface SimpleOverviewProps {
   objectives: Objective[];

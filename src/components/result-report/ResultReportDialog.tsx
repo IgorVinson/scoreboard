@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { format, parse, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
+import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import {
   Dialog,
   DialogContent,
@@ -19,13 +19,8 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { 
-  useGenerateResultReportMetrics, 
-  useCreateResultReport,
-  useUpdateResultReport
-} from '@/queries';
 import { useAuth } from '@/contexts/auth-context';
-import type { ResultReport } from '@/lib/types';
+import type { ResultReport } from '@/types';
 import {
   Table,
   TableBody,
@@ -34,13 +29,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import {
   Calendar,
   FileText,
   RefreshCw,
   Save,
-  CheckCircle2,
   BarChart3,
   PieChart,
   Target,
@@ -49,6 +42,11 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import {
+  useGenerateResultReportMetrics, 
+  useCreateResultReport,
+  useUpdateResultReport
+} from '@/queries';
 
 interface ResultReportDialogProps {
   open: boolean;
@@ -164,8 +162,7 @@ export function ResultReportDialog({
         await updateResultReportMutation.mutateAsync(reportData);
       } else {
         // Create new report
-      const reportData: Omit<ResultReport, 'id' | 'created_at' | 'updated_at'> = {
-        uuid: crypto.randomUUID(), // Generate a UUID
+      const reportData: Omit<ResultReport, 'id'> = {
         user_id: user.id,
         type: reportType,
         start_date: startDate,

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { queryKeys } from './queryKeys';
-import type { ResultReport, DailyReport } from '@/lib/types';
+import type { ResultReport, DailyReport } from '@/types';
 
 export const useResultReports = () => {
   return useQuery({

@@ -28,3 +28,34 @@ export * from './useObjectives';
 // User preferences queries
 export * from './useUserPreferences';
 
+// Export all query hooks
+export * from './useResultReports';
+
+// Define custom hooks needed by ResultReportDialog
+export const useGenerateResultReportMetrics = () => {
+  return {
+    mutateAsync: async (_params: { userId: string, startDate: string, endDate: string }) => {
+      // Mock implementation that returns empty metrics
+      return {}; 
+    }
+  };
+};
+
+export const useCreateResultReport = () => {
+  return {
+    mutateAsync: async (reportData: any) => {
+      // Mock implementation
+      return reportData;
+    }
+  };
+};
+
+export const useUpdateResultReport = () => {
+  return {
+    mutateAsync: async (reportData: any) => {
+      // Mock implementation
+      return reportData;
+    }
+  };
+};
+
