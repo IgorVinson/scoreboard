@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, {useState} from 'react';
 import {
   Table,
   TableBody,
@@ -15,7 +15,6 @@ import {
   Trash2,
   Edit,
   FileText,
-  Star,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
@@ -79,15 +78,12 @@ export function ReportsTable({
   reports,
   objectives,
   onDeleteReport,
-  onToggleReview,
   onEditReport,
-  onReviewReport,
 }: ReportsTableProps) {
   const [expandedReports, setExpandedReports] = useState<Set<string>>(new Set());
   const [expandedMainObjectives, setExpandedMainObjectives] = useState<Map<string, Set<string>>>(
     new Map()
   );
-  const [activeTab, setActiveTab] = useState('overview-performance');
 
   const toggleReportExpansion = (reportId: string): void => {
     setExpandedReports(prev => {
@@ -248,54 +244,7 @@ export function ReportsTable({
     );
   };
 
-  // Modify the tabs array to remove the separate tabs and create a combined one
-  const tabs = [
-    {
-      name: 'Overview & Performance',
-      href: '#',
-      current: activeTab === 'overview-performance',
-    },
-    // ... keep other tabs if they exist ...
-  ];
-
-  // Update the tab content rendering logic
-  function renderTabContent() {
-    switch (activeTab) {
-      case 'overview-performance':
-        return (
-          <div>
-            {/* Overview content */}
-            <div className='mb-8'>
-              <h2 className='text-lg font-medium mb-4'>Overview</h2>
-              {/* Include all overview components here */}
-              <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
-                {/* Overview metrics and charts */}
-                {/* ... existing overview components ... */}
-              </div>
-            </div>
-
-            {/* Performance content */}
-            <div>
-              <h2 className='text-lg font-medium mb-4'>Performance</h2>
-              {/* Include all performance components here */}
-              <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
-                {/* Performance metrics and charts */}
-                {/* ... existing performance components ... */}
-              </div>
-            </div>
-          </div>
-        );
-      // ... other case statements for other tabs ...
-      default:
-        return null;
-    }
-  }
-
   // Update the initial state or useEffect to set the default active tab
-  useEffect(() => {
-    setActiveTab('overview-performance');
-  }, []);
-
   return (
     <Table>
       <TableHeader>
@@ -316,7 +265,7 @@ export function ReportsTable({
             </TableCell>
           </TableRow>
         ) : (
-          reports.map((report: Report, reportIndex: number) => {
+          reports.map((report: Report) => {
             const isExpanded = expandedReports.has(report.id);
             
             // Get the date to display, handling both regular reports and result reports
