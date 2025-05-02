@@ -100,11 +100,9 @@ export function DeepOverviewTable({
   reports = [], // Default to empty array if not provided
 }: DeepOverviewTableProps) {
   // Get access to the query client for manual cache invalidation
-  console.log('DIAGNOSTICS: DeepOverviewTable reports length:', reports ? reports.length : 0);
   
   // Log the structure of the first report if available
   if (reports && reports.length > 0) {
-    console.log('DIAGNOSTICS: First report sample:', reports[0]);
     
     // Log all metric IDs from reports
     const reportMetricIds = new Set();
@@ -113,7 +111,6 @@ export function DeepOverviewTable({
         Object.keys(report.metrics_data).forEach(id => reportMetricIds.add(id));
       }
     });
-    console.log('DIAGNOSTICS: Metric IDs found in reports:', Array.from(reportMetricIds));
   }
   
   // Log all metric IDs from objectives
@@ -123,7 +120,6 @@ export function DeepOverviewTable({
       objectiveMetricIds.add(metric.id);
     });
   });
-  console.log('DIAGNOSTICS: Metric IDs in objectives:', Array.from(objectiveMetricIds));
   
   const queryClient = useQueryClient();
 
@@ -211,7 +207,6 @@ export function DeepOverviewTable({
 
   // Modify the refreshData function to use our optimistic loading state
   const refreshData = useCallback(() => {
-    console.log('Refreshing metrics data...');
     
     // Use operation-specific loading instead of global loading
     showLoadingIndicator('refreshing-metrics', true);
@@ -221,7 +216,6 @@ export function DeepOverviewTable({
     
     // Then refetch - this forces a complete reload from the server
     refetchMetrics().then(result => {
-      console.log('Metrics refetch completed:', result.data?.length, 'metrics loaded');
       
       if (result.data) {
         // Also directly update the cache with the fresh data
@@ -241,7 +235,6 @@ export function DeepOverviewTable({
       return;
     }
     
-    console.log('Processing metrics from database:', allMetrics.length, 'metrics');
     
     // Create a map of metrics by objective_id for easier lookup
     const metricsByObjective: Record<string, UIMetric[]> = {};
@@ -285,10 +278,8 @@ export function DeepOverviewTable({
       0
     );
     
-    console.log(`Current metrics: ${currentMetricsCount}, New metrics: ${newMetricsCount}`);
     
     if (currentMetricsCount !== newMetricsCount) {
-      console.log('Updating objectives with new metrics data');
       onObjectivesChange(updatedObjectives);
     }
   }, [allMetrics, isLoadingMetrics, objectives, onObjectivesChange]);
@@ -321,12 +312,6 @@ export function DeepOverviewTable({
     if (isEditing && currentMetricId) {
       // Update existing metric in database
       try {
-        console.log('Updating metric in database:', {
-          id: currentMetricId,
-          name: metricName,
-          description: metricDescription,
-        });
-        
         // Apply optimistic update immediately
         const updatedObjectives = objectives.map(obj => {
           if (obj.id === currentObjectiveId) {
@@ -356,9 +341,7 @@ export function DeepOverviewTable({
           name: metricName,
           description: metricDescription,
         }, {
-          onSuccess: (updatedMetric) => {
-            console.log('Successfully updated metric in database:', updatedMetric);
-            
+          onSuccess: (updatedMetric) => {            
             // Use batch updates for cache instead of separate invalidations
             queryClient.invalidateQueries({ 
               predicate: (query) => {
@@ -413,12 +396,6 @@ export function DeepOverviewTable({
       setMetricDialogOpen(false);
       
       try {
-        console.log('Creating metric in database:', {
-          name: metricName,
-          description: metricDescription,
-          objective_id: currentObjectiveId,
-        });
-        
         createMetricMutation.mutate({
           name: metricName,
           description: metricDescription,
@@ -427,8 +404,6 @@ export function DeepOverviewTable({
           measurement_unit: 'NUMBER', // Default measurement unit
         }, {
           onSuccess: (newMetric) => {
-            console.log('Successfully created metric in database:', newMetric);
-            
             // Immediately replace temp metric with the real one 
             const finalObjectives = objectives.map(obj => {
               if (obj.id === currentObjectiveId) {
@@ -557,8 +532,6 @@ export function DeepOverviewTable({
         // Then delete the objective
         await deleteObjectiveMutation.mutateAsync(itemToDelete.objectiveId);
         
-        console.log('Successfully deleted objective and its metrics from database');
-        
         // Force refresh of plans data to ensure UI is in sync with database
         if (user?.id) {
           queryClient.invalidateQueries({ 
@@ -606,9 +579,7 @@ export function DeepOverviewTable({
       
       try {
         // First delete any associated plans
-        if (metricPlans.length > 0) {
-          console.log(`Found ${metricPlans.length} plans for metric ${metricToDelete}, deleting them first`);
-          
+        if (metricPlans.length > 0) {          
           // Delete plans one by one to ensure they're all removed
           for (const plan of metricPlans) {
             await deletePlanMutation.mutateAsync(plan.id);
@@ -616,10 +587,7 @@ export function DeepOverviewTable({
         }
         
         // Then delete the metric
-        await deleteMetricMutation.mutateAsync(metricToDelete);
-        
-        console.log('Successfully deleted metric and its plans from database');
-        
+        await deleteMetricMutation.mutateAsync(metricToDelete);        
         // Force refresh of plans data to ensure UI is in sync with database
         if (user?.id) {
           queryClient.invalidateQueries({ 
@@ -721,7 +689,6 @@ export function DeepOverviewTable({
 
     // Calculate simple deviation as a percentage using the adjusted plan value
     const deviation = ((actualValue - adjustedPlanValue) / adjustedPlanValue) * 100;
-    console.log(`DEVDEBUG: Metric ${metric.name} - Period: ${viewPeriod}, Actual: ${actualValue}, Plan: ${metric.plan}, Adjusted Plan: ${adjustedPlanValue}, Deviation: ${Math.round(deviation)}%`);
     return Math.round(deviation); // Round to whole number
   };
 
@@ -759,20 +726,13 @@ export function DeepOverviewTable({
     try {
       if (isEditing && currentObjectiveId) {
         // Update existing objective
-        console.log('Updating objective in database:', {
-          id: currentObjectiveId,
-          name: objectiveName,
-          description: objectiveDescription,
-        });
         
         updateObjectiveMutation.mutate({
           id: currentObjectiveId,
           name: objectiveName,
           description: objectiveDescription,
         }, {
-          onSuccess: (updatedObjective) => {
-            console.log('Successfully updated objective in database:', updatedObjective);
-            
+          onSuccess: (updatedObjective) => {            
             // Update the objective in local state
             const updatedObjectives = objectives.map(obj =>
               obj.id === currentObjectiveId
@@ -789,10 +749,6 @@ export function DeepOverviewTable({
         });
       } else {
         // Create new objective
-        console.log('Creating objective in database:', {
-          name: objectiveName,
-          description: objectiveDescription,
-        });
         
         createObjectiveMutation.mutate({
           name: objectiveName,
@@ -800,7 +756,6 @@ export function DeepOverviewTable({
           user_id: user.id
         }, {
           onSuccess: (newObjective) => {
-            console.log('Successfully created objective in database:', newObjective);
             
             // Add new objective to local state as well
             const newObjectiveLocal: UIObjective = {
@@ -936,8 +891,6 @@ export function DeepOverviewTable({
       > = {};
   
       // Gather current metrics and their plans
-      console.log('Opening plans dialog - metrics count:', 
-        objectives.reduce((count, obj) => count + obj.metrics.length, 0));
       
       objectives.forEach(objective => {
         objective.metrics.forEach(metric => {
@@ -951,23 +904,12 @@ export function DeepOverviewTable({
           };
           
           // Debug
-          console.log(`Metric in dialog: ${metric.name} (${metric.id}) - has plan: ${metric.plan !== undefined}`);
         });
       });
   
       setMetricPlans(initialMetricPlans);
       setPlansDialogOpen(true);
     }, 300); // Small delay to ensure data is fresh
-  };
-
-  // Update the getPlanPeriodText function
-  const getPlanPeriodText = (period: 'until_week_end' | 'until_month_end') => {
-    switch (period) {
-      case 'until_week_end':
-        return 'Until week end';
-      case 'until_month_end':
-        return 'Until month end';
-    }
   };
 
   // Update the handleMetricSelectionChange function to handle database deletion
@@ -990,7 +932,6 @@ export function DeepOverviewTable({
       
       deletePlanMutation.mutate(currentPlanState.planId, {
         onSuccess: () => {
-          console.log('Successfully deleted plan from database');
           
           // Update the local objectives state to remove plan details
           const updatedObjectives = objectives.map(objective => {
@@ -1072,10 +1013,8 @@ export function DeepOverviewTable({
     let dailyValue: number;
     if (metric.planPeriod === 'until_week_end') {
       dailyValue = metric.plan / workDaysInWeek;
-      console.log(`Converting weekly plan ${metric.plan} to daily: ${dailyValue}`);
     } else if (metric.planPeriod === 'until_month_end') {
       dailyValue = metric.plan / workDaysInMonth;
-      console.log(`Converting monthly plan ${metric.plan} to daily: ${dailyValue}`);
     } else {
       dailyValue = metric.plan; // Already daily
     }
@@ -1085,11 +1024,9 @@ export function DeepOverviewTable({
       return dailyValue;
     } else if (viewPeriod === 'week') {
       const weeklyValue = dailyValue * workDaysInWeek;
-      console.log(`Converting daily value ${dailyValue} to weekly: ${weeklyValue}`);
       return weeklyValue;
     } else if (viewPeriod === 'month') {
       const monthlyValue = dailyValue * workDaysInMonth;
-      console.log(`Converting daily value ${dailyValue} to monthly: ${monthlyValue}`);
       return monthlyValue;
     }
 
@@ -1133,7 +1070,6 @@ export function DeepOverviewTable({
         }
         
         if (!metricExists) {
-          console.log(`Skipping plan for metric ${metricId} as it no longer exists`);
         }
         
         return metricExists;
@@ -1148,9 +1084,7 @@ export function DeepOverviewTable({
             break;
           }
         }
-        
-        console.log(`Setting plan for metric "${metricName}": value=${data.value}, period=${data.period}`);
-        
+                
         return {
           metricId,
           metricName,
@@ -1165,7 +1099,6 @@ export function DeepOverviewTable({
       .filter(([_, data]) => data.selected && data.value !== undefined).length - selectedMetricPlans.length;
     
     if (skippedCount > 0) {
-      console.log(`Skipped ${skippedCount} plans for metrics that no longer exist`);
     }
 
     if (selectedMetricPlans.length === 0) {
@@ -1210,7 +1143,6 @@ export function DeepOverviewTable({
     // Calculate end date based on period
     const getEndDate = (period: 'until_week_end' | 'until_month_end') => {
       const now = new Date();
-      console.log(`Calculating end date for period: ${period}`);
       
       // Make sure we're working with a fresh date (start of day)
       const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -1231,7 +1163,6 @@ export function DeepOverviewTable({
         friday.setDate(startDate.getDate() + daysUntilFriday);
         const fridayStr = friday.toISOString().split('T')[0];
         
-        console.log(`Start date: ${today}, Week end date: ${fridayStr} (${daysUntilFriday} days from now, ${friday.toDateString()})`);
         return fridayStr;
       } else {
         // End of current month - go to next month to ensure it's always a future date
@@ -1242,7 +1173,6 @@ export function DeepOverviewTable({
         const lastDay = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 0);
         const lastDayStr = lastDay.toISOString().split('T')[0];
         
-        console.log(`Start date: ${today}, Month end date: ${lastDayStr} (day ${lastDay.getDate()} of month, ${lastDay.toDateString()})`);
         return lastDayStr;
       }
     };
@@ -1263,7 +1193,6 @@ export function DeepOverviewTable({
           
           if (plan.planId) {
             // Update existing plan
-            console.log(`Updating plan ${plan.planId} for metric ${plan.metricName}: ${plan.planValue} (${plan.period}) from ${today} to ${endDate}`);
             const updatePromise = updatePlanMutation.mutateAsync({
               id: plan.planId,
               target_value: plan.planValue,
@@ -1274,7 +1203,6 @@ export function DeepOverviewTable({
             dbOperations.push(updatePromise);
           } else {
             // Create new plan
-            console.log(`Creating plan for metric ${plan.metricName}: ${plan.planValue} (${plan.period}) from ${today} to ${endDate}`);
             const createPromise = createPlanMutation.mutateAsync({
               metric_id: plan.metricId,
               target_value: plan.planValue,
@@ -1293,7 +1221,6 @@ export function DeepOverviewTable({
 
       // Wait for all database operations to complete
       await Promise.all(dbOperations);
-      console.log('All plan operations completed successfully');
       
       // Batch update the cache instead of multiple invalidations
       queryClient.invalidateQueries({ 
@@ -1309,26 +1236,6 @@ export function DeepOverviewTable({
       refreshData();
     } finally {
       showLoadingIndicator('saving-plans', false);
-    }
-  };
-
-  // Update the getPlanPeriodDisplayName function to consider the current view
-  const getPlanPeriodDisplayName = (
-    period: string | undefined,
-    viewPeriod: 'day' | 'week' | 'month'
-  ) => {
-    if (!period) return '';
-
-    // Return the display name based on the current view, not the plan period
-    switch (viewPeriod) {
-      case 'day':
-        return 'daily';
-      case 'week':
-        return 'weekly';
-      case 'month':
-        return 'monthly';
-      default:
-        return period;
     }
   };
 
@@ -1362,16 +1269,13 @@ export function DeepOverviewTable({
     metricId: string,
     viewPeriod: 'day' | 'week' | 'month'
   ) => {
-    console.log(`DEBUGFACT: Checking fact for metric: ${metricId}, viewPeriod: ${viewPeriod}`);
     
     if (!reports || reports.length === 0) {
-      console.log(`DEBUGFACT: No reports available for metric: ${metricId}`);
       return null;
     }
 
     // Get current date formatted as YYYY-MM-DD for comparison
     const today = format(new Date(), 'yyyy-MM-dd');
-    console.log(`DEBUGFACT: Today's date for comparison: ${today}`);
     
     // Filter reports based on view period and metric ID
     let relevantReports;
@@ -1385,12 +1289,10 @@ export function DeepOverviewTable({
         
         // Check if report date matches today
         const isToday = report.date === today;
-        console.log(`DEBUGFACT: Report ${report.id} date ${report.date} compared to today ${today}: ${isToday ? 'MATCHES' : 'not a match'}`);
         
         return isToday;
       });
       
-      console.log(`DEBUGFACT: Found ${relevantReports.length} reports for today`);
     } else {
       // For weekly and monthly views, get all reports (we'll filter by date later if needed)
       relevantReports = reports.filter(report => {
@@ -1400,11 +1302,9 @@ export function DeepOverviewTable({
         return true;
       });
       
-      console.log(`DEBUGFACT: Found ${relevantReports.length} total reports for accumulated view`);
     }
 
     if (relevantReports.length === 0) {
-      console.log(`DEBUGFACT: No relevant reports for metric ${metricId} in ${viewPeriod} view`);
       return null;
     }
 
@@ -1416,37 +1316,30 @@ export function DeepOverviewTable({
       
       // Check if the fact property exists and is a number
       if (metricData && typeof metricData === 'object' && 'fact' in metricData && typeof metricData.fact === 'number') {
-        console.log(`DEBUGFACT: Adding fact value ${metricData.fact} from report ${report.id} (${report.date})`);
         totalFactValue += metricData.fact;
       } else {
-        console.log(`DEBUGFACT: No valid fact value found in metric data for report ${report.id}`);
       }
     });
 
     // No additional period adjustments needed - we're already filtering by period
     let adjustedFactValue = totalFactValue;
     
-    console.log(`DEBUGFACT: ${viewPeriod === 'day' ? 'Today' : 'Total'} fact value for metric ${metricId}: ${totalFactValue}`);
     return adjustedFactValue > 0 ? Math.round(adjustedFactValue) : null;
   };
 
   // Use effect to initialize metric plans with data from database when userPlans changes
   useEffect(() => {
-    console.log('Plans useEffect triggered - userPlans:', userPlans?.length);
     
     // Skip if no objectives
     if (objectives.length === 0) {
-      console.log('No objectives, skipping plans processing');
       return;
     }
 
     // Skip if plans are still loading and we haven't determined if they're defined yet
     if (plansLoading) {
-      console.log('Plans still loading, will process later');
       return;
     }
     
-    console.log('Processing plans with userPlans:', userPlans);
     
     // Even if userPlans is empty or undefined, we should still process to reset plans
     const validPlans = userPlans || [];
@@ -1459,7 +1352,6 @@ export function DeepOverviewTable({
       });
     });
     
-    console.log('All metrics that currently exist:', Array.from(existingMetricIds));
     
     // Create a map of plan data by metric ID for quick lookup
     const plansByMetricId = new Map<string, Plan>();
@@ -1468,11 +1360,9 @@ export function DeepOverviewTable({
       if (existingMetricIds.has(plan.metric_id)) {
         plansByMetricId.set(plan.metric_id, plan);
       } else {
-        console.log(`Plan ${plan.id} references non-existent metric ${plan.metric_id}`);
       }
     });
     
-    console.log('Processing plans for', plansByMetricId.size, 'metrics');
     
     // Now update all objectives and their metrics with the latest plan data
     const updatedObjectives = objectives.map(objective => {
@@ -1480,33 +1370,21 @@ export function DeepOverviewTable({
         const plan = plansByMetricId.get(metric.id);
         
         if (plan) {
-          console.log(`Applying plan to metric ${metric.name} (${metric.id}):`, plan);
           
           // Determine the period based on end_date
           let period: 'until_week_end' | 'until_month_end' = 'until_week_end';
           try {
             const endDate = new Date(plan.end_date);
             const endOfMonth = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0);
-            
-            // Debug logs for date comparison
-            console.log(`Plan ${plan.id} end date: ${plan.end_date}`);
-            console.log(`End date: ${endDate.toISOString()}`);
-            console.log(`End of month: ${endOfMonth.toISOString()}`);
-            console.log(`End date day: ${endDate.getDate()}, End of month day: ${endOfMonth.getDate()}`);
-            
-            // Check if the date is within the last 3 days of the month
             // This makes the check more robust for cases where the exact last day might vary
             const daysFromEndOfMonth = endOfMonth.getDate() - endDate.getDate();
             const isEndOfMonth = daysFromEndOfMonth <= 2; // Within 2 days of month end
-            console.log(`Days from end of month: ${daysFromEndOfMonth}, Is end of month?: ${isEndOfMonth}`);
             
             if (isEndOfMonth) {
               period = 'until_month_end';
             }
             
-            console.log(`Determined period for metric ${metric.name}: ${period}`);
           } catch (e) {
-            console.error('Error parsing plan date:', e);
           }
           
           // Return metric with plan data
@@ -1536,10 +1414,8 @@ export function DeepOverviewTable({
     // Only update if something actually changed
     const hasChanges = JSON.stringify(updatedObjectives) !== JSON.stringify(objectives);
     if (hasChanges) {
-      console.log('Plan data changed, updating objectives');
       onObjectivesChange(updatedObjectives);
     } else {
-      console.log('No changes to plan data');
     }
     
   // We depend on metrics loading state and several key events that should trigger a reprocessing of plans
@@ -1548,7 +1424,6 @@ export function DeepOverviewTable({
 
   // Add function to force reload plans
   const forceReloadPlans = useCallback(() => {
-    console.log('Forcing reload of plans data...');
     
     // Use operation-specific loading instead of global loading
     showLoadingIndicator('reloading-plans', true);
@@ -1563,10 +1438,8 @@ export function DeepOverviewTable({
     
     // Then directly trigger refetch of critical queries
     refetchMetrics().then(() => {
-      console.log('Plans data reloaded');
       setTimeout(() => showLoadingIndicator('reloading-plans', false), 300);
     }).catch(error => {
-      console.error('Error reloading plans:', error);
       showLoadingIndicator('reloading-plans', false);
     });
   }, [queryClient, refetchMetrics, showLoadingIndicator]);
@@ -1843,9 +1716,7 @@ export function DeepOverviewTable({
                                 metric.id,
                                 dateRange
                               );
-                              
-                              console.log(`DEBUGUI: Actual for metric ${metric.name} (${metric.id}): accumulated=${accumulatedValue}, metric.actual=${metric.actual}`);
-                              
+                                                            
                               // First try accumulated value from reports for the selected date range
                               if (accumulatedValue !== null) {
                                 return (

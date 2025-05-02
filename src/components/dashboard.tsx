@@ -287,7 +287,6 @@ export function Dashboard() {
   const { data: objectivesFromDB } = useObjectivesByUser(user?.id || '');
   
   useEffect(() => {
-    console.log('Objectives from database:', objectivesFromDB);
   }, [objectivesFromDB]);
   
   useEffect(() => {
@@ -520,7 +519,6 @@ export function Dashboard() {
       // Create the report in the database
       await createDailyReportMutation.mutateAsync(dbReportData);
       
-      console.log('Report created successfully');
       setReportDialogOpen(false);
       
       // Show success alert with consistent date formatting
@@ -593,7 +591,6 @@ export function Dashboard() {
       // Update the report
       await updateDailyReportMutation.mutateAsync(reportData);
       
-      console.log('Report updated successfully');
       setReportDialogOpen(false);
       setEditingReport(null);
     } catch (error) {
@@ -967,7 +964,6 @@ export function Dashboard() {
   
   const generateResultReport = async () => {
     try {
-      console.log("Starting result report generation...");
       
       // Build a list of missing fields for better error messaging
       const missingFields = [];
@@ -1034,7 +1030,6 @@ export function Dashboard() {
       // This prevents potential issues with database limits
       const metricsCount = Object.keys(resultReportMetrics).length;
       if (metricsCount > 100) { // Set a reasonable limit
-        console.error("Too many metrics for a single report:", metricsCount);
         setAlertDialogTitle("Too Many Metrics");
         setAlertMessage(`Your report contains ${metricsCount} metrics, which exceeds our system limits. Please use a smaller date range or fewer metrics.`);
         setAlertDialogOpen(true);
@@ -1046,7 +1041,6 @@ export function Dashboard() {
         // JSON.stringify will throw an error if the structure is too complex or circular
         const metricsString = JSON.stringify(resultReportMetrics);
         if (metricsString.length > 500000) { // Check if the data is too large (500KB)
-          console.error("Metrics data size too large:", metricsString.length, "bytes");
           setAlertDialogTitle("Data Size Limit Exceeded");
           setAlertMessage("Your metrics data is too large. Please use a smaller date range or fewer metrics.");
           setAlertDialogOpen(true);
@@ -1059,9 +1053,6 @@ export function Dashboard() {
         setAlertDialogOpen(true);
         return;
       }
-      
-      // Log the metrics data we're using
-      console.log("Using metrics data:", resultReportMetrics);
       
       // Format date range for display
       const dateRange = resultReportStartDate === resultReportEndDate 
@@ -1080,8 +1071,6 @@ export function Dashboard() {
         metrics_summary: resultReportMetrics,
         reviewed: false
       };
-
-      console.log("Generating result report with data:", resultReportData);
 
       // Insert the result report into the database
       const { data, error } = await supabase
@@ -1143,8 +1132,6 @@ export function Dashboard() {
       setResultReportDialogOpen(false);
       resetResultReportState();
       
-      console.log("Result report created:", data);
-      
       // Return success status for the button handler
       return true;
     } catch (error) {
@@ -1171,14 +1158,12 @@ export function Dashboard() {
   };
 
   const submitResultReportReview = () => {
-    console.log('Submit result report review');
     setResultReportDialogOpen(false);
   };
 
   // Add some display of the metrics data to confirm it's working
   useEffect(() => {
     if (metrics.length > 0) {
-      console.log('Metrics from TanStack Query:', metrics);
       
       // Update indicators with metrics data
       const metricIndicators = metrics.map(metric => ({
@@ -1193,40 +1178,6 @@ export function Dashboard() {
       setAllIndicators(['All Indicators', ...metricIndicators.map(m => m.name)]);
     }
   }, [metrics]);
-
-  // Add metric operation handlers using TanStack Query
-  const handleCreateMetric = async (metricData: any) => {
-    try {
-      console.log('Creating metric with data:', metricData);
-      await createMetricMutation.mutateAsync(metricData);
-      return true;
-    } catch (error) {
-      console.error('Error creating metric:', error);
-      return false;
-    }
-  };
-
-  const handleUpdateMetric = async (id: string, metricData: any) => {
-    try {
-      console.log('Updating metric:', id, metricData);
-      await updateMetricMutation.mutateAsync({ id, ...metricData });
-      return true;
-    } catch (error) {
-      console.error('Error updating metric:', error);
-      return false;
-    }
-  };
-
-  const handleDeleteMetric = async (id: string) => {
-    try {
-      console.log('Deleting metric:', id);
-      await deleteMetricMutation.mutateAsync(id);
-      return true;
-    } catch (error) {
-      console.error('Error deleting metric:', error);
-      return false;
-    }
-  };
 
   // Fix the handler for metric value changes in both dialog boxes to handle empty values correctly
   const handleMetricValueChange = (metricId: string, value: string) => {
@@ -1255,8 +1206,6 @@ export function Dashboard() {
   // Add this useEffect to process result reports when they change
   useEffect(() => {
     if (resultReports && resultReports.length > 0) {
-      console.log("Processing result reports for display:", resultReports);
-      
       // Transform result reports to match the format expected by ReportsTable
       const processed = resultReports.map(report => {
         // Get the report object safely
@@ -1315,7 +1264,6 @@ export function Dashboard() {
         };
       });
       
-      console.log("Processed result reports:", processed);
       setProcessedResultReports(processed);
     } else {
       setProcessedResultReports([]);
@@ -1345,19 +1293,11 @@ export function Dashboard() {
         throw error;
       }
       
-      console.log("Fetched result reports:", data);
       if (data) {
         setResultReports(data);
       }
     } catch (error) {
       console.error('Error loading result reports:', error);
-    }
-  };
-
-  // Call the load function more aggressively
-  const refreshResultReports = () => {
-    if (user?.id) {
-      loadResultReports();
     }
   };
 
@@ -1465,8 +1405,6 @@ export function Dashboard() {
         return null;
       }
       
-      console.log(`Fetching result report: ${resultReportStartDate} to ${resultReportEndDate}`);
-      
       const { data, error } = await supabase
         .from('result_reports')
         .select('*')
@@ -1502,8 +1440,6 @@ export function Dashboard() {
     
     // If both dates are valid, trigger a prefetch
     if (startDate && endDate) {
-      console.log(`Dates selected: ${startDate} to ${endDate}, prefetching data...`);
-      
       // After a small delay to ensure UI is responsive, prefetch data
       setTimeout(() => {
         refetchResultReport();
@@ -2153,9 +2089,7 @@ export function Dashboard() {
                     objectives={objectives}
                     showMetricsSection={showMetricsSection || !!editingResultReport}
                     onSaveReport={(calculatedMetrics) => {
-                      console.log('Metrics saved from ResultReportManager:', calculatedMetrics);
                       if (calculatedMetrics && Object.keys(calculatedMetrics).length > 0) {
-                        console.log('Setting resultReportMetrics with valid data:', calculatedMetrics);
                         setResultReportMetrics(calculatedMetrics);
                       } else {
                         console.warn('Received empty metrics data from ResultReportManager');
