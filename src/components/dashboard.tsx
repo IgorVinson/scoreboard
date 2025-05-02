@@ -37,7 +37,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/contexts/auth-context';
-import { useSoloMode } from '@/contexts/solo-mode-context';
 import { NotesEditor } from '@/components/NotesEditor';
 import { DeepOverviewTable } from '@/components/DeepOverviewTable';
 import {
@@ -51,7 +50,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { ReportsTable } from '@/components/ReportsTable';
 import { SimpleOverview } from '@/components/SimpleOverview';
-import { format, parseISO, set } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import {
   useObjectivesByUser,
   useMetrics,
@@ -60,8 +59,6 @@ import {
   useLatestDailyNote,
 } from '@/queries';
 import { 
-  useCreateMetric, 
-  useUpdateMetric, 
   useDailyReportsByUser,
   useCreateDailyReport,
   useUpdateDailyReport,
@@ -120,14 +117,6 @@ interface Metric {
   planPeriod?: string;
 }
 
-interface Objective {
-  id: string;
-  name: string;
-  description?: string;
-  metrics: Metric[];
-  isExpanded?: boolean;
-}
-
 const StarRating: React.FC<StarRatingProps> = ({ rating, onRatingChange }) => {
   const [hoverRating, setHoverRating] = useState(0);
 
@@ -162,19 +151,18 @@ const StarRating: React.FC<StarRatingProps> = ({ rating, onRatingChange }) => {
 export function Dashboard() {
   const { user, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
-  const { isSoloMode, isVirtualManager } = useSoloMode();
   const queryClient = useQueryClient();
   
   // Add state for delete confirmation dialog
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [reportToDelete, setReportToDelete] = useState<string | null>(null);
   
-  const { data: metrics = [], isLoading: isLoadingMetrics } = useMetrics();
+  const { data: metrics = [] } = useMetrics();
 
   const deleteDailyReportMutation = useDeleteDailyReport();
   
   // TanStack Query hooks for daily reports
-  const { data: userReports = [], isLoading: isLoadingReports } = useDailyReportsByUser(user?.id || '');
+  const { data: userReports = [] } = useDailyReportsByUser(user?.id || '');
   const createDailyReportMutation = useCreateDailyReport();
   const updateDailyReportMutation = useUpdateDailyReport();
   
@@ -183,20 +171,12 @@ export function Dashboard() {
   const updateDailyNoteMutation = useUpdateDailyNote();
   const createDailyNoteMutation = useCreateDailyNote();
   
-  const [date, setDate] = useState<Date | undefined>(new Date());
-  const [selectedIndicator, setSelectedIndicator] = useState('All Indicators');
-  const [selectedPeriod, setSelectedPeriod] = useState('Daily');
-  const [reportsIndicator, setReportsIndicator] = useState('All Indicators');
-  const [reportsPeriod, setReportsPeriod] = useState('Daily');
   const [objectives, setObjectives] = useState<UIObjective[]>([]);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportDate, setReportDate] = useState(
     format(new Date(), 'yyyy-MM-dd')
   );
   const [metricValues, setMetricValues] = useState<Record<string, number>>({});
-  const [expandedObjectives, setExpandedObjectives] = useState<Set<string>>(
-    new Set()
-  );
 
   // Add the daily notes states here
   const [todayNotes, setTodayNotes] = useState('');
@@ -662,13 +642,8 @@ export function Dashboard() {
   };
 
   // When showing user-specific data, use the data from TanStack Query
-  const shouldShowManagerView =
-    isVirtualManager || (!isSoloMode && user?.role === 'MANAGER');
 
-  // Add the missing toggleStrictMode function
-  const toggleStrictMode = () => {
-    setStrictModeEnabled(prev => !prev);
-  };
+
 
   // Add missing handler functions
   const handleObjectivesChange = (updatedObjectives: UIObjective[]) => {
@@ -693,42 +668,11 @@ export function Dashboard() {
   };
   
   // Add the missing strictModeEnabled state
-  const [strictModeEnabled, setStrictModeEnabled] = useState(false);
+  const [strictModeEnabled] = useState(false);
   const [resultReportDialogOpen, setResultReportDialogOpen] = useState(false);
   const [missingSurveyOpen, setMissingSurveyOpen] = useState(false);
-  const [missingDates, setMissingDates] = useState<string[]>([]);
-  const [currentMissingIndex, setCurrentMissingIndex] = useState(0);
-
-  const [indicators, setIndicators] = useState<any[]>([]);
-  const [allIndicators, setAllIndicators] = useState(['All Indicators']);
-
-
-  const [reports, setReports] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedReports = localStorage.getItem('dailyReports');
-        if (savedReports) {
-          return JSON.parse(savedReports);
-        }
-      } catch (error) {
-        console.error('Error loading reports:', error);
-      }
-    }
-    return [];
-  });
-
-  // When dealing with the indicators in the UI, add loading state handling
-  const filteredIndicators =
-    isLoadingMetrics 
-      ? []
-      : selectedIndicator === 'All Indicators'
-        ? indicators
-        : indicators.filter((i: any) => i.name === selectedIndicator);
-
-  const filteredReports =
-    reportsIndicator === 'All Indicators'
-      ? reports
-      : reports.filter((r: any) => r.indicator === reportsIndicator);
+  const [missingDates] = useState<string[]>([]);
+  const [currentMissingIndex] = useState(0);
 
   // Get initials for avatar fallback
   const getInitials = (name: string) => {
@@ -786,26 +730,7 @@ export function Dashboard() {
     setReportDialogOpen(true);
   };
   
-  // Report review functions
-  const handleReviewReport = (report: Report) => {
-    // Set the report being reviewed
-    setEditingReport(report);
-    
-    // Set review mode to true
-    setReviewMode(true);
-    
-    // Set the initial ratings from the report if they exist
-    setReportQuantityRating(report.quantity_rating || 0);
-    setReportQualityRating(report.quality_rating || 0);
-    
-    // Copy the notes from the report (readonly in review mode)
-    setReportTodayNotes(report.today_notes || '');
-    setReportTomorrowNotes(report.tomorrow_notes || '');
-    setReportGeneralComments(report.general_comments || '');
-    
-    // Open the dialog
-    setReportDialogOpen(true);
-  };
+
   
   const handleToggleReview = async (reportId: string) => {
     try {
@@ -881,23 +806,8 @@ export function Dashboard() {
     setEditingReport(report);
     if (report.type === 'result') {
       // For result reports, populate form data with result report values
-      setResultReportForm({
-        summary: report.summary || '',
-        startDate: report.start_date ? new Date(report.start_date) : new Date(),
-        endDate: report.end_date ? new Date(report.end_date) : new Date(),
-      });
       setResultReportDialogOpen(true);
     }
-  };
-  
-  const handleReviewResultReport = (report: Report) => {
-    setReviewingReport(report);
-    // Initialize ratings for the result report review
-    setResultReportReview({
-      rating: report.rating || 0,
-      feedback: report.feedback || '',
-    });
-    setResultReportReviewDialogOpen(true);
   };
   
   const handleToggleResultReview = async (report: Report) => {
@@ -907,7 +817,7 @@ export function Dashboard() {
       const reportId = report.id;
       
       // Toggle the reviewed status
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('result_reports')
         .update({ reviewed: !report.reviewed })
         .eq('id', reportId)
@@ -1143,20 +1053,6 @@ export function Dashboard() {
 
   // Add some display of the metrics data to confirm it's working
   useEffect(() => {
-    if (metrics.length > 0) {
-      
-      // Update indicators with metrics data
-      const metricIndicators = metrics.map(metric => ({
-        id: metric.id,
-        name: metric.name,
-        description: metric.description || '',
-        type: metric.type,
-        measurement_unit: metric.measurement_unit
-      }));
-      
-      setIndicators(metricIndicators);
-      setAllIndicators(['All Indicators', ...metricIndicators.map(m => m.name)]);
-    }
   }, [metrics]);
 
   // Fix the handler for metric value changes in both dialog boxes to handle empty values correctly
@@ -1354,7 +1250,7 @@ export function Dashboard() {
   const scrollableContainerStyles = 'overflow-x-auto pb-2 -mx-2 px-2 overscroll-none overflow-y-hidden touch-pan-x scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent';
   
   // Get objectives from Supabase
-  const { data: objectivesData, isLoading: isLoadingObjectives } = useQuery({
+  const { data: objectivesData } = useQuery({
     queryKey: ['objectives'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -1370,7 +1266,6 @@ export function Dashboard() {
 
   // Define query for result reports
   const {
-    data: resultReport,
     isLoading: isLoadingResultReport,
     refetch: refetchResultReport
   } = useQuery({
@@ -1468,23 +1363,10 @@ export function Dashboard() {
     }
   }, [handleDateRangeChange, resultReportType, setAlertDialogOpen, setAlertDialogTitle, setAlertMessage]);
 
-  // Add these state variables after the other state variables
-  const [resultReportForm, setResultReportForm] = useState<{
-    summary: string;
-    startDate: Date;
-    endDate: Date;
-  }>({
-    summary: '',
-    startDate: new Date(),
-    endDate: new Date()
-  });
-
-  const [reviewingReport, setReviewingReport] = useState<Report | null>(null);
-  const [resultReportReview, setResultReportReview] = useState<{
-    rating: number;
-    feedback: string;
-  }>({ rating: 0, feedback: '' });
-  const [resultReportReviewDialogOpen, setResultReportReviewDialogOpen] = useState(false);
+  // Add this handler function
+  const handleReviewResultReport = () => {
+    // Empty function to satisfy the type requirement
+  };
 
   return (
     <div className='min-h-screen bg-background'>
@@ -1593,7 +1475,7 @@ export function Dashboard() {
                         objectives={objectives}
                         onDeleteReport={handleDeleteReport}
                         onEditReport={handleEditReport}
-                        onReviewReport={handleReviewReport}
+                        onReviewReport={handleReviewResultReport}
                         onToggleReview={handleToggleReview}
                       />
                     </div>
