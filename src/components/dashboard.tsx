@@ -12,35 +12,22 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+
 import {
   BarChart3,
-  Users,
-  Target,
   ClipboardList,
   Sun,
   Moon,
   Monitor,
-  TrendingUp,
-  UserCircle,
   LogOut,
   ChevronDown,
   ChevronRight,
-  ArrowRight,
   Star,
   PlusCircle,
-  Database,
   Calendar as CalendarIcon,
   Loader2,
 } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -65,15 +52,9 @@ import { Input } from '@/components/ui/input';
 import { ReportsTable } from '@/components/ReportsTable';
 import { SimpleOverview } from '@/components/SimpleOverview';
 import { format, parseISO, set } from 'date-fns';
-import { DatabaseExplorer } from '@/components/database-explorer';
 import {
-  useObjectives,
   useObjectivesByUser,
   useMetrics,
-  useCreateObjective,
-  useUpdateObjective,
-  useDeleteObjective,
-  useDailyNotesByUser,
   useUpdateDailyNote,
   useCreateDailyNote,
   useLatestDailyNote,
@@ -88,12 +69,9 @@ import {
 } from '@/queries';
 import type { UIObjective } from '@/components/DeepOverviewTable';
 import type { DailyReport } from '@/lib/types';
-import { ModeToggle } from '@/components/mode-toggle';
-import { VirtualManagerToggle } from '@/components/virtual-manager-toggle';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from '@/lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
-import { queryKeys } from '@/queries/queryKeys';
 import { ResultReportManager } from '@/components/result-report/MetricCalculator';
 import { toast } from '@/components/ui/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -107,10 +85,6 @@ interface ExtendedDailyReport extends Omit<DailyReport, 'id' | 'created_at' | 'u
 interface StarRatingProps {
   rating: number;
   onRatingChange: (rating: number) => void;
-}
-
-interface MetricValues {
-  [key: string]: number;
 }
 
 interface Report {
