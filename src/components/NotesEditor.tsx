@@ -167,30 +167,105 @@ const CustomHeadingExit = Extension.create({
 
 // Create our own TaskItem extension that extends the default one
 const CustomTaskItem = TaskItem.extend({
+  addAttributes() {
+    return {
+      checked: {
+        default: false,
+        parseHTML: element => {
+          return element.getAttribute('data-checked') === 'true'
+        },
+        renderHTML: attributes => {
+          return {
+            'data-checked': attributes.checked ? 'true' : 'false',
+          }
+        },
+      },
+    }
+  },
+
   renderHTML({ node, HTMLAttributes }) {
     const { checked } = node.attrs;
 
-    // Merge our custom attributes with the original ones
-    const attributes = mergeAttributes(
-      HTMLAttributes,
-      checked ? { 'data-checked': 'true' } : {}
-    );
-
     return [
       'li',
-      attributes,
+      mergeAttributes(HTMLAttributes, {
+        'data-type': 'taskItem',
+        'data-checked': checked ? 'true' : 'false',
+      }),
       [
         'label',
         [
           'input',
           {
             type: 'checkbox',
-            checked: checked ? 'checked' : null,
+            checked: checked,
+            contenteditable: 'false',
           },
         ],
       ],
-      ['div', {}, 0], // Content
+      ['div', 0], // Content
     ];
+  },
+
+  addNodeView() {
+    return ({ node, getPos, editor }) => {
+      const { view } = editor;
+      const dom = document.createElement('li');
+      dom.setAttribute('data-type', 'taskItem');
+      dom.setAttribute('data-checked', node.attrs.checked ? 'true' : 'false');
+
+      const label = document.createElement('label');
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = node.attrs.checked;
+      checkbox.contentEditable = 'false';
+      checkbox.addEventListener('change', event => {
+        const checked = (event.target as HTMLInputElement).checked;
+        if (typeof getPos === 'function') {
+          view.dispatch(
+            view.state.tr.setNodeMarkup(getPos(), undefined, { checked })
+          );
+        }
+      });
+
+      const content = document.createElement('div');
+      content.classList.add('task-content');
+
+      label.append(checkbox);
+      dom.append(label);
+      dom.append(content);
+
+      return {
+        dom,
+        contentDOM: content,
+      };
+    };
+  },
+
+  addKeyboardShortcuts() {
+    return {
+      Enter: ({ editor }) => {
+        if (editor.isActive('taskItem')) {
+          editor.commands.splitBlock();
+          return true;
+        }
+        return false;
+      },
+      Tab: ({ editor }) => {
+        if (editor.isActive('taskItem')) {
+          editor.commands.sinkListItem('taskItem');
+          return true;
+        }
+        return false;
+      },
+      'Shift-Tab': ({ editor }) => {
+        if (editor.isActive('taskItem')) {
+          editor.commands.liftListItem('taskItem');
+          return true;
+        }
+        return false;
+      },
+    };
   },
 });
 
@@ -478,15 +553,78 @@ export function NotesEditor({
           display: flex !important;
           align-items: flex-start;
           margin: 0.5em 0;
+          gap: 0.5em;
         }
 
         .tiptap ul[data-type='taskList'] li > label {
           margin-right: 0.5em;
           user-select: none;
+          display: flex;
+          align-items: center;
+        }
+
+        .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"] {
+          cursor: pointer;
+          margin: 0;
         }
 
         .tiptap ul[data-type='taskList'] li > div {
           flex: 1;
+          min-width: 0;
+        }
+
+        /* Add this to create the strikethrough effect */
+        .tiptap ul[data-type='taskList'] li[data-checked='true'] > div {
+          text-decoration: line-through;
+          opacity: 0.7;
+        }
+
+        /* Improve checkbox appearance */
+        .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"] {
+          appearance: none;
+          -webkit-appearance: none;
+          width: 1.2em;
+          height: 1.2em;
+          border: 2px solid #666;
+          border-radius: 3px;
+          margin: 0;
+          position: relative;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .dark .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"] {
+          border-color: #999;
+        }
+
+        .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"]:checked {
+          background-color: #666;
+          border-color: #666;
+        }
+
+        .dark .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"]:checked {
+          background-color: #999;
+          border-color: #999;
+        }
+
+        .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"]:checked::after {
+          content: '';
+          position: absolute;
+          left: 0.35em;
+          top: 0.1em;
+          width: 0.3em;
+          height: 0.6em;
+          border: solid white;
+          border-width: 0 2px 2px 0;
+          transform: rotate(45deg);
+        }
+
+        .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"]:hover {
+          border-color: #999;
+        }
+
+        .dark .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"]:hover {
+          border-color: #ccc;
         }
 
         /* Placeholder styling - improved for better responsiveness */
@@ -506,12 +644,6 @@ export function NotesEditor({
           user-select: none;
           position: absolute;
           opacity: 0.5;
-        }
-
-        /* Add this to create the strikethrough effect */
-        .tiptap ul[data-type='taskList'] li[data-checked='true'] > div {
-          text-decoration: line-through;
-          opacity: 0.7;
         }
 
         /* Add disabled state styling */

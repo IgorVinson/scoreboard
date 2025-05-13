@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { queryKeys } from './queryKeys';
 import type { DailyNote } from '@/lib/types';
+import { saveDailyNotes } from '@/lib/supabase-service';
 
 export const useDailyNotes = () => {
   return useQuery({
@@ -123,6 +124,10 @@ export const useLatestDailyNote = (userId: string) => {
       return data;
     },
     enabled: !!userId,
+    staleTime: 0,
+    cacheTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 };
 
@@ -130,25 +135,13 @@ export const useCreateDailyNote = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (noteData: Omit<DailyNote, 'id' | 'created_at' | 'updated_at'>): Promise<DailyNote> => {
-      const { data, error } = await supabase
-        .from('daily_notes')
-        .insert(noteData)
-        .select()
-        .single();
-        
-      if (error) throw error;
-      return data;
+    mutationFn: async (note: { user_id: string, today_notes: string, tomorrow_notes: string, general_comments: string, date?: string }) => {
+      return saveDailyNotes(note.user_id, note);
     },
-    onSuccess: (newNote) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.dailyNotes.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dailyNotes.byUser(newNote.user_id) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dailyNotes.byDate(newNote.date) });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.dailyNotes.byUserAndDate(newNote.user_id, newNote.date) 
-      });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dailyNotes.latest(newNote.user_id) });
-      queryClient.setQueryData(queryKeys.dailyNotes.byId(newNote.id), newNote);
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['dailyNotes'] });
+      queryClient.invalidateQueries({ queryKey: ['dailyNotesByUser', data.user_id] });
+      queryClient.setQueryData(['dailyNote', data.id], data);
     },
   });
 };
@@ -157,26 +150,21 @@ export const useUpdateDailyNote = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ id, ...updates }: { id: string } & Partial<DailyNote>): Promise<DailyNote> => {
-      const { data, error } = await supabase
-        .from('daily_notes')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-        
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (updatedNote) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.dailyNotes.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dailyNotes.byUser(updatedNote.user_id) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dailyNotes.byDate(updatedNote.date) });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.dailyNotes.byUserAndDate(updatedNote.user_id, updatedNote.date) 
+    mutationFn: async (note: { id: string, user_id: string, today_notes: string, tomorrow_notes: string, general_comments: string, date?: string }) => {
+      // Ensure we pass the ID to saveDailyNotes
+      const result = await saveDailyNotes(note.user_id, {
+        id: note.id,
+        today_notes: note.today_notes,
+        tomorrow_notes: note.tomorrow_notes,
+        general_comments: note.general_comments,
+        date: note.date
       });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dailyNotes.latest(updatedNote.user_id) });
-      queryClient.setQueryData(queryKeys.dailyNotes.byId(updatedNote.id), updatedNote);
+      return result;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['dailyNotes'] });
+      queryClient.invalidateQueries({ queryKey: ['dailyNotesByUser', data.user_id] });
+      queryClient.setQueryData(['dailyNote', data.id], data);
     },
   });
 };
