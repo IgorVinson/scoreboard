@@ -65,12 +65,12 @@ import {
   useDeleteDailyReport,
 } from '@/queries';
 import type { UIObjective } from '@/components/DeepOverviewTable';
-import type { DailyReport } from '@/lib/types';
+import type { DailyReport, DailyNote } from '@/lib/types';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from '@/lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { ResultReportManager } from '@/components/result-report/MetricCalculator';
-import { toast } from '@/components/ui/use-toast';
+import { useToast } from "@/components/ui/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { Report as ReportTableType } from '@/components/ReportsTable';
@@ -153,6 +153,7 @@ export function Dashboard() {
   const { user, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   
   // Add state for delete confirmation dialog
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -191,6 +192,14 @@ export function Dashboard() {
   const [reportTomorrowNotes, setReportTomorrowNotes] = useState('');
   const [reportGeneralComments, setReportGeneralComments] = useState('');
 
+  // Add debounce state
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSavedContent, setLastSavedContent] = useState({
+    todayNotes: '',
+    tomorrowNotes: '',
+    generalComments: ''
+  });
+
   // Handle note changes
   const handleTodayNotesChange = (html: string) => {
     setTodayNotes(html);
@@ -207,10 +216,11 @@ export function Dashboard() {
   // Load daily notes from TanStack Query
   useEffect(() => {
     if (latestNote && !isLoadingLatestNote) {
-      setTodayNotes(latestNote.today_notes || '');
-      setTomorrowNotes(latestNote.tomorrow_notes || '');
-      setGeneralComments(latestNote.general_comments || '');
-      setCurrentNoteId(latestNote.id);
+      const note = latestNote as DailyReport;
+      setTodayNotes(note.today_notes || '');
+      setTomorrowNotes(note.tomorrow_notes || '');
+      setGeneralComments(note.general_comments || '');
+      setCurrentNoteId(note.id);
       setIsLoadingNotes(false);
     } else if (!isLoadingLatestNote) {
       setIsLoadingNotes(false);
@@ -219,38 +229,87 @@ export function Dashboard() {
 
   // Save notes with TanStack Query mutations
   useEffect(() => {
-    if (isLoadingNotes) return; // Don't save during initial load
-    
-    const saveTimeout = setTimeout(async () => {
+    if (!user?.id) return;
+
+    // Check if content has actually changed
+    const contentChanged = 
+      todayNotes !== lastSavedContent.todayNotes ||
+      tomorrowNotes !== lastSavedContent.tomorrowNotes ||
+      generalComments !== lastSavedContent.generalComments;
+
+    if (!contentChanged || isSaving) return;
+
+    const timeoutId = setTimeout(async () => {
       try {
+        setIsSaving(true);
+        console.log('Saving notes...', {
+          todayNotes,
+          tomorrowNotes,
+          generalComments,
+          currentNoteId,
+          userId: user?.id
+        });
+
         const noteData = {
+          user_id: user.id,
           today_notes: todayNotes,
           tomorrow_notes: tomorrowNotes,
           general_comments: generalComments,
-          date: format(new Date(), 'yyyy-MM-dd')
+          date: new Date().toISOString().split('T')[0]
         };
-        
+
+        console.log('Saving note data:', noteData);
+
         if (currentNoteId) {
-          // Update existing note
-          await updateDailyNoteMutation.mutateAsync({
+          console.log('Updating existing note:', currentNoteId);
+          const result = await updateDailyNoteMutation.mutateAsync({
             id: currentNoteId,
             ...noteData
           });
-        } else if (user?.id) {
-          // Create new note
-          const result = await createDailyNoteMutation.mutateAsync({
-            ...noteData,
-            user_id: user.id
+          console.log('Update result:', result);
+          setLastSavedContent({
+            todayNotes,
+            tomorrowNotes,
+            generalComments
           });
+          toast({
+            title: "Success",
+            description: "Notes updated successfully",
+          });
+        } else {
+          console.log('Creating new note');
+          const result = await createDailyNoteMutation.mutateAsync(noteData);
+          console.log('Create result:', result);
           setCurrentNoteId(result.id);
+          setLastSavedContent({
+            todayNotes,
+            tomorrowNotes,
+            generalComments
+          });
+          toast({
+            title: "Success",
+            description: "Notes created successfully",
+          });
         }
+
+        // Invalidate queries to ensure fresh data
+        queryClient.invalidateQueries({ queryKey: ['dailyNotes'] });
+        queryClient.invalidateQueries({ queryKey: ['dailyNotesByUser', user.id] });
+        queryClient.invalidateQueries({ queryKey: ['latestDailyNote', user.id] });
       } catch (error) {
         console.error('Error saving notes:', error);
+        toast({
+          title: "Error",
+          description: "Failed to save notes",
+          variant: "destructive",
+        });
+      } finally {
+        setIsSaving(false);
       }
-    }, 2500); // Increase debounce to 2.5 seconds for better performance
+    }, 2500);
 
-    return () => clearTimeout(saveTimeout);
-  }, [todayNotes, tomorrowNotes, generalComments, currentNoteId, updateDailyNoteMutation, createDailyNoteMutation, user, isLoadingNotes]);
+    return () => clearTimeout(timeoutId);
+  }, [todayNotes, tomorrowNotes, generalComments, currentNoteId, user?.id, queryClient, toast, updateDailyNoteMutation, createDailyNoteMutation, isSaving, lastSavedContent]);
 
   const { data: objectivesFromDB } = useObjectivesByUser(user?.id || '');
   

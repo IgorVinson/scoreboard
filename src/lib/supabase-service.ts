@@ -231,18 +231,44 @@ export const getDailyNotes = async (userId: string) => {
   }
 }
 
-export const saveDailyNotes = async (userId: string, notes: { today_notes: string, tomorrow_notes: string, general_comments: string }) => {
-  // Check if notes for today exist
-  const today = new Date().toISOString().split('T')[0]
+export const saveDailyNotes = async (userId: string, notes: { id?: string, today_notes: string, tomorrow_notes: string, general_comments: string, date?: string }) => {
+  // Use provided date or default to today
+  const date = notes.date || new Date().toISOString().split('T')[0];
   
+  console.log('Saving notes for date:', date);
+  
+  // If we have an ID, update the existing note
+  if (notes.id) {
+    console.log('Updating existing notes with ID:', notes.id);
+    const { data, error } = await supabase
+      .from('daily_notes')
+      .update({
+        today_notes: notes.today_notes,
+        tomorrow_notes: notes.tomorrow_notes,
+        general_comments: notes.general_comments,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', notes.id)
+      .select()
+      .single()
+    
+    if (error) {
+      console.error('Error updating notes:', error);
+      throw error;
+    }
+    return data;
+  }
+  
+  // If no ID, check if there's an existing note for this date
   const { data: existingNotes } = await supabase
     .from('daily_notes')
     .select('id')
     .eq('user_id', userId)
-    .eq('date', today)
+    .eq('date', date)
     .single()
   
   if (existingNotes) {
+    console.log('Updating existing notes for date:', date);
     // Update existing notes
     const { data, error } = await supabase
       .from('daily_notes')
@@ -256,15 +282,19 @@ export const saveDailyNotes = async (userId: string, notes: { today_notes: strin
       .select()
       .single()
     
-    if (error) throw error
-    return data
+    if (error) {
+      console.error('Error updating notes:', error);
+      throw error;
+    }
+    return data;
   } else {
+    console.log('Creating new notes for date:', date);
     // Insert new notes
     const { data, error } = await supabase
       .from('daily_notes')
       .insert({
         user_id: userId,
-        date: today,
+        date: date,
         today_notes: notes.today_notes,
         tomorrow_notes: notes.tomorrow_notes,
         general_comments: notes.general_comments
@@ -272,8 +302,11 @@ export const saveDailyNotes = async (userId: string, notes: { today_notes: strin
       .select()
       .single()
     
-    if (error) throw error
-    return data
+    if (error) {
+      console.error('Error creating notes:', error);
+      throw error;
+    }
+    return data;
   }
 }
 
