@@ -24,6 +24,8 @@ import {
   Type,
 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
+import { Node } from '@tiptap/pm/model';
+import { EditorView } from 'prosemirror-view';
 
 interface NotesEditorProps {
   id?: string;
@@ -172,7 +174,19 @@ const CustomTaskItem = TaskItem.extend({
       checked: {
         default: false,
         parseHTML: element => {
-          return element.getAttribute('data-checked') === 'true'
+          // Look for state in multiple places with priority
+          const dataChecked = element.getAttribute('data-checked');
+          if (dataChecked === 'true') return true;
+          if (dataChecked === 'false') return false;
+          
+          // Check for checkbox state
+          const checkbox = element.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+          if (checkbox) {
+            if (checkbox.hasAttribute('checked')) return true;
+            if (checkbox.checked) return true;
+          }
+          
+          return false;
         },
         renderHTML: attributes => {
           return {
@@ -190,6 +204,7 @@ const CustomTaskItem = TaskItem.extend({
       'li',
       mergeAttributes(HTMLAttributes, {
         'data-type': 'taskItem',
+        'class': 'task-item',
         'data-checked': checked ? 'true' : 'false',
       }),
       [
@@ -198,7 +213,7 @@ const CustomTaskItem = TaskItem.extend({
           'input',
           {
             type: 'checkbox',
-            checked: checked,
+            checked: checked ? 'checked' : null,
             contenteditable: 'false',
           },
         ],
@@ -212,19 +227,38 @@ const CustomTaskItem = TaskItem.extend({
       const { view } = editor;
       const dom = document.createElement('li');
       dom.setAttribute('data-type', 'taskItem');
+      dom.classList.add('task-item');
       dom.setAttribute('data-checked', node.attrs.checked ? 'true' : 'false');
 
       const label = document.createElement('label');
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.checked = node.attrs.checked;
+      if (node.attrs.checked) {
+        checkbox.setAttribute('checked', 'checked');
+      }
       checkbox.contentEditable = 'false';
       checkbox.addEventListener('change', event => {
         const checked = (event.target as HTMLInputElement).checked;
+        // Update DOM immediately for visual feedback
+        dom.setAttribute('data-checked', checked ? 'true' : 'false');
+        if (checked) {
+          checkbox.setAttribute('checked', 'checked');
+        } else {
+          checkbox.removeAttribute('checked');
+        }
+        
         if (typeof getPos === 'function') {
+          // Update the editor state
           view.dispatch(
             view.state.tr.setNodeMarkup(getPos(), undefined, { checked })
           );
+          
+          // Force content update after a small delay
+          setTimeout(() => {
+            // The onChange handler will be called by the editor's update event
+            console.log('CHECKBOX STATE CHANGED:', checked);
+          }, 10);
         }
       });
 
@@ -295,6 +329,106 @@ const CustomEmptyDocHandler = Extension.create({
   }
 });
 
+// Add a function to normalize HTML content before setting it in the editor
+const normalizeContent = (html: string): string => {
+  console.log('NORMALIZE - Processing incoming HTML content');
+  
+  if (!html) return html;
+  
+  // Make a temporary div to process the HTML
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = html;
+  
+  // Convert old format (data-type) to new format (class)
+  // Handle task lists - ensure both attributes exist
+  const taskLists = tempDiv.querySelectorAll('ul[data-type="taskList"], ul.task-list');
+  taskLists.forEach(list => {
+    list.classList.add('task-list');
+    list.setAttribute('data-type', 'taskList');
+    console.log('NORMALIZE - Ensuring consistent taskList format');
+  });
+  
+  // Handle task items - ensure both attributes exist and checkbox state is consistent
+  const taskItems = tempDiv.querySelectorAll('li[data-type="taskItem"], li.task-item');
+  taskItems.forEach(item => {
+    // Ensure both class and data-type attributes
+    item.classList.add('task-item');
+    item.setAttribute('data-type', 'taskItem');
+    
+    // Get the checkbox element
+    const checkbox = item.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+    if (checkbox) {
+      // Determine checkbox state by looking at multiple sources
+      // First priority: data-checked attribute on li
+      // Second priority: checked attribute on checkbox
+      // Third priority: checkbox.checked state
+      const dataCheckedAttr = item.getAttribute('data-checked');
+      const isChecked = 
+        dataCheckedAttr === 'true' || 
+        checkbox.hasAttribute('checked') || 
+        checkbox.checked;
+      
+      // Set all locations consistently
+      if (isChecked) {
+        checkbox.checked = true;
+        checkbox.setAttribute('checked', 'true');
+        item.setAttribute('data-checked', 'true');
+        console.log('NORMALIZE - Updated checkbox state for task item to: true');
+      } else {
+        checkbox.checked = false;
+        checkbox.removeAttribute('checked');
+        item.setAttribute('data-checked', 'false');
+        console.log('NORMALIZE - Updated checkbox state for task item to: false');
+      }
+    }
+  });
+  
+  return tempDiv.innerHTML;
+};
+
+// Update the enhanceContent function to handle both formats
+const enhanceContent = (html: string): string => {
+  console.log('ENHANCE - Processing HTML before save');
+  
+  // Make a temporary div to process the HTML
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = html;
+  
+  // Handle both old and new formats
+  // Find all task items (with either class or data-type)
+  const taskItems = tempDiv.querySelectorAll('li.task-item, li[data-type="taskItem"]');
+  taskItems.forEach(item => {
+    // Ensure both identifiers exist
+    item.classList.add('task-item');
+    item.setAttribute('data-type', 'taskItem');
+    
+    const checkbox = item.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+    if (checkbox) {
+      const isChecked = checkbox.checked;
+      
+      // Set both attributes for maximum compatibility
+      item.setAttribute('data-checked', isChecked ? 'true' : 'false');
+      
+      if (isChecked) {
+        checkbox.setAttribute('checked', 'true');
+      } else {
+        checkbox.removeAttribute('checked');
+      }
+      
+      console.log('ENHANCE - Updated task item data-checked to', isChecked ? 'true' : 'false');
+    }
+  });
+  
+  // Find all task lists and ensure both formats
+  const taskLists = tempDiv.querySelectorAll('ul.task-list, ul[data-type="taskList"]');
+  taskLists.forEach(list => {
+    list.setAttribute('data-type', 'taskList');
+    list.classList.add('task-list');
+  });
+  
+  return tempDiv.innerHTML;
+};
+
 export function NotesEditor({
   content = '',
   placeholder = 'Write something...',
@@ -306,30 +440,103 @@ export function NotesEditor({
   const lastContentRef = useRef(content);
   const initializedRef = useRef(false);
 
-  // Improve update handling for performance
-  const handleUpdate = ({ editor }: { editor: any }) => {
-    // Skip if this is an update from our own setContent
-    if (isUpdatingRef.current) return;
-    
-    const html = editor.getHTML();
-
-    // Only call the external onChange if content actually changed
-    if (onChange && html !== lastContentRef.current) {
-      lastContentRef.current = html;
-      onChange(html);
+  // Define handleDOMEvents inside the component function
+  const handleDOMEvents = {
+    click: (view: EditorView, event: MouseEvent) => {
+      if (event.target && event.target instanceof HTMLInputElement && event.target.type === 'checkbox') {
+        const taskItem = (event.target as HTMLElement).closest('li.task-item, li[data-type="taskItem"]');
+        console.log('CHECKBOX CLICKED - Parent element:', taskItem);
+        
+        // Update data-checked attribute on the list item
+        if (taskItem) {
+          const isChecked = (event.target as HTMLInputElement).checked;
+          taskItem.setAttribute('data-checked', isChecked ? 'true' : 'false');
+          
+          // Keep both formats in sync
+          taskItem.setAttribute('data-type', 'taskItem');
+          taskItem.classList.add('task-item');
+          
+          // Update checkbox attributes
+          if (isChecked) {
+            (event.target as HTMLInputElement).setAttribute('checked', 'true');
+          } else {
+            (event.target as HTMLInputElement).removeAttribute('checked');
+          }
+          
+          console.log('CHECKBOX CLICKED - Updated attributes for compatibility');
+        }
+        
+        // Call onChange immediately - don't use a delay
+        if (onChange) {
+          // Get the HTML after the checkbox state change
+          const html = (view as any).editor.getHTML();
+          console.log('CHECKBOX CHANGE - New HTML after checkbox click:', html.substring(0, 100) + '...');
+          
+          // Process the HTML to ensure checkbox states are properly saved
+          const enhancedHtml = enhanceContent(html);
+          
+          lastContentRef.current = enhancedHtml;
+          onChange(enhancedHtml);
+          
+          // Force editor to update with the enhanced HTML to keep internal state consistent
+          isUpdatingRef.current = true;
+          editorRef.current?.commands.setContent(enhancedHtml);
+          
+          setTimeout(() => {
+            isUpdatingRef.current = false;
+            console.log('CHECKBOX CHANGE - Updated editor with enhanced content');
+          }, 10);
+        }
+      }
+      
+      return false; // Let Tiptap handle the event too
     }
   };
 
-  // Handle external content changes
+  // Improve update handling for performance
+  const handleUpdate = ({ editor }: { editor: any }) => {
+    // Skip if this is an update from our own setContent
+    if (isUpdatingRef.current) {
+      console.log('EDITOR - Skipping update due to isUpdatingRef flag');
+      return;
+    }
+    
+    const html = editor.getHTML();
+    console.log('EDITOR - Content updated:', html.substring(0, 100) + '...');
+
+    // Process the HTML to ensure checkbox states are properly saved
+    const enhancedHtml = enhanceContent(html);
+
+    // Only call the external onChange if content actually changed
+    if (onChange && enhancedHtml !== lastContentRef.current) {
+      console.log('EDITOR - Calling onChange with enhanced content');
+      lastContentRef.current = enhancedHtml;
+      onChange(enhancedHtml);
+    } else if (enhancedHtml === lastContentRef.current) {
+      console.log('EDITOR - Content unchanged, not calling onChange');
+    }
+  };
+
+  // Update the useEffect for handling content changes
   useEffect(() => {
     // Only update content from props if it's different from our last known content
     if (editorRef.current && content !== lastContentRef.current) {
+      console.log('EDITOR - Setting content from props:', 
+        content ? content.substring(0, 100) + '...' : 'empty');
+      
+      // Normalize content before setting it
+      const normalizedContent = normalizeContent(content);
+      console.log('EDITOR - Normalized content:', 
+        normalizedContent ? normalizedContent.substring(0, 100) + '...' : 'empty');
+      
       isUpdatingRef.current = true;
-      editorRef.current.commands.setContent(content);
-      lastContentRef.current = content;
+      editorRef.current.commands.setContent(normalizedContent);
+      lastContentRef.current = normalizedContent;
+      
       // Reset the flag after a short delay to ensure the update has processed
       setTimeout(() => {
         isUpdatingRef.current = false;
+        console.log('EDITOR - Reset isUpdatingRef flag');
       }, 10);
     }
   }, [content]);
@@ -368,7 +575,12 @@ export function NotesEditor({
       showOnlyWhenEditable: true,
       includeChildren: true, // Ensures placeholder works in nested nodes too
     }),
-    TaskList,
+    TaskList.configure({
+      HTMLAttributes: {
+        class: 'task-list',
+        'data-type': 'taskList',
+      },
+    }),
     // Replace TaskItem with our custom implementation
     CustomTaskItem.configure({
       nested: true,
@@ -382,7 +594,8 @@ export function NotesEditor({
     attributes: {
       class: 'tiptap',
     },
-    editable: () => !disabled, // Fix the type error by providing a function
+    editable: () => !disabled,
+    handleDOMEvents: handleDOMEvents,
   };
 
   return (
@@ -543,44 +756,63 @@ export function NotesEditor({
         }
 
         /* Task List styling */
-        .tiptap ul[data-type='taskList'] {
+        .tiptap ul[data-type='taskList'],
+        .tiptap ul.task-list {
           list-style-type: none !important;
           padding-left: 0.5rem;
           margin: 0.5rem 0;
         }
 
-        .tiptap ul[data-type='taskList'] li {
+        .tiptap ul[data-type='taskList'] li,
+        .tiptap ul.task-list li,
+        .tiptap li[data-type='taskItem'],
+        .tiptap li.task-item {
           display: flex !important;
           align-items: flex-start;
           margin: 0.5em 0;
           gap: 0.5em;
         }
 
-        .tiptap ul[data-type='taskList'] li > label {
+        .tiptap ul[data-type='taskList'] li > label,
+        .tiptap ul.task-list li > label,
+        .tiptap li[data-type='taskItem'] > label,
+        .tiptap li.task-item > label {
           margin-right: 0.5em;
           user-select: none;
           display: flex;
           align-items: center;
         }
 
-        .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"] {
+        .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"],
+        .tiptap ul.task-list li > label > input[type="checkbox"],
+        .tiptap li[data-type='taskItem'] > label > input[type="checkbox"],
+        .tiptap li.task-item > label > input[type="checkbox"] {
           cursor: pointer;
           margin: 0;
         }
 
-        .tiptap ul[data-type='taskList'] li > div {
+        .tiptap ul[data-type='taskList'] li > div,
+        .tiptap ul.task-list li > div,
+        .tiptap li[data-type='taskItem'] > div,
+        .tiptap li.task-item > div {
           flex: 1;
           min-width: 0;
         }
 
         /* Add this to create the strikethrough effect */
-        .tiptap ul[data-type='taskList'] li[data-checked='true'] > div {
+        .tiptap ul[data-type='taskList'] li[data-checked='true'] > div,
+        .tiptap ul.task-list li[data-checked='true'] > div,
+        .tiptap li[data-type='taskItem'][data-checked='true'] > div,
+        .tiptap li.task-item[data-checked='true'] > div {
           text-decoration: line-through;
           opacity: 0.7;
         }
 
         /* Improve checkbox appearance */
-        .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"] {
+        .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"],
+        .tiptap ul.task-list li > label > input[type="checkbox"],
+        .tiptap li[data-type='taskItem'] > label > input[type="checkbox"],
+        .tiptap li.task-item > label > input[type="checkbox"] {
           appearance: none;
           -webkit-appearance: none;
           width: 1.2em;
@@ -593,21 +825,33 @@ export function NotesEditor({
           transition: all 0.2s ease;
         }
 
-        .dark .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"] {
+        .dark .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"],
+        .dark .tiptap ul.task-list li > label > input[type="checkbox"],
+        .dark .tiptap li[data-type='taskItem'] > label > input[type="checkbox"],
+        .dark .tiptap li.task-item > label > input[type="checkbox"] {
           border-color: #999;
         }
 
-        .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"]:checked {
+        .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"]:checked,
+        .tiptap ul.task-list li > label > input[type="checkbox"]:checked,
+        .tiptap li[data-type='taskItem'] > label > input[type="checkbox"]:checked,
+        .tiptap li.task-item > label > input[type="checkbox"]:checked {
           background-color: #666;
           border-color: #666;
         }
 
-        .dark .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"]:checked {
+        .dark .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"]:checked,
+        .dark .tiptap ul.task-list li > label > input[type="checkbox"]:checked,
+        .dark .tiptap li[data-type='taskItem'] > label > input[type="checkbox"]:checked,
+        .dark .tiptap li.task-item > label > input[type="checkbox"]:checked {
           background-color: #999;
           border-color: #999;
         }
 
-        .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"]:checked::after {
+        .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"]:checked::after,
+        .tiptap ul.task-list li > label > input[type="checkbox"]:checked::after,
+        .tiptap li[data-type='taskItem'] > label > input[type="checkbox"]:checked::after,
+        .tiptap li.task-item > label > input[type="checkbox"]:checked::after {
           content: '';
           position: absolute;
           left: 0.35em;
@@ -619,11 +863,17 @@ export function NotesEditor({
           transform: rotate(45deg);
         }
 
-        .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"]:hover {
+        .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"]:hover,
+        .tiptap ul.task-list li > label > input[type="checkbox"]:hover,
+        .tiptap li[data-type='taskItem'] > label > input[type="checkbox"]:hover,
+        .tiptap li.task-item > label > input[type="checkbox"]:hover {
           border-color: #999;
         }
 
-        .dark .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"]:hover {
+        .dark .tiptap ul[data-type='taskList'] li > label > input[type="checkbox"]:hover,
+        .dark .tiptap ul.task-list li > label > input[type="checkbox"]:hover,
+        .dark .tiptap li[data-type='taskItem'] > label > input[type="checkbox"]:hover,
+        .dark .tiptap li.task-item > label > input[type="checkbox"]:hover {
           border-color: #ccc;
         }
 
