@@ -167,9 +167,16 @@ export function Dashboard() {
   const { data: userReports = [] } = useDailyReportsByUser(user?.id || '');
   const createDailyReportMutation = useCreateDailyReport();
   const updateDailyReportMutation = useUpdateDailyReport();
+
+  const [loadedNote, setLoadedNote] = useState<DailyReport | null>(null);
+  const [isLoadingNotes, setIsLoadingNotes] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   
   // TanStack Query hooks for daily notes
-  const { data: latestNote, isLoading: isLoadingLatestNote } = useLatestDailyNote(user?.id || '');
+  const { data: latestNote, isLoading: isLoadingLatestNote } = useLatestDailyNote(hasLoadedOnce ? '' : (user?.id || '') );
+
+  console.log('LATEST NOTE:', latestNote);
+
   const updateDailyNoteMutation = useUpdateDailyNote();
   const createDailyNoteMutation = useCreateDailyNote();
   
@@ -184,7 +191,6 @@ export function Dashboard() {
   const [todayNotes, setTodayNotes] = useState('');
   const [tomorrowNotes, setTomorrowNotes] = useState('');
   const [generalComments, setGeneralComments] = useState('');
-  const [isLoadingNotes, setIsLoadingNotes] = useState(true);
   const [currentNoteId, setCurrentNoteId] = useState<string | null>(null);
 
   // Add Report Notes states
@@ -213,19 +219,44 @@ export function Dashboard() {
     setGeneralComments(html);
   };
 
-  // Load daily notes from TanStack Query
+
+// Load note once
+useEffect(() => {
+  if (!hasLoadedOnce && latestNote && !isLoadingLatestNote) {
+    // Store the note in state
+    setLoadedNote(latestNote as DailyReport);
+    
+    // Set up the notes in the editor
+    const note = latestNote as DailyReport;
+    setTodayNotes(note.today_notes || '');
+    setTomorrowNotes(note.tomorrow_notes || '');
+    setGeneralComments(note.general_comments || '');
+    setCurrentNoteId(note.id);
+    
+    // Initialize lastSavedContent with loaded content
+    setLastSavedContent({
+      todayNotes: note.today_notes || '',
+      tomorrowNotes: note.tomorrow_notes || '',
+      generalComments: note.general_comments || ''
+    });
+    
+    // Mark as loaded and not loading
+    setHasLoadedOnce(true);
+    setIsLoadingNotes(false);
+  } else if (!hasLoadedOnce && !isLoadingLatestNote) {
+    // Handle case when there's no note
+    setIsLoadingNotes(false);
+    setHasLoadedOnce(true);
+  }
+}, [latestNote, isLoadingLatestNote, hasLoadedOnce]);
+
+  // Add a force refresh effect on mount
   useEffect(() => {
-    if (latestNote && !isLoadingLatestNote) {
-      const note = latestNote as DailyReport;
-      setTodayNotes(note.today_notes || '');
-      setTomorrowNotes(note.tomorrow_notes || '');
-      setGeneralComments(note.general_comments || '');
-      setCurrentNoteId(note.id);
-      setIsLoadingNotes(false);
-    } else if (!isLoadingLatestNote) {
-      setIsLoadingNotes(false);
+    if (user?.id) {
+      queryClient.invalidateQueries({ queryKey: ['latestDailyNote', user.id] });
+      queryClient.refetchQueries({ queryKey: ['latestDailyNote', user.id] });
     }
-  }, [latestNote, isLoadingLatestNote]);
+  }, [user?.id, queryClient]);
 
   // Save notes with TanStack Query mutations
   useEffect(() => {
@@ -239,77 +270,70 @@ export function Dashboard() {
 
     if (!contentChanged || isSaving) return;
 
-    const timeoutId = setTimeout(async () => {
+    // Remove setTimeout for immediate save attempt
+    (async () => {
       try {
         setIsSaving(true);
-        console.log('Saving notes...', {
-          todayNotes,
-          tomorrowNotes,
-          generalComments,
-          currentNoteId,
-          userId: user?.id
-        });
 
         const noteData = {
-          user_id: user.id,
+          user_id: user.id, // user.id is checked at the top, so it's safe here
           today_notes: todayNotes,
           tomorrow_notes: tomorrowNotes,
           general_comments: generalComments,
           date: new Date().toISOString().split('T')[0]
         };
 
-        console.log('Saving note data:', noteData);
-
         if (currentNoteId) {
-          console.log('Updating existing note:', currentNoteId);
           const result = await updateDailyNoteMutation.mutateAsync({
             id: currentNoteId,
             ...noteData
           });
-          console.log('Update result:', result);
           setLastSavedContent({
             todayNotes,
             tomorrowNotes,
             generalComments
           });
-          toast({
-            title: "Success",
-            description: "Notes updated successfully",
-          });
+          // toast({ title: "Success", description: "Notes updated successfully" }); // Temporarily removed
         } else {
-          console.log('Creating new note');
           const result = await createDailyNoteMutation.mutateAsync(noteData);
-          console.log('Create result:', result);
           setCurrentNoteId(result.id);
           setLastSavedContent({
             todayNotes,
             tomorrowNotes,
             generalComments
           });
-          toast({
-            title: "Success",
-            description: "Notes created successfully",
-          });
+          // toast({ title: "Success", description: "Notes created successfully" }); // Temporarily removed
         }
 
-        // Invalidate queries to ensure fresh data
-        queryClient.invalidateQueries({ queryKey: ['dailyNotes'] });
-        queryClient.invalidateQueries({ queryKey: ['dailyNotesByUser', user.id] });
-        queryClient.invalidateQueries({ queryKey: ['latestDailyNote', user.id] });
+        // Temporarily remove post-save refetching
+        // console.log('FORCING REFETCH OF LATEST NOTE');
+        // await queryClient.invalidateQueries({ queryKey: ['latestDailyNote', user.id] });
+        // await queryClient.refetchQueries({ 
+        //   queryKey: ['latestDailyNote', user.id],
+        //   type: 'all'
+        // });
       } catch (error) {
-        console.error('Error saving notes:', error);
-        toast({
-          title: "Error",
-          description: "Failed to save notes",
-          variant: "destructive",
-        });
+        console.error('ERROR SAVING NOTES (IMMEDIATE):', error);
+        // toast({ title: "Error", description: "Failed to save notes", variant: "destructive" }); // Temporarily removed
       } finally {
         setIsSaving(false);
       }
-    }, 2500);
+    })(); // Immediately invoke async function
 
-    return () => clearTimeout(timeoutId);
-  }, [todayNotes, tomorrowNotes, generalComments, currentNoteId, user?.id, queryClient, toast, updateDailyNoteMutation, createDailyNoteMutation, isSaving, lastSavedContent]);
+    // No timeout to clear, so no return function needed for cleanup
+  }, [
+    todayNotes, 
+    tomorrowNotes, 
+    generalComments, 
+    currentNoteId, 
+    user?.id, // Keep user?.id as a dependency
+    // queryClient, // Temporarily removed from deps as it's not used in simplified version
+    // toast, // Temporarily removed from deps as it's not used
+    updateDailyNoteMutation, 
+    createDailyNoteMutation, 
+    isSaving, 
+    lastSavedContent
+  ]);
 
   const { data: objectivesFromDB } = useObjectivesByUser(user?.id || '');
   

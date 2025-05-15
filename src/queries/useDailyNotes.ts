@@ -102,34 +102,35 @@ export const useDailyNoteByUserAndDate = (userId: string, date: string) => {
   });
 };
 
-export const useLatestDailyNote = (userId: string) => {
+export function useLatestDailyNote(userId: string) {
   return useQuery({
-    queryKey: queryKeys.dailyNotes.latest(userId),
-    queryFn: async (): Promise<DailyNote | null> => {
+    queryKey: ['latestDailyNote', userId],
+    queryFn: async () => {
       if (!userId) return null;
       
       const { data, error } = await supabase
         .from('daily_notes')
         .select('*')
         .eq('user_id', userId)
-        .order('date', { ascending: false })
+        .order('updated_at', { ascending: false })
         .limit(1)
         .single();
         
       if (error) {
-        if (error.code === 'PGRST116') return null; // Record not found
-        throw error;
+        console.error('Error fetching latest daily note:', error);
+        return null;
       }
       
       return data;
     },
-    enabled: !!userId,
+    // Completely disable caching to always fetch fresh data
     staleTime: 0,
-    cacheTime: 1000 * 60 * 5,
+    gcTime: 0, // Previously called cacheTime
+    refetchOnMount: 'always',
     refetchOnWindowFocus: true,
-    refetchOnMount: true,
+    refetchOnReconnect: true,
   });
-};
+}
 
 export const useCreateDailyNote = () => {
   const queryClient = useQueryClient();
@@ -150,21 +151,67 @@ export const useUpdateDailyNote = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (note: { id: string, user_id: string, today_notes: string, tomorrow_notes: string, general_comments: string, date?: string }) => {
-      // Ensure we pass the ID to saveDailyNotes
-      const result = await saveDailyNotes(note.user_id, {
-        id: note.id,
-        today_notes: note.today_notes,
-        tomorrow_notes: note.tomorrow_notes,
-        general_comments: note.general_comments,
-        date: note.date
-      });
+    mutationFn: async (note: { id: string } & Partial<Omit<DailyNote, 'id' | 'created_at' | 'updated_at'>>) => {
+      
+      // Extract the ID for clarity
+      const { id, ...noteData } = note;
+      
+      if (!id) {
+        throw new Error('ID is required for updating a daily note');
+      }
+      
+      // Make sure we have the correct structure for saveDailyNotes
+      const notesForSaving = {
+        id,
+        user_id: noteData.user_id as string, 
+        today_notes: noteData.today_notes || '',
+        tomorrow_notes: noteData.tomorrow_notes || '',
+        general_comments: noteData.general_comments || '',
+        date: noteData.date
+      };
+      
+      // Important: pass the USER ID as first parameter and note data as second
+      const result = await saveDailyNotes(notesForSaving.user_id, notesForSaving);
+      
       return result;
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['dailyNotes'] });
-      queryClient.invalidateQueries({ queryKey: ['dailyNotesByUser', data.user_id] });
-      queryClient.setQueryData(['dailyNote', data.id], data);
+    onSuccess: (data, variables) => {
+      
+      // Completely invalidate all related caches to ensure fresh data
+      queryClient.invalidateQueries({ queryKey: queryKeys.dailyNotes.all, refetchType: 'all' });
+      
+      if (variables.user_id) {
+        queryClient.invalidateQueries({ 
+          queryKey: queryKeys.dailyNotes.byUser(variables.user_id as string),
+          refetchType: 'all'
+        });
+        queryClient.invalidateQueries({ 
+          queryKey: ['latestDailyNote', variables.user_id as string],
+          refetchType: 'all'
+        });
+      }
+      
+      queryClient.invalidateQueries({ 
+        queryKey: queryKeys.dailyNotes.byId(variables.id),
+        refetchType: 'all'
+      });
+      
+      // Force immediate update of the cached data
+      queryClient.setQueryData(
+        queryKeys.dailyNotes.byId(variables.id),
+        data
+      );
+      
+      // Force immediate update of latest note cache if it matches the updated note
+      if (variables.user_id) {
+        const currentLatestNote = queryClient.getQueryData(['latestDailyNote', variables.user_id as string]);
+        if (currentLatestNote && (currentLatestNote as any).id === variables.id) {
+          queryClient.setQueryData(
+            ['latestDailyNote', variables.user_id as string],
+            data
+          );
+        }
+      }
     },
   });
 };

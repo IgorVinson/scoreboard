@@ -240,6 +240,7 @@ export const saveDailyNotes = async (userId: string, notes: { id?: string, today
   // If we have an ID, update the existing note
   if (notes.id) {
     console.log('Updating existing notes with ID:', notes.id);
+    console.log('LOGGING TODAY NOTES BEFORE UPDATE:', notes.today_notes);
     const { data, error } = await supabase
       .from('daily_notes')
       .update({
