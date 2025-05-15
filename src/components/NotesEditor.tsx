@@ -265,8 +265,6 @@ export function NotesEditor({
   const lastContentRef = useRef(content);
   const initializedRef = useRef(false);
 
-  console.log('CONTENT', content)
-
   // Improve update handling for performance
   const handleUpdate = ({ editor }: { editor: any }) => {
     // Skip if this is an update from our own setContent
