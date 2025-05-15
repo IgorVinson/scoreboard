@@ -166,14 +166,48 @@ const CustomHeadingExit = Extension.create({
 });
 
 // Create our own TaskItem extension that extends the default one
+// Create our own TaskItem extension that extends the default one
 const CustomTaskItem = TaskItem.extend({
+  addAttributes() {
+    return {
+      checked: {
+        default: false,
+        keepOnSplit: false,
+        parseHTML: element => {
+          // Handle both 'data-checked' attribute formats from database
+          const dataChecked = element.getAttribute('data-checked');
+          return dataChecked === 'true' || dataChecked === '';
+        },
+        renderHTML: attributes => ({
+          'data-checked': attributes.checked ? 'true' : 'false',
+        }),
+      },
+    }
+  },
+  
+  parseHTML() {
+    return [
+      {
+        tag: `li[data-type="taskItem"]`,
+        priority: 51,
+      },
+      {
+        tag: 'li[data-checked]',
+        priority: 52,
+      },
+    ]
+  },
+  
   renderHTML({ node, HTMLAttributes }) {
     const { checked } = node.attrs;
 
     // Merge our custom attributes with the original ones
     const attributes = mergeAttributes(
       HTMLAttributes,
-      checked ? { 'data-checked': 'true' } : {}
+      {
+        'data-type': 'taskItem',
+        'data-checked': checked ? 'true' : 'false',
+      }
     );
 
     return [
@@ -230,6 +264,8 @@ export function NotesEditor({
   const isUpdatingRef = useRef(false);
   const lastContentRef = useRef(content);
   const initializedRef = useRef(false);
+
+  console.log('CONTENT', content)
 
   // Improve update handling for performance
   const handleUpdate = ({ editor }: { editor: any }) => {
@@ -298,6 +334,7 @@ export function NotesEditor({
     CustomTaskItem.configure({
       nested: true,
     }),
+    // TaskItem,
     CustomHeadingExit,
     CustomEmptyDocHandler, // Add our custom handler for empty document
   ];
